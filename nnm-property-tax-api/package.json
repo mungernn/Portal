@@ -1,0 +1,59 @@
+{
+  "name": "nnm-property-tax-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NNM Property Tax REST API — Node.js/Express/TypeScript/PostgreSQL migration of the Google Apps Script Property Tax Counter system.",
+  "main": "dist/src/server.js",
+  "overrides": {
+    "uuid": "^11.1.1"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/server.js",
+    "migrate": "tsx scripts/run-migrations.ts",
+    "migrate:sheets": "tsx scripts/migrate-from-sheets.ts",
+    "migrate:csv": "tsx scripts/migrate-from-csv.ts",
+    "create-admin": "tsx scripts/create-admin.ts",
+    "import-stalls": "tsx scripts/import-stalls.ts",
+    "reset-admin-password": "tsx scripts/reset-admin-password.ts",
+    "reset-operator-password": "tsx scripts/reset-operator-password.ts",
+    "set-admin-email": "tsx scripts/set-admin-email.ts",
+    "set-operator-email": "tsx scripts/set-operator-email.ts",
+    "lint": "eslint . --ext .ts"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.1",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "nodemailer": "^9.0.5",
+    "pg": "^8.13.1",
+    "pino": "^9.5.0",
+    "pino-http": "^10.3.0",
+    "qrcode.react": "^4.2.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.9.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/pg": "^8.11.10",
+    "csv-parse": "^5.6.0",
+    "eslint": "^9.14.0",
+    "googleapis": "^144.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

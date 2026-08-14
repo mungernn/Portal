@@ -1,0 +1,88 @@
+import { getOperatorToken } from "./auth";
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_PROPERTY_TAX_API_URL || "http://localhost:4000/api/v1";
+
+export interface PaymentInput {
+  paymentMode: string;
+  counter?: string;
+  /** Required — references the demand notice being paid; amount is frozen server-side from that notice. */
+  demandNo: string;
+}
+
+export interface ArrearStagePaidView {
+  period: string;
+  years: number;
+  annualCharge: string;
+  amount: string;
+}
+
+export interface FloorBreakdownEntry {
+  floor: string;
+  demolished?: boolean;
+  error?: string | null;
+  area?: number;
+  constType?: string;
+  usage?: string;
+  occupancy?: string;
+  rate?: number;
+  floorArv?: string;
+  floorTax?: string;
+}
+
+export interface ReceiptData {
+  receiptNo: string;
+  formattedReceiptNo: string;
+  date: string;
+  paymentMode: string;
+  amountReceived: string;
+  amountInWords: string;
+  collectedBy: string;
+  demandNo: string;
+  verificationUrl: string;
+  arrearStagesPaid: ArrearStagePaidView[];
+  property: Record<string, string | number | boolean | null>;
+  floors: unknown[];
+  taxCalc: {
+    arv: string;
+    currentTax: string;
+    rebate: string;
+    breakdown: FloorBreakdownEntry[];
+    vacant: { taxableArea: string; rate: number; tax: string };
+  };
+  totals: {
+    yearWiseArrears: string;
+    currentTax: string;
+    rebate: string;
+    currentTaxLateFee: string;
+    currentTaxRebate: string;
+    currentTotal: string;
+    grandTotal: string;
+  };
+}
+
+export interface PaymentError {
+  message: string;
+  details?: Record<string, string[]>;
+}
+
+export async function submitPayment(holdingNo: string, input: PaymentInput): Promise<ReceiptData> {
+  const token = getOperatorToken();
+  if (!token) throw { message: "Not logged in — please log in again." } as PaymentError;
+
+  const res = await fetch(`${API_BASE_URL}/properties/${encodeURIComponent(holdingNo)}/payments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw { message: body.error || "Payment failed", details: body.details } as PaymentError;
+  }
+
+  return res.json();
+}

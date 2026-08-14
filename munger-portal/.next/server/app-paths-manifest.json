@@ -1,0 +1,8 @@
+{
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/operator/dashboard/page": "app/operator/dashboard/page.js",
+  "/operator/property-tax/page": "app/operator/property-tax/page.js",
+  "/operator/shops-hub/page": "app/operator/shops-hub/page.js",
+  "/operator/shops/new-entry/page": "app/operator/shops/new-entry/page.js",
+  "/operator/shops/page": "app/operator/shops/page.js"
+}

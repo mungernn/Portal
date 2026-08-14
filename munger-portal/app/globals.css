@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-paper: #f6f3ea;
+  --color-paper-dim: #ece7d8;
+  --color-card: #ffffff;
+  --color-ink: #1c2230;
+  --color-ink-soft: #4a5164;
+  --color-line: #d9d3c1;
+
+  --color-nnm-blue: #1a4d8f;
+  --color-nnm-blue-dark: #123863;
+  --color-nnm-gold: #c9a227;
+  --color-ganga-teal: #2f7a6b;
+
+  --font-display: var(--font-fraunces), Georgia, serif;
+  --font-body: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+/* perforated "ticket" edge used on service cards */
+.perforation {
+  position: relative;
+  border-top: 1.5px dashed var(--color-line);
+}
+.perforation::before,
+.perforation::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  background: var(--color-paper-dim);
+}
+.perforation::before {
+  left: -9px;
+}
+.perforation::after {
+  right: -9px;
+}
+
+/* torn-ticket strip under the hero */
+.tear {
+  height: 34px;
+  background: var(--color-paper);
+  -webkit-mask-image: radial-gradient(circle at 14px 0, transparent 13px, #000 13.5px);
+  -webkit-mask-size: 28px 34px;
+  -webkit-mask-repeat: repeat-x;
+  -webkit-mask-position: 0 -17px;
+  mask-image: radial-gradient(circle at 14px 0, transparent 13px, #000 13.5px);
+  mask-size: 28px 34px;
+  mask-repeat: repeat-x;
+  mask-position: 0 -17px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

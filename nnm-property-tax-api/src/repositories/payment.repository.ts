@@ -1,0 +1,79 @@
+import { pool } from "../config/db";
+import { RECEIPT_START_NO } from "../constants/taxRates";
+
+export interface TransactionRow {
+  receipt_no: string;
+  holding_no: string;
+  txn_date: Date;
+  payment_mode: string;
+  amount_received: string;
+  collected_by: string;
+  counter: string | null;
+  demand_no: string | null;
+  arrear_periods_paid: string | null;
+}
+
+export const paymentRepository = {
+  /** Port of getNextReceiptNo_() — auto-increments off the highest numeric receipt_no on file. */
+  async getNextReceiptNo(): Promise<number> {
+    const { rows } = await pool.query<{ max: string | null }>(
+      `SELECT max(receipt_no::bigint) AS max FROM transactions WHERE receipt_no ~ '^[0-9]+$'`,
+    );
+    const lastNum = rows[0]?.max ? parseInt(rows[0].max, 10) : NaN;
+    return Number.isNaN(lastNum) ? RECEIPT_START_NO : lastNum + 1;
+  },
+
+  async insertTransaction(row: {
+    receiptNo: string;
+    holdingNo: string;
+    paymentMode: string;
+    amountReceived: number;
+    collectedBy: string;
+    counter: string | null;
+    demandNo: string | null;
+    arrearPeriodsPaid: string | null;
+  }): Promise<void> {
+    await pool.query(
+      `INSERT INTO transactions (
+        receipt_no, holding_no, txn_date, payment_mode, amount_received,
+        collected_by, counter, demand_no, arrear_periods_paid
+      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8)`,
+      [
+        row.receiptNo,
+        row.holdingNo,
+        row.paymentMode,
+        row.amountReceived,
+        row.collectedBy,
+        row.counter,
+        row.demandNo,
+        row.arrearPeriodsPaid,
+      ],
+    );
+  },
+
+  async updateTaxPaidTillYear(holdingNo: string, newYear: string): Promise<void> {
+    await pool.query(`UPDATE properties SET tax_paid_till_year = $2 WHERE holding_no = $1`, [holdingNo, newYear]);
+  },
+
+  async findByReceiptNo(receiptNo: string): Promise<TransactionRow | null> {
+    const { rows } = await pool.query<TransactionRow>(`SELECT * FROM transactions WHERE receipt_no = $1 LIMIT 1`, [
+      receiptNo,
+    ]);
+    return rows[0] ?? null;
+  },
+
+  /** Every payment for this holding, most recent first — for the read-only document history view. */
+  async findAllForHolding(holdingNo: string): Promise<TransactionRow[]> {
+    const { rows } = await pool.query<TransactionRow>(
+      `SELECT * FROM transactions WHERE holding_no = $1 ORDER BY txn_date DESC`,
+      [holdingNo],
+    );
+    return rows;
+  },
+
+  /** Every transaction on file, most recent first — used by the admin data export. */
+  async findAll(): Promise<TransactionRow[]> {
+    const { rows } = await pool.query<TransactionRow>(`SELECT * FROM transactions ORDER BY txn_date DESC`);
+    return rows;
+  },
+};
