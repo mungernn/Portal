@@ -183,7 +183,7 @@ export default function OperatorPropertyTaxPage() {
             <p className="mb-6 text-sm text-slate-500">Search a holding to edit it, or start a new entry below.</p>
 
             <div className="mb-6">
-              <OperatorPropertySearch onSearch={handleSearch} loading={searching} />
+              <OperatorPropertySearch onSearch={handleSearch} onNew={handleChooseKnownNumber} loading={searching} />
             </div>
 
             {notFoundHolding && (

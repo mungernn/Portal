@@ -91,6 +91,34 @@ export const tradeLicenseApplicationRepository = {
     return rows[0] ?? null;
   },
 
+ /**
+   * Paginated application list, most recent first, optionally filtered
+   * to a single status — for the dashboard overview widget. Used with
+   * no filter for the "applications received" tab, and status='approved'
+   * for the "licenses issued" tab.
+   */
+  async listPaginated(
+    page: number,
+    pageSize: number,
+    status?: TradeLicenseApplicationStatus,
+  ): Promise<{ rows: TradeLicenseApplicationRow[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+    const where = status ? `WHERE status = $3` : "";
+    const params = status ? [pageSize, offset, status] : [pageSize, offset];
+    const countParams = status ? [status] : [];
+    const [{ rows }, countResult] = await Promise.all([
+      pool.query<TradeLicenseApplicationRow>(
+        `SELECT * FROM trade_license_applications ${where} ORDER BY requested_at DESC LIMIT $1 OFFSET $2`,
+        params,
+      ),
+      pool.query<{ count: string }>(
+        `SELECT COUNT(*) AS count FROM trade_license_applications ${status ? "WHERE status = $1" : ""}`,
+        countParams,
+      ),
+    ]);
+    return { rows, total: parseInt(countResult.rows[0]?.count ?? "0", 10) };
+  },
+
 /** Operator-facing lookup by the citizen-visible application number, not the internal id. */
   async findByApplicationNumber(applicationNumber: string): Promise<TradeLicenseApplicationRow | null> {
     const { rows } = await pool.query<TradeLicenseApplicationRow>(

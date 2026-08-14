@@ -43,6 +43,8 @@ export interface CreateShopInput {
   location: string;
   ward?: string | null;
   areaSqft?: number | null;
+  totalAreaSqft?: number | null;
+  builtUpAreaSqft?: number | null;
 }
 
 export async function createShop(input: CreateShopInput): Promise<{ shopNo: string }> {
@@ -98,12 +100,16 @@ export interface AgreementInput {
   agreementRent?: number | null;
   demandRegisterRent?: number | null;
   baseMonthlyRent: number;
-  escalationPct?: number;
-  escalationIntervalYears?: number;
+  rentPre2019?: number | null;
+  rent201920?: number | null;
+  rent202021Onwards?: number | null;
   agreementStartDate?: string | null;
   agreementEndDate?: string | null;
   securityDeposit?: number;
-  lateFeePctPerMonth?: number | null;
+  miscCost?: number;
+  miscCostReason?: string | null;
+  miscRebate?: number;
+  miscRebateReason?: string | null;
   jointHolderName?: string | null;
   jointHolderRelation?: string | null;
   jointHolderIdProofNumber?: string | null;
@@ -177,6 +183,10 @@ export interface ShopRentPaymentResult {
   holderName: string;
   baseRentAmount: string;
   penaltyAmount: string;
+  miscCostAmount: string;
+  miscCostReason: string | null;
+  miscRebateAmount: string;
+  miscRebateReason: string | null;
   collectedBy: string;
   verificationUrl: string;
 }
@@ -189,6 +199,10 @@ export interface PrintableShopDemand {
   periodEndMonth: string;
   baseRentAmount: string;
   penaltyAmount: string;
+  miscCostAmount: string;
+  miscCostReason: string | null;
+  miscRebateAmount: string;
+  miscRebateReason: string | null;
   totalAmountDemanded: string;
   settled: boolean;
   shopNo: string;
@@ -222,12 +236,18 @@ export interface PrintableShopAgreement {
   idProofNumber: string | null;
   businessName: string | null;
   baseMonthlyRent: string;
-  escalationPct: string;
-  escalationIntervalYears: number;
+  currentEffectiveMonthlyRent: number;
+  rentPre2019: string | null;
+  rent201920: string | null;
+  rent202021Onwards: string | null;
+  rentPeriodsInconsistent: boolean;
   agreementStartDate: string | null;
   agreementEndDate: string | null;
   securityDeposit: string;
-  lateFeePctPerMonth: string | null;
+  miscCost: string;
+  miscCostReason: string | null;
+  miscRebate: string;
+  miscRebateReason: string | null;
   jointHolderName: string | null;
   jointHolderRelation: string | null;
   status: string;

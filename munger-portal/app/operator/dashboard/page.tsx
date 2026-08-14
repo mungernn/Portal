@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Store, Building2, ShoppingBag, Award } from "lucide-react";
+import { Store, Building2, ShoppingBag, Award } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { OperatorTaskCard } from "@/components/operator-task-card";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";

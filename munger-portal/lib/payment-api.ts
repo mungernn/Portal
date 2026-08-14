@@ -54,6 +54,8 @@ export interface ReceiptData {
     yearWiseArrears: string;
     currentTax: string;
     rebate: string;
+    penalty: string;
+    outstandingDemand: string;
     currentTaxLateFee: string;
     currentTaxRebate: string;
     currentTotal: string;
