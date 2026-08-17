@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Store, Building2, ShoppingBag, Award } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { OperatorTaskCard } from "@/components/operator-task-card";
@@ -42,37 +41,32 @@ export default function OperatorDashboardPage() {
         />
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Link href="/operator/property-tax">
-            <OperatorTaskCard
-              icon={Building2}
-              title="Property Tax"
-              description="Search, create, or edit a holding — generate demand notices and collect payments."
-            />
-          </Link>
+          <OperatorTaskCard
+            href="/operator/property-tax"
+            icon={Building2}
+            title="Property Tax"
+            description="Search, create, or edit a holding — generate demand notices and collect payments."
+          />
 
-          <Link href="/operator/shops-hub">
-            <OperatorTaskCard
-              icon={Store}
-              title="Nagar Nigam Shop / Stall"
-              description="Rent collection, agreements, and new shop entries."
-            />
-          </Link>
+          <OperatorTaskCard
+            href="/operator/shops-hub"
+            icon={Store}
+            title="Nagar Nigam Shop / Stall"
+            description="Rent collection, agreements, and new shop entries."
+          />
 
-          <Link href="/operator/trade-license">
-            <OperatorTaskCard
-              icon={Award}
-              title="Trade License Application"
-              description="Search an application, tick off the document checklist, or record an offline application."
-            />
-          </Link>
+          <OperatorTaskCard
+            href="/operator/trade-license"
+            icon={Award}
+            title="Trade License Application"
+            description="Search an application, tick off the document checklist, or record an offline application."
+          />
 
-          <div className="opacity-50">
-            <OperatorTaskCard
-              icon={ShoppingBag}
-              title="Building Map Application"
-              description="Coming soon."
-            />
-          </div>
+          <OperatorTaskCard
+            icon={ShoppingBag}
+            title="Building Map Application"
+            description="Coming soon."
+          />
         </div>
       </main>
     </div>

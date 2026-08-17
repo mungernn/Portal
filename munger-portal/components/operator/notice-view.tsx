@@ -163,34 +163,35 @@ export function NoticeView({ notice, onClose }: { notice: DemandNoticeData; onCl
               </tr>
             ) : (
               calc.breakdown.map((row, i) =>
-              row.error ? (
-                <tr key={i}>
-                  <td colSpan={8} className="border border-slate-400 p-1.5 text-red-700">
-                    {row.floor}: {row.error}
-                  </td>
-                </tr>
-              ) : row.demolished ? (
-                <tr key={i} className="italic text-slate-400">
-                  <td className="border border-slate-400 p-1.5">{row.floor} (Demolished)</td>
-                  <td colSpan={4} className="border border-slate-400 p-1.5">
-                    Not part of current total — historical reference only
-                  </td>
-                  <td className="border border-slate-400 p-1.5 text-right">—</td>
-                  <td className="border border-slate-400 p-1.5 text-right">{row.floorArv || "N/A"}</td>
-                  <td className="border border-slate-400 p-1.5 text-right">{row.floorTax || "N/A"}</td>
-                </tr>
-              ) : (
-                <tr key={i}>
-                  <td className="border border-slate-400 p-1.5">{row.floor}</td>
-                  <td className="border border-slate-400 p-1.5">{row.area}</td>
-                  <td className="border border-slate-400 p-1.5">{row.constType}</td>
-                  <td className="border border-slate-400 p-1.5">{row.usage}</td>
-                  <td className="border border-slate-400 p-1.5">{row.occupancy}</td>
-                  <td className="border border-slate-400 p-1.5 text-right">{row.rate}</td>
-                  <td className="border border-slate-400 p-1.5 text-right">{row.floorArv}</td>
-                  <td className="border border-slate-400 p-1.5 text-right">{row.floorTax}</td>
-                </tr>
-              ),
+                row.error ? (
+                  <tr key={i}>
+                    <td colSpan={8} className="border border-slate-400 p-1.5 text-red-700">
+                      {row.floor}: {row.error}
+                    </td>
+                  </tr>
+                ) : row.demolished ? (
+                  <tr key={i} className="italic text-slate-400">
+                    <td className="border border-slate-400 p-1.5">{row.floor} (Demolished)</td>
+                    <td colSpan={4} className="border border-slate-400 p-1.5">
+                      Not part of current total — historical reference only
+                    </td>
+                    <td className="border border-slate-400 p-1.5 text-right">—</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{row.floorArv || "N/A"}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{row.floorTax || "N/A"}</td>
+                  </tr>
+                ) : (
+                  <tr key={i}>
+                    <td className="border border-slate-400 p-1.5">{row.floor}</td>
+                    <td className="border border-slate-400 p-1.5">{row.area}</td>
+                    <td className="border border-slate-400 p-1.5">{row.constType}</td>
+                    <td className="border border-slate-400 p-1.5">{row.usage}</td>
+                    <td className="border border-slate-400 p-1.5">{row.occupancy}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{row.rate}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{row.floorArv}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{row.floorTax}</td>
+                  </tr>
+                ),
+              )
             )}
             <tr className={Number(calc.vacant.tax) <= 0 ? "text-slate-400" : ""}>
               <td className="border border-slate-400 p-1.5">Vacant Land</td>

@@ -10,6 +10,7 @@ import { adminAuthRouter } from "./adminAuth.routes";
 import { adminRouter } from "./admin.routes";
 import { getFormOptions } from "../controllers/formOptions.controller";
 import { dashboardSummaryRouter } from "./dashboardSummary.routes";
+import { attendanceRouter } from "./attendance.routes";
 
 export const apiRouter = Router();
 
@@ -27,9 +28,11 @@ apiRouter.use("/verify", verifyRouter);
 apiRouter.use("/payments", paymentsRouter);
 
 apiRouter.use("/dashboard-summary", dashboardSummaryRouter);
+// Fully separate module - its own auth, its own tables, nothing shared with the property tax / shop / trade license system above.
+apiRouter.use("/attendance", attendanceRouter);
 
 // /admin/auth (public login) MUST be mounted before /admin (which
-// requires an admin session for everything under it) — Express tries
+// requires an admin session for everything under it) - Express tries
 // mounts in registration order, so the more specific path needs to win.
 apiRouter.use("/admin/auth", adminAuthRouter);
 apiRouter.use("/admin", adminRouter);

@@ -18,7 +18,14 @@ export function createApp() {
       methods: ["GET", "POST", "PATCH"],
     }),
   );
-  app.use(express.json({ limit: "1mb" }));
+  // 10mb, not the more typical 1mb - the attendance module's daily
+  // group photo upload sends a base64-encoded JPEG/PNG in the JSON
+  // body (up to 8MB raw, ~11MB as base64). Raising this globally rather
+  // than scoping it to one route, since this is an internal staff tool
+  // behind auth and the existing rate limiter, not a high-traffic public
+  // API - the added complexity of per-route body-parser limits isn't
+  // worth it here.
+  app.use(express.json({ limit: "10mb" }));
   app.use(
     pinoHttp({
       autoLogging: true,

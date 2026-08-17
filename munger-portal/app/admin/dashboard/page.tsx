@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
 import { useAdminGuard } from "@/lib/use-admin-guard";
@@ -191,6 +191,19 @@ export default function AdminDashboardPage() {
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">All Property Changes</h3>
               <p className="text-sm text-slate-500">Every mutation request, done and in process, grouped by category.</p>
+            </Link>
+          )}
+
+          {admin.role === "commissioner" && (
+            <Link
+              href="/admin/attendance-report"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Download className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Field Staff Attendance Report</h3>
+              <p className="text-sm text-slate-500">Download the monthly attendance CSV for sanitation staff and drivers.</p>
             </Link>
           )}
         </div>

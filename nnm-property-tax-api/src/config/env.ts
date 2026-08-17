@@ -18,6 +18,10 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().min(1, "SMTP_USER is required to send password reset emails"),
   SMTP_PASSWORD: z.string().min(1, "SMTP_PASSWORD is required to send password reset emails"),
+  // Where daily attendance group photos are written. Defaults to a local
+  // folder for development; in production point this at the SDC's NFS
+  // mount (e.g. /image-upload) so photos survive an App server redeploy.
+  PHOTO_UPLOAD_DIR: z.string().default("./uploads/attendance-photos"),
 });
 
 const parsed = envSchema.safeParse(process.env);

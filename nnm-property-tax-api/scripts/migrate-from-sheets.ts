@@ -302,7 +302,6 @@ async function migrateOperators() {
 
   await pool.query("TRUNCATE operators");
 
-
   for (const r of rows) {
     const tempPassword: string = crypto.randomBytes(9).toString("base64url");
     const passwordHash: string = await bcrypt.hash(tempPassword, 12);

@@ -389,3 +389,44 @@ export const fetchDashboardTradeLicenseApplicationsAdmin = (page: number, pageSi
   fetchDashboardListAdmin<TradeLicenseApplicationListItem>("trade-license-applications", page, pageSize);
 export const fetchDashboardTradeLicensesIssuedAdmin = (page: number, pageSize: number) =>
   fetchDashboardListAdmin<TradeLicenseIssuedListItem>("trade-licenses-issued", page, pageSize);
+// ---------------------------------------------------------------------------
+// Monthly attendance report download - Commissioner only. A deliberate,
+// narrow cross-system link: the attendance module is otherwise fully
+// separate, but the Commissioner's existing admin login can also pull
+// this report directly (see requireAttendanceReportAccess on the backend).
+// ---------------------------------------------------------------------------
+
+async function downloadAttendanceReportAdmin(path: string, filenameFallback: string): Promise<void> {
+  const token = getAdminToken();
+  if (!token) throw new Error("Not logged in - please log in again.");
+  const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Download failed.");
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="(.+)"/);
+  a.download = match ? match[1]! : filenameFallback;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function downloadMonthlyStaffAttendanceReportAdmin(year: number, month: number): Promise<void> {
+  await downloadAttendanceReportAdmin(
+    `/attendance/reports/monthly/staff.csv?year=${year}&month=${month}`,
+    `staff-attendance-${year}-${String(month).padStart(2, "0")}.csv`,
+  );
+}
+
+export async function downloadMonthlyDriverAttendanceReportAdmin(year: number, month: number): Promise<void> {
+  await downloadAttendanceReportAdmin(
+    `/attendance/reports/monthly/drivers.csv?year=${year}&month=${month}`,
+    `driver-attendance-${year}-${String(month).padStart(2, "0")}.csv`,
+  );
+}
