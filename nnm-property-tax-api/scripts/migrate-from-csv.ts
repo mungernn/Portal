@@ -20,6 +20,8 @@
 import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import bcrypt from "bcrypt";
 import { parse } from "csv-parse/sync";
 import { Pool } from "pg";
 
@@ -340,10 +342,6 @@ async function migrateOperators() {
   );
 
   await pool.query("TRUNCATE operators");
-
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const bcrypt = require("bcrypt");
-  const crypto = require("node:crypto");
 
   for (const r of rows) {
     const tempPassword: string = crypto.randomBytes(9).toString("base64url");

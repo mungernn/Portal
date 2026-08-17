@@ -20,6 +20,8 @@
  * live writes coming from the new Express API, or you'll lose them.
  */
 import "dotenv/config";
+import crypto from "node:crypto";
+import bcrypt from "bcrypt";
 import { google } from "googleapis";
 import { Pool } from "pg";
 
@@ -300,9 +302,6 @@ async function migrateOperators() {
 
   await pool.query("TRUNCATE operators");
 
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const bcrypt = require("bcrypt");
-  const crypto = require("node:crypto");
 
   for (const r of rows) {
     const tempPassword: string = crypto.randomBytes(9).toString("base64url");

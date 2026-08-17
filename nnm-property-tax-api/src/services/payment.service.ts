@@ -192,7 +192,12 @@ export async function submitPayment(
     demandNo: input.demandNo,
     verificationUrl: buildVerificationUrl("receipt", receiptNo),
     arrearStagesPaid: clearance.stages,
-    property: property as unknown as Record<string, unknown>,
+    // Override the stored (possibly stale) solid_waste_charge column with
+    // the value just recomputed above — same "never trusted from stored
+    // columns" principle as the tax figures a few lines up. Was previously
+    // computed and silently discarded, leaving the receipt to display
+    // whatever was last written to the property row at save time.
+    property: { ...property, solid_waste_charge: solidWasteCharge.toFixed(2) } as unknown as Record<string, unknown>,
     floors,
     taxCalc: calc,
     totals: {

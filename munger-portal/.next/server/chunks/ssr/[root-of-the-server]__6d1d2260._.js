@@ -269,6 +269,20 @@ __turbopack_context__.s([
     ()=>fetchChangeRequestDetail,
     "fetchChangeRequests",
     ()=>fetchChangeRequests,
+    "fetchDashboardHoldingsAdmin",
+    ()=>fetchDashboardHoldingsAdmin,
+    "fetchDashboardPropertyChangesAdmin",
+    ()=>fetchDashboardPropertyChangesAdmin,
+    "fetchDashboardShopApplicationsAdmin",
+    ()=>fetchDashboardShopApplicationsAdmin,
+    "fetchDashboardShopsAdmin",
+    ()=>fetchDashboardShopsAdmin,
+    "fetchDashboardSummaryAdmin",
+    ()=>fetchDashboardSummaryAdmin,
+    "fetchDashboardTradeLicenseApplicationsAdmin",
+    ()=>fetchDashboardTradeLicenseApplicationsAdmin,
+    "fetchDashboardTradeLicensesIssuedAdmin",
+    ()=>fetchDashboardTradeLicensesIssuedAdmin,
     "fetchDemandNoticeHistoryAdmin",
     ()=>fetchDemandNoticeHistoryAdmin,
     "fetchDemandNoticeReprintAdmin",
@@ -441,6 +455,26 @@ async function fetchReceiptReprintAdmin(receiptNo) {
     if (!res.ok) throw new Error("Could not load this receipt.");
     return res.json();
 }
+async function fetchDashboardSummaryAdmin() {
+    const res = await fetch(`${API_BASE_URL}/dashboard-summary`, {
+        headers: authHeaders()
+    });
+    if (!res.ok) throw new Error("Could not load the dashboard summary.");
+    return res.json();
+}
+async function fetchDashboardListAdmin(path, page, pageSize) {
+    const res = await fetch(`${API_BASE_URL}/dashboard-summary/${path}?page=${page}&pageSize=${pageSize}`, {
+        headers: authHeaders()
+    });
+    if (!res.ok) throw new Error("Could not load this list.");
+    return res.json();
+}
+const fetchDashboardHoldingsAdmin = (page, pageSize)=>fetchDashboardListAdmin("holdings", page, pageSize);
+const fetchDashboardPropertyChangesAdmin = (page, pageSize)=>fetchDashboardListAdmin("property-changes", page, pageSize);
+const fetchDashboardShopsAdmin = (page, pageSize)=>fetchDashboardListAdmin("shops", page, pageSize);
+const fetchDashboardShopApplicationsAdmin = (page, pageSize)=>fetchDashboardListAdmin("shop-applications", page, pageSize);
+const fetchDashboardTradeLicenseApplicationsAdmin = (page, pageSize)=>fetchDashboardListAdmin("trade-license-applications", page, pageSize);
+const fetchDashboardTradeLicensesIssuedAdmin = (page, pageSize)=>fetchDashboardListAdmin("trade-licenses-issued", page, pageSize);
 }),
 "[project]/app/admin/demand-notices/page.tsx [app-ssr] (ecmascript)", ((__turbopack_context__) => {
 "use strict";

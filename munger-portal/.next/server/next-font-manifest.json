@@ -1,6 +1,60 @@
 {
   "app": {
+    "[project]/app/admin/dashboard/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/admin/demand-notices/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/admin/document-archive/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/admin/trade-license-dashboard/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/operator/dashboard/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
     "[project]/app/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/portal-login/admin/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/portal-login/operator/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/portal-login/page": [
+      "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
+      "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
+      "static/media/effe91970fc4db64-s.p.19510058.woff2",
+      "static/media/23b7a97ae3b5c134-s.p.2902b61f.woff2"
+    ],
+    "[project]/app/property-tax/page": [
       "static/media/03bda585a99c6450-s.p.ad37b9d9.woff2",
       "static/media/fa0520225c6f3d07-s.p.d28ba1c8.woff2",
       "static/media/effe91970fc4db64-s.p.19510058.woff2",

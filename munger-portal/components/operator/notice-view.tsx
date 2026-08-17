@@ -147,7 +147,22 @@ export function NoticeView({ notice, onClose }: { notice: DemandNoticeData; onCl
             </tr>
           </thead>
           <tbody>
-            {calc.breakdown.map((row, i) =>
+            {Number(calc.vacant.groundFloorBuiltArea) > Number(p.area_sqft) ? (
+              // Reverse-solved floor area (from a known ARV, for a partially-known
+              // property) came out larger than the plot itself — physically
+              // impossible to show as a per-floor breakdown without looking like
+              // an error to whoever reads the notice. Same total ARV/Tax either
+              // way (unaffected below); just collapsed to one line here.
+              <tr>
+                <td className="border border-slate-400 p-1.5" colSpan={2}>
+                  <b>Total Built-up Area</b>
+                </td>
+                <td className="border border-slate-400 p-1.5" colSpan={6}>
+                  {calc.vacant.groundFloorBuiltArea} sqft
+                </td>
+              </tr>
+            ) : (
+              calc.breakdown.map((row, i) =>
               row.error ? (
                 <tr key={i}>
                   <td colSpan={8} className="border border-slate-400 p-1.5 text-red-700">

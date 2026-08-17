@@ -6,7 +6,6 @@ export function notFoundHandler(_req: Request, res: Response): void {
   res.status(404).json({ error: "Not found" });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction): void {
   if (err instanceof ApiError) {
     res.status(err.statusCode).json({ error: err.message, details: err.details });

@@ -1,3 +1,12 @@
 {
-  "/page": "app/page.js"
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
+  "/admin/demand-notices/page": "app/admin/demand-notices/page.js",
+  "/admin/document-archive/page": "app/admin/document-archive/page.js",
+  "/admin/trade-license-dashboard/page": "app/admin/trade-license-dashboard/page.js",
+  "/operator/dashboard/page": "app/operator/dashboard/page.js",
+  "/page": "app/page.js",
+  "/portal-login/admin/page": "app/portal-login/admin/page.js",
+  "/portal-login/operator/page": "app/portal-login/operator/page.js",
+  "/portal-login/page": "app/portal-login/page.js",
+  "/property-tax/page": "app/property-tax/page.js"
 }

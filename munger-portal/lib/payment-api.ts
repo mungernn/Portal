@@ -48,7 +48,14 @@ export interface ReceiptData {
     currentTax: string;
     rebate: string;
     breakdown: FloorBreakdownEntry[];
-    vacant: { taxableArea: string; rate: number; tax: string };
+   vacant: {
+      declaredArea: string;
+      taxableArea: string;
+      groundFloorBuiltArea: string;
+      totalPlotArea: string;
+      rate: number;
+      tax: string;
+    };
   };
   totals: {
     yearWiseArrears: string;
