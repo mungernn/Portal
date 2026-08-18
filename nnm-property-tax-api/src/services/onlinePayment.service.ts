@@ -30,6 +30,12 @@ export async function initiateOnlinePayment(
   amount: number,
   taxCollectorCode: string | null,
 ): Promise<InitiateResult> {
+  if (!env.ONLINE_PAYMENT_ENABLED) {
+    throw ApiError.badRequest(
+      "Online payment is temporarily unavailable. Please pay at the Nagar Nigam office counter.",
+    );
+  }
+
   if (!amount || amount <= 0) {
     throw ApiError.badRequest("Amount must be greater than zero.");
   }

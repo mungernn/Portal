@@ -14,6 +14,13 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("8h"),
   FRONTEND_URL: z.string().url().default("http://localhost:3000"),
   ICICI_MERCHANT_ID: z.string().default(""),
+  // Kill switch for the citizen-facing online payment gateway - default
+  // false. Set to "true" once the ICICI integration is properly signed
+  // and live on whichever server actually hosts this (see the warning
+  // in onlinePayment.service.ts about the placeholder redirect). Kept
+  // separate from ICICI_MERCHANT_ID so the merchant ID can stay
+  // configured without the button being live.
+  ONLINE_PAYMENT_ENABLED: z.coerce.boolean().default(false),
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().min(1, "SMTP_USER is required to send password reset emails"),

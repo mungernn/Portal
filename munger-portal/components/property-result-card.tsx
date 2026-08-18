@@ -6,6 +6,13 @@ import { formatINR, totalPayable, type PropertyRecord } from "@/lib/property-tax
 import { initiateOnlinePayment } from "@/lib/online-payment";
 import { TaxCollectorCodeInput } from "@/components/tax-collector-code-input";
 
+// Mirrors the backend's ONLINE_PAYMENT_ENABLED kill switch (see
+// nnm-property-tax-api/src/config/env.ts) - kept in sync manually since
+// this is a separate deployment with its own env vars. Even if this
+// somehow drifted out of sync, the backend check is the one that
+// actually matters; this just avoids showing a button that would fail.
+const ONLINE_PAYMENT_ENABLED = process.env.NEXT_PUBLIC_ONLINE_PAYMENT_ENABLED === "true";
+
 export interface PropertyResultCardProps {
   record: PropertyRecord;
 }
@@ -118,7 +125,7 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
         </div>
 
         <div className="flex flex-col items-end gap-3">
-          {!nothingDue && (
+          {!nothingDue && ONLINE_PAYMENT_ENABLED && (
             <div className="w-full max-w-[220px]">
               <TaxCollectorCodeInput
                 value={taxCollectorCode}
@@ -132,6 +139,10 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
             <span className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-6 py-2.5 text-sm font-semibold text-green-800">
               <CheckCircle2 className="h-4 w-4" />
               No dues pending
+            </span>
+          ) : !ONLINE_PAYMENT_ENABLED ? (
+            <span className="max-w-xs rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-right text-sm text-amber-800">
+              Online payment is temporarily unavailable. Please pay at the Nagar Nigam office counter.
             </span>
           ) : (
             <button
