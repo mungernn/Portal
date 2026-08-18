@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ShieldCheck, Users } from "lucide-react";
+import { ShieldCheck, Users, ClipboardCheck } from "lucide-react";
 import { PortalBrandingHeader } from "@/components/portal-branding-header";
 import { PortalRoleCard } from "@/components/portal-role-card";
 
@@ -22,7 +22,7 @@ export default function PortalLoginPage() {
           Select how you&apos;d like to sign in to the NNM staff portal.
         </p>
 
-        <div className="flex w-full max-w-3xl flex-col items-center justify-center gap-6 sm:flex-row sm:items-stretch">
+        <div className="flex w-full max-w-4xl flex-col items-center justify-center gap-6 sm:flex-row sm:items-stretch">
           <PortalRoleCard
             title="Administrator Login"
             description="Municipal administrators with full system access."
@@ -34,6 +34,12 @@ export default function PortalLoginPage() {
             description="Municipal staff and data entry operators."
             href="/portal-login/operator"
             icon={Users}
+          />
+          <PortalRoleCard
+            title="Field Staff Attendance"
+            description="Jamadar, Driver Supervisor, Sanitation Officer/Prabhari, or Attendance Admin."
+            href="/attendance-login"
+            icon={ClipboardCheck}
           />
         </div>
       </main>
