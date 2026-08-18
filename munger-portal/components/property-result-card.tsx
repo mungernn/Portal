@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { formatINR, totalPayable, type PropertyRecord } from "@/lib/property-tax";
 import { initiateOnlinePayment } from "@/lib/online-payment";
+import { TaxCollectorCodeInput } from "@/components/tax-collector-code-input";
 
 export interface PropertyResultCardProps {
   record: PropertyRecord;
@@ -25,12 +26,13 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
   const nothingDue = total <= 0;
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [taxCollectorCode, setTaxCollectorCode] = useState("");
 
   async function handlePay() {
     setPaying(true);
     setError(null);
     try {
-      const { redirectUrl } = await initiateOnlinePayment(record.holdingNumber, total);
+      const { redirectUrl } = await initiateOnlinePayment(record.holdingNumber, total, taxCollectorCode.trim() || undefined);
       window.location.href = redirectUrl;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start payment. Please try again.");
@@ -115,7 +117,17 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex flex-col items-end gap-3">
+          {!nothingDue && (
+            <div className="w-full max-w-[220px]">
+              <TaxCollectorCodeInput
+                value={taxCollectorCode}
+                onChange={setTaxCollectorCode}
+                inputClassName="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+                labelClassName="mb-1 block text-right font-mono text-[10.5px] uppercase tracking-[0.08em] text-ink-soft"
+              />
+            </div>
+          )}
           {nothingDue ? (
             <span className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-6 py-2.5 text-sm font-semibold text-green-800">
               <CheckCircle2 className="h-4 w-4" />

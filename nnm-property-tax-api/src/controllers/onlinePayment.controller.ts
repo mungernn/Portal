@@ -6,6 +6,7 @@ import { ApiError } from "../utils/ApiError";
 
 const initiateSchema = z.object({
   amount: z.coerce.number().positive(),
+  taxCollectorCode: z.string().trim().max(32).nullish(),
 });
 
 const holdingNoParamSchema = z.object({
@@ -22,7 +23,11 @@ export const postInitiateOnlinePayment = asyncHandler(async (req: Request, res: 
     throw ApiError.badRequest("Invalid amount", bodyParsed.error.flatten().fieldErrors);
   }
 
-  const result = await initiateOnlinePayment(paramsParsed.data.holdingNo, bodyParsed.data.amount);
+  const result = await initiateOnlinePayment(
+    paramsParsed.data.holdingNo,
+    bodyParsed.data.amount,
+    bodyParsed.data.taxCollectorCode ?? null,
+  );
   res.status(200).json(result);
 });
 

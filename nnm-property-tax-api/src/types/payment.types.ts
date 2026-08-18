@@ -1,8 +1,10 @@
 export interface PaymentInput {
   paymentMode: string;
   counter?: string | null;
-  /** Required — references the demand_notices row being settled. The amount charged comes from that notice, not from the client. */
+  /** Required - references the demand_notices row being settled. The amount charged comes from that notice, not from the client. */
   demandNo: string;
+  /** Optional - which tax collector (field agent) facilitated this payment, if any. Most payments aren't collector-mediated. */
+  taxCollectorCode?: string | null;
 }
 
 export interface ArrearStagePaidView {
@@ -22,6 +24,8 @@ export interface PaymentResult {
   collectedBy: string;
   demandNo: string;
   verificationUrl: string;
+  taxCollectorCode: string | null;
+  taxCollectorName: string | null;
   arrearStagesPaid: ArrearStagePaidView[];
   property: Record<string, unknown>;
   floors: unknown[];

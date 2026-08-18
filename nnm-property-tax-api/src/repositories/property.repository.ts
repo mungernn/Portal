@@ -64,6 +64,14 @@ export const propertyRepository = {
     return parseInt(rows[0]?.count ?? "0", 10);
   },
 
+  /** Every distinct ward value actually in use on file - there's no canonical ward list elsewhere, so this is the ward picker's data source (e.g. for tax collector ward-tagging). */
+  async listDistinctWards(): Promise<string[]> {
+    const { rows } = await pool.query<{ ward: string }>(
+      `SELECT DISTINCT ward FROM properties WHERE ward IS NOT NULL AND ward != '' ORDER BY ward ASC`,
+    );
+    return rows.map((r) => r.ward);
+  },
+
   /** Paginated holding list — for the dashboard overview widget's holdings tab. */
   async listPaginated(page: number, pageSize: number): Promise<{ rows: PropertyRow[]; total: number }> {
     const offset = (page - 1) * pageSize;

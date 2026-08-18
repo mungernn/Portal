@@ -8,6 +8,8 @@ export interface PaymentInput {
   counter?: string;
   /** Required — references the demand notice being paid; amount is frozen server-side from that notice. */
   demandNo: string;
+  /** Optional — which tax collector (field agent) facilitated this payment, if any. */
+  taxCollectorCode?: string | null;
 }
 
 export interface ArrearStagePaidView {
@@ -40,6 +42,8 @@ export interface ReceiptData {
   collectedBy: string;
   demandNo: string;
   verificationUrl: string;
+  taxCollectorCode: string | null;
+  taxCollectorName: string | null;
   arrearStagesPaid: ArrearStagePaidView[];
   property: Record<string, string | number | boolean | null>;
   floors: unknown[];

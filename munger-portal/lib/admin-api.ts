@@ -282,6 +282,8 @@ export interface PrintableReceiptHistory {
   collectedBy: string;
   demandNo: string | null;
   verificationUrl: string;
+  taxCollectorCode: string | null;
+  taxCollectorName: string | null;
   breakdown: {
     arv: string;
     currentYearTaxNet: string;
@@ -390,7 +392,7 @@ export const fetchDashboardTradeLicenseApplicationsAdmin = (page: number, pageSi
 export const fetchDashboardTradeLicensesIssuedAdmin = (page: number, pageSize: number) =>
   fetchDashboardListAdmin<TradeLicenseIssuedListItem>("trade-licenses-issued", page, pageSize);
 // ---------------------------------------------------------------------------
-// Monthly attendance report download - Commissioner only. A deliberate,
+// Monthly attendance report download — Commissioner only. A deliberate,
 // narrow cross-system link: the attendance module is otherwise fully
 // separate, but the Commissioner's existing admin login can also pull
 // this report directly (see requireAttendanceReportAccess on the backend).
@@ -429,4 +431,74 @@ export async function downloadMonthlyDriverAttendanceReportAdmin(year: number, m
     `/attendance/reports/monthly/drivers.csv?year=${year}&month=${month}`,
     `driver-attendance-${year}-${String(month).padStart(2, "0")}.csv`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Tax Collector management
+// ---------------------------------------------------------------------------
+
+export interface TaxCollectorSummary {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+export async function fetchTaxCollectors(): Promise<TaxCollectorSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load tax collectors.");
+  const data: { collectors: TaxCollectorSummary[] } = await res.json();
+  return data.collectors;
+}
+
+export async function createTaxCollectorAdmin(code: string, name: string): Promise<TaxCollectorSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ code, name }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not create tax collector.");
+  }
+  return res.json();
+}
+
+export async function setTaxCollectorActiveAdmin(id: number, active: boolean): Promise<TaxCollectorSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/active`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update tax collector status.");
+  return res.json();
+}
+
+export async function fetchAvailableWards(): Promise<string[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/available-wards`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load available wards.");
+  const data: { wards: string[] } = await res.json();
+  return data.wards;
+}
+
+export async function fetchTaxCollectorWards(id: number): Promise<string[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/wards`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this collector's wards.");
+  const data: { wards: string[] } = await res.json();
+  return data.wards;
+}
+
+/** Tax Daroga only - the backend rejects this for any other admin role. */
+export async function setTaxCollectorWardsAdmin(id: number, wards: string[]): Promise<string[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/wards`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ wards }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not update tagged wards.");
+  }
+  const data: { wards: string[] } = await res.json();
+  return data.wards;
 }

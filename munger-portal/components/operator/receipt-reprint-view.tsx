@@ -124,7 +124,9 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
 
         <p className="mt-6 text-[10px] text-slate-500">
           This is a reprint of a computer generated receipt, exactly as originally issued. Collected by{" "}
-          {receipt.collectedBy}. No figure on this reprint has been recalculated or altered.
+          {receipt.collectedBy}
+          {receipt.taxCollectorName ? ` via tax collector ${receipt.taxCollectorName} (${receipt.taxCollectorCode})` : ""}.
+          No figure on this reprint has been recalculated or altered.
         </p>
       </div>
     </div>

@@ -11,6 +11,8 @@ export interface TransactionRow {
   counter: string | null;
   demand_no: string | null;
   arrear_periods_paid: string | null;
+  tax_collector_code: string | null;
+  tax_collector_name: string | null;
 }
 
 export const paymentRepository = {
@@ -32,12 +34,15 @@ export const paymentRepository = {
     counter: string | null;
     demandNo: string | null;
     arrearPeriodsPaid: string | null;
+    taxCollectorCode: string | null;
+    taxCollectorName: string | null;
   }): Promise<void> {
     await pool.query(
       `INSERT INTO transactions (
         receipt_no, holding_no, txn_date, payment_mode, amount_received,
-        collected_by, counter, demand_no, arrear_periods_paid
-      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8)`,
+        collected_by, counter, demand_no, arrear_periods_paid,
+        tax_collector_code, tax_collector_name
+      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8,$9,$10)`,
       [
         row.receiptNo,
         row.holdingNo,
@@ -47,6 +52,8 @@ export const paymentRepository = {
         row.counter,
         row.demandNo,
         row.arrearPeriodsPaid,
+        row.taxCollectorCode,
+        row.taxCollectorName,
       ],
     );
   },

@@ -1,6 +1,14 @@
 import { Router } from "express";
 import { listOperators, setOperatorActive } from "../controllers/adminOperators.controller";
 import {
+  listTaxCollectors,
+  createTaxCollector,
+  setTaxCollectorActive,
+  getAvailableWards,
+  getTaxCollectorWards,
+  setTaxCollectorWards,
+} from "../controllers/taxCollector.controller";
+import {
   getChangeRequests,
   getChangeRequestById,
   postApproveChangeRequest,
@@ -84,5 +92,16 @@ adminRouter.post("/demand-notices/bulk-generate", requireSeniorAdmin, postBulkGe
 // Bulk tax-history-stage regeneration (backfill from current Floors)
 adminRouter.post("/tax-history/bulk-regenerate", requireSeniorAdmin, postBulkRegenerateTaxHistory);
 
-// Data export — GET /api/v1/admin/export?dataset=properties|payments|notices|changes|all
+// Data export - GET /api/v1/admin/export?dataset=properties|payments|notices|changes|all
 adminRouter.get("/export", requireSeniorAdmin, getDataExport);
+
+// Tax collector management - any admin can view/create/toggle.
+adminRouter.get("/tax-collectors", listTaxCollectors);
+adminRouter.post("/tax-collectors", createTaxCollector);
+adminRouter.patch("/tax-collectors/:id/active", setTaxCollectorActive);
+
+// Ward tagging - viewing is open to any admin, but only Tax Daroga can
+// change which wards a collector is allowed to operate in.
+adminRouter.get("/tax-collectors/available-wards", getAvailableWards);
+adminRouter.get("/tax-collectors/:id/wards", getTaxCollectorWards);
+adminRouter.put("/tax-collectors/:id/wards", requireAdminRole("tax_daroga"), setTaxCollectorWards);

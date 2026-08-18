@@ -160,6 +160,17 @@ export default function AdminDashboardPage() {
           </Link>
 
           <Link
+            href="/admin/tax-collectors"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+          >
+            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+              <Users className="h-6 w-6" strokeWidth={1.8} />
+            </span>
+            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Tax Collectors</h3>
+            <p className="text-sm text-slate-500">Add field collectors and their codes for payment tracking.</p>
+          </Link>
+
+          <Link
             href="/admin/demand-notices"
             className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
           >

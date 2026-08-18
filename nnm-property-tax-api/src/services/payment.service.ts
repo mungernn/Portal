@@ -1,5 +1,6 @@
 import { propertyRepository } from "../repositories/property.repository";
 import { paymentRepository } from "../repositories/payment.repository";
+import { taxCollectorRepository } from "../repositories/taxCollector.repository";
 import { demandNoticeRepository } from "../repositories/demandNotice.repository";
 import { calculateTax } from "./taxCalculation.service";
 import { calculateRebateOrLateFee, calculateSolidWasteCharge } from "./charges.service";
@@ -32,6 +33,8 @@ export interface PrintableReceiptHistory {
   collectedBy: string;
   demandNo: string | null;
   verificationUrl: string;
+  taxCollectorCode: string | null;
+  taxCollectorName: string | null;
   // The breakdown of what this payment settled — reconstructed from the
   // linked demand notice's OWN frozen totals (a payment always settles
   // one demand notice's exact total), not recalculated from current
@@ -73,6 +76,8 @@ export async function getReceiptForReprint(receiptNo: string): Promise<Printable
     collectedBy: txn.collected_by,
     demandNo: txn.demand_no,
     verificationUrl: buildVerificationUrl("receipt", txn.receipt_no),
+    taxCollectorCode: txn.tax_collector_code,
+    taxCollectorName: txn.tax_collector_name,
     breakdown: notice
       ? {
           arv: notice.arv,
@@ -134,6 +139,26 @@ export async function submitPayment(
   const floors = await propertyRepository.findFloorsByHoldingNo(holdingNo);
   const stages = await propertyRepository.findTaxHistoryByHoldingNo(holdingNo);
 
+  // Optional - most payments aren't collector-mediated. But if a code
+  // WAS given, it must resolve to a real active collector; a typo
+  // silently recorded as "no collector" would defeat the point of
+  // tracking this at all.
+  let taxCollector: { code: string; name: string } | null = null;
+  if (input.taxCollectorCode) {
+    const collector = await taxCollectorRepository.findByCode(input.taxCollectorCode);
+    if (!collector) {
+      throw ApiError.badRequest(`No active tax collector with code "${input.taxCollectorCode}".`);
+    }
+    if (!property.ward) {
+      throw ApiError.badRequest("This property has no ward on file, so a tax collector cannot be assigned to its payment.");
+    }
+    const allowed = await taxCollectorRepository.isTaggedForWard(collector.id, property.ward);
+    if (!allowed) {
+      throw ApiError.badRequest(`Tax collector "${collector.name}" is not tagged for Ward ${property.ward}.`);
+    }
+    taxCollector = { code: collector.code, name: collector.name };
+  }
+
   // Snapshot pending arrears BEFORE this payment, and which specific
   // periods it covers — purely for display on the receipt. The amount
   // actually charged is the notice's frozen total, not recomputed here.
@@ -165,6 +190,8 @@ export async function submitPayment(
     counter: input.counter ?? null,
     demandNo: input.demandNo,
     arrearPeriodsPaid: clearance.stages.length > 0 ? `Cleared through ${notice.assessment_year} (via demand notice ${input.demandNo})` : null,
+    taxCollectorCode: taxCollector?.code ?? null,
+    taxCollectorName: taxCollector?.name ?? null,
   });
 
   // The core fix: unconditionally advance paid-through status to what
@@ -191,6 +218,8 @@ export async function submitPayment(
     collectedBy,
     demandNo: input.demandNo,
     verificationUrl: buildVerificationUrl("receipt", receiptNo),
+    taxCollectorCode: taxCollector?.code ?? null,
+    taxCollectorName: taxCollector?.name ?? null,
     arrearStagesPaid: clearance.stages,
     // Override the stored (possibly stale) solid_waste_charge column with
     // the value just recomputed above — same "never trusted from stored

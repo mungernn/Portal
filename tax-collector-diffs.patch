@@ -1,0 +1,397 @@
+diff --git a/munger-portal/app/admin/dashboard/page.tsx b/munger-portal/app/admin/dashboard/page.tsx
+index 94d74f1..0924bbb 100644
+--- a/munger-portal/app/admin/dashboard/page.tsx
++++ b/munger-portal/app/admin/dashboard/page.tsx
+@@ -159,6 +159,17 @@ export default function AdminDashboardPage() {
+             <p className="text-sm text-slate-500">Activate or deactivate counter operator accounts.</p>
+           </Link>
+ 
++          <Link
++            href="/admin/tax-collectors"
++            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
++          >
++            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
++              <Users className="h-6 w-6" strokeWidth={1.8} />
++            </span>
++            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Tax Collectors</h3>
++            <p className="text-sm text-slate-500">Add field collectors and their codes for payment tracking.</p>
++          </Link>
++
+           <Link
+             href="/admin/demand-notices"
+             className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+diff --git a/munger-portal/components/operator/payment-form.tsx b/munger-portal/components/operator/payment-form.tsx
+index 0fbcc71..1fc4a12 100644
+--- a/munger-portal/components/operator/payment-form.tsx
++++ b/munger-portal/components/operator/payment-form.tsx
+@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
+ import { AlertCircle, FileWarning, Loader2 } from "lucide-react";
+ import { submitPayment, type PaymentError, type ReceiptData } from "@/lib/payment-api";
+ import { fetchUnsettledDemandNotices, type UnsettledDemandNotice } from "@/lib/demand-notice-api";
++import { TaxCollectorCodeInput } from "@/components/tax-collector-code-input";
+ 
+ const inputClass =
+   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
+@@ -23,6 +24,7 @@ export function PaymentForm({
+   const [selectedDemandNo, setSelectedDemandNo] = useState("");
+   const [paymentMode, setPaymentMode] = useState(PAYMENT_MODES[0]);
+   const [counter, setCounter] = useState("");
++  const [taxCollectorCode, setTaxCollectorCode] = useState("");
+   const [submitting, setSubmitting] = useState(false);
+   const [error, setError] = useState<PaymentError | null>(null);
+ 
+@@ -52,6 +54,7 @@ export function PaymentForm({
+         paymentMode,
+         counter: counter || undefined,
+         demandNo: selectedDemandNo,
++        taxCollectorCode: taxCollectorCode.trim() || undefined,
+       });
+       onSuccess(receipt);
+     } catch (err) {
+@@ -146,6 +149,14 @@ export function PaymentForm({
+               <label className={labelClass}>Counter (optional)</label>
+               <input value={counter} onChange={(e) => setCounter(e.target.value)} className={inputClass} />
+             </div>
++            <div className="sm:col-span-2">
++              <TaxCollectorCodeInput
++                value={taxCollectorCode}
++                onChange={setTaxCollectorCode}
++                inputClassName={inputClass}
++                labelClassName={labelClass}
++              />
++            </div>
+           </div>
+ 
+           <button
+diff --git a/munger-portal/components/operator/receipt-reprint-view.tsx b/munger-portal/components/operator/receipt-reprint-view.tsx
+index 08083bc..23e51ba 100644
+--- a/munger-portal/components/operator/receipt-reprint-view.tsx
++++ b/munger-portal/components/operator/receipt-reprint-view.tsx
+@@ -124,7 +124,9 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
+ 
+         <p className="mt-6 text-[10px] text-slate-500">
+           This is a reprint of a computer generated receipt, exactly as originally issued. Collected by{" "}
+-          {receipt.collectedBy}. No figure on this reprint has been recalculated or altered.
++          {receipt.collectedBy}
++          {receipt.taxCollectorName ? ` via tax collector ${receipt.taxCollectorName} (${receipt.taxCollectorCode})` : ""}.
++          No figure on this reprint has been recalculated or altered.
+         </p>
+       </div>
+     </div>
+diff --git a/munger-portal/components/operator/receipt-view.tsx b/munger-portal/components/operator/receipt-view.tsx
+index 2a86c2d..1c71751 100644
+--- a/munger-portal/components/operator/receipt-view.tsx
++++ b/munger-portal/components/operator/receipt-view.tsx
+@@ -327,6 +327,14 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
+                   <b>{money(receipt.amountReceived)}</b>
+                 </td>
+               </tr>
++              {receipt.taxCollectorName && (
++                <tr>
++                  <td className="p-1.5">Tax Collector</td>
++                  <td className="p-1.5" colSpan={3}>
++                    {receipt.taxCollectorName} ({receipt.taxCollectorCode})
++                  </td>
++                </tr>
++              )}
+             </tbody>
+           </table>
+         </div>
+diff --git a/munger-portal/components/property-result-card.tsx b/munger-portal/components/property-result-card.tsx
+index a3bd340..f010923 100644
+--- a/munger-portal/components/property-result-card.tsx
++++ b/munger-portal/components/property-result-card.tsx
+@@ -4,6 +4,7 @@ import { useState } from "react";
+ import { CheckCircle2, Loader2 } from "lucide-react";
+ import { formatINR, totalPayable, type PropertyRecord } from "@/lib/property-tax";
+ import { initiateOnlinePayment } from "@/lib/online-payment";
++import { TaxCollectorCodeInput } from "@/components/tax-collector-code-input";
+ 
+ export interface PropertyResultCardProps {
+   record: PropertyRecord;
+@@ -25,12 +26,13 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
+   const nothingDue = total <= 0;
+   const [paying, setPaying] = useState(false);
+   const [error, setError] = useState<string | null>(null);
++  const [taxCollectorCode, setTaxCollectorCode] = useState("");
+ 
+   async function handlePay() {
+     setPaying(true);
+     setError(null);
+     try {
+-      const { redirectUrl } = await initiateOnlinePayment(record.holdingNumber, total);
++      const { redirectUrl } = await initiateOnlinePayment(record.holdingNumber, total, taxCollectorCode.trim() || undefined);
+       window.location.href = redirectUrl;
+     } catch (err) {
+       setError(err instanceof Error ? err.message : "Could not start payment. Please try again.");
+@@ -115,7 +117,17 @@ export function PropertyResultCard({ record }: PropertyResultCardProps) {
+           </div>
+         </div>
+ 
+-        <div className="flex flex-col items-end gap-1.5">
++        <div className="flex flex-col items-end gap-3">
++          {!nothingDue && (
++            <div className="w-full max-w-[220px]">
++              <TaxCollectorCodeInput
++                value={taxCollectorCode}
++                onChange={setTaxCollectorCode}
++                inputClassName="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
++                labelClassName="mb-1 block text-right font-mono text-[10.5px] uppercase tracking-[0.08em] text-ink-soft"
++              />
++            </div>
++          )}
+           {nothingDue ? (
+             <span className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-6 py-2.5 text-sm font-semibold text-green-800">
+               <CheckCircle2 className="h-4 w-4" />
+diff --git a/munger-portal/lib/admin-api.ts b/munger-portal/lib/admin-api.ts
+index e579941..9a04324 100644
+--- a/munger-portal/lib/admin-api.ts
++++ b/munger-portal/lib/admin-api.ts
+@@ -282,6 +282,8 @@ export interface PrintableReceiptHistory {
+   collectedBy: string;
+   demandNo: string | null;
+   verificationUrl: string;
++  taxCollectorCode: string | null;
++  taxCollectorName: string | null;
+   breakdown: {
+     arv: string;
+     currentYearTaxNet: string;
+@@ -430,3 +432,73 @@ export async function downloadMonthlyDriverAttendanceReportAdmin(year: number, m
+     `driver-attendance-${year}-${String(month).padStart(2, "0")}.csv`,
+   );
+ }
++
++// ---------------------------------------------------------------------------
++// Tax Collector management
++// ---------------------------------------------------------------------------
++
++export interface TaxCollectorSummary {
++  id: number;
++  code: string;
++  name: string;
++  active: boolean;
++}
++
++export async function fetchTaxCollectors(): Promise<TaxCollectorSummary[]> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors`, { headers: authHeaders() });
++  if (!res.ok) throw new Error("Could not load tax collectors.");
++  const data: { collectors: TaxCollectorSummary[] } = await res.json();
++  return data.collectors;
++}
++
++export async function createTaxCollectorAdmin(code: string, name: string): Promise<TaxCollectorSummary> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ code, name }),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Could not create tax collector.");
++  }
++  return res.json();
++}
++
++export async function setTaxCollectorActiveAdmin(id: number, active: boolean): Promise<TaxCollectorSummary> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/active`, {
++    method: "PATCH",
++    headers: authHeaders(),
++    body: JSON.stringify({ active }),
++  });
++  if (!res.ok) throw new Error("Could not update tax collector status.");
++  return res.json();
++}
++
++export async function fetchAvailableWards(): Promise<string[]> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/available-wards`, { headers: authHeaders() });
++  if (!res.ok) throw new Error("Could not load available wards.");
++  const data: { wards: string[] } = await res.json();
++  return data.wards;
++}
++
++export async function fetchTaxCollectorWards(id: number): Promise<string[]> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/wards`, { headers: authHeaders() });
++  if (!res.ok) throw new Error("Could not load this collector's wards.");
++  const data: { wards: string[] } = await res.json();
++  return data.wards;
++}
++
++/** Tax Daroga only - the backend rejects this for any other admin role. */
++export async function setTaxCollectorWardsAdmin(id: number, wards: string[]): Promise<string[]> {
++  const res = await fetch(`${API_BASE_URL}/admin/tax-collectors/${id}/wards`, {
++    method: "PUT",
++    headers: authHeaders(),
++    body: JSON.stringify({ wards }),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Could not update tagged wards.");
++  }
++  const data: { wards: string[] } = await res.json();
++  return data.wards;
++}
+diff --git a/munger-portal/lib/online-payment.ts b/munger-portal/lib/online-payment.ts
+index 4f20234..1bc0ad3 100644
+--- a/munger-portal/lib/online-payment.ts
++++ b/munger-portal/lib/online-payment.ts
+@@ -12,11 +12,15 @@ export interface InitiatePaymentResult {
+  * nnm-property-tax-api/src/services/onlinePayment.service.ts for the
+  * placeholder note on why the redirect params aren't final yet.
+  */
+-export async function initiateOnlinePayment(holdingNo: string, amount: number): Promise<InitiatePaymentResult> {
++export async function initiateOnlinePayment(
++  holdingNo: string,
++  amount: number,
++  taxCollectorCode?: string,
++): Promise<InitiatePaymentResult> {
+   const res = await fetch(`${API_BASE_URL}/properties/${encodeURIComponent(holdingNo)}/pay/online/initiate`, {
+     method: "POST",
+     headers: { "Content-Type": "application/json" },
+-    body: JSON.stringify({ amount }),
++    body: JSON.stringify({ amount, taxCollectorCode: taxCollectorCode || undefined }),
+   });
+ 
+   if (!res.ok) {
+diff --git a/munger-portal/lib/operator-api.ts b/munger-portal/lib/operator-api.ts
+index 683c87b..bd8c7c0 100644
+--- a/munger-portal/lib/operator-api.ts
++++ b/munger-portal/lib/operator-api.ts
+@@ -286,6 +286,8 @@ export interface PrintableReceiptHistory {
+   collectedBy: string;
+   demandNo: string | null;
+   verificationUrl: string;
++  taxCollectorCode: string | null;
++  taxCollectorName: string | null;
+   breakdown: {
+     arv: string;
+     currentYearTaxNet: string;
+diff --git a/nnm-property-tax-api/src/controllers/onlinePayment.controller.ts b/nnm-property-tax-api/src/controllers/onlinePayment.controller.ts
+index 6fecec1..3f131c4 100644
+--- a/nnm-property-tax-api/src/controllers/onlinePayment.controller.ts
++++ b/nnm-property-tax-api/src/controllers/onlinePayment.controller.ts
+@@ -6,6 +6,7 @@ import { ApiError } from "../utils/ApiError";
+ 
+ const initiateSchema = z.object({
+   amount: z.coerce.number().positive(),
++  taxCollectorCode: z.string().trim().max(32).nullish(),
+ });
+ 
+ const holdingNoParamSchema = z.object({
+@@ -22,7 +23,11 @@ export const postInitiateOnlinePayment = asyncHandler(async (req: Request, res:
+     throw ApiError.badRequest("Invalid amount", bodyParsed.error.flatten().fieldErrors);
+   }
+ 
+-  const result = await initiateOnlinePayment(paramsParsed.data.holdingNo, bodyParsed.data.amount);
++  const result = await initiateOnlinePayment(
++    paramsParsed.data.holdingNo,
++    bodyParsed.data.amount,
++    bodyParsed.data.taxCollectorCode ?? null,
++  );
+   res.status(200).json(result);
+ });
+ 
+diff --git a/nnm-property-tax-api/src/controllers/payment.controller.ts b/nnm-property-tax-api/src/controllers/payment.controller.ts
+index afd760c..4704c1f 100644
+--- a/nnm-property-tax-api/src/controllers/payment.controller.ts
++++ b/nnm-property-tax-api/src/controllers/payment.controller.ts
+@@ -8,6 +8,7 @@ const paymentSchema = z.object({
+   paymentMode: z.string().min(1),
+   counter: z.string().nullish(),
+   demandNo: z.string().min(1, "Select a demand notice to pay against"),
++  taxCollectorCode: z.string().trim().max(32).nullish(),
+ });
+ 
+ const holdingNoParamSchema = z.object({
+diff --git a/nnm-property-tax-api/src/repositories/onlinePayment.repository.ts b/nnm-property-tax-api/src/repositories/onlinePayment.repository.ts
+index d105d9d..5d5866b 100644
+--- a/nnm-property-tax-api/src/repositories/onlinePayment.repository.ts
++++ b/nnm-property-tax-api/src/repositories/onlinePayment.repository.ts
+@@ -16,6 +16,8 @@ export interface TransactionRow {
+   status: "pending" | "success" | "failed";
+   gateway_response: unknown;
+   confirmed_at: Date | null;
++  tax_collector_code: string | null;
++  tax_collector_name: string | null;
+ }
+ 
+ export const onlinePaymentRepository = {
+@@ -24,13 +26,15 @@ export const onlinePaymentRepository = {
+     holdingNo: string;
+     amount: number;
+     gateway: string;
++    taxCollectorCode: string | null;
++    taxCollectorName: string | null;
+   }): Promise<void> {
+     await pool.query(
+       `INSERT INTO transactions (
+         holding_no, txn_date, payment_mode, amount_received, collected_by,
+-        order_id, gateway, status
+-      ) VALUES ($1, now(), 'Online', $2, 'Citizen Self-Service', $3, $4, 'pending')`,
+-      [row.holdingNo, row.amount, row.orderId, row.gateway],
++        order_id, gateway, status, tax_collector_code, tax_collector_name
++      ) VALUES ($1, now(), 'Online', $2, 'Citizen Self-Service', $3, $4, 'pending', $5, $6)`,
++      [row.holdingNo, row.amount, row.orderId, row.gateway, row.taxCollectorCode, row.taxCollectorName],
+     );
+   },
+ 
+diff --git a/nnm-property-tax-api/src/repositories/payment.repository.ts b/nnm-property-tax-api/src/repositories/payment.repository.ts
+index 88dabd5..db06dec 100644
+--- a/nnm-property-tax-api/src/repositories/payment.repository.ts
++++ b/nnm-property-tax-api/src/repositories/payment.repository.ts
+@@ -11,6 +11,8 @@ export interface TransactionRow {
+   counter: string | null;
+   demand_no: string | null;
+   arrear_periods_paid: string | null;
++  tax_collector_code: string | null;
++  tax_collector_name: string | null;
+ }
+ 
+ export const paymentRepository = {
+@@ -32,12 +34,15 @@ export const paymentRepository = {
+     counter: string | null;
+     demandNo: string | null;
+     arrearPeriodsPaid: string | null;
++    taxCollectorCode: string | null;
++    taxCollectorName: string | null;
+   }): Promise<void> {
+     await pool.query(
+       `INSERT INTO transactions (
+         receipt_no, holding_no, txn_date, payment_mode, amount_received,
+-        collected_by, counter, demand_no, arrear_periods_paid
+-      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8)`,
++        collected_by, counter, demand_no, arrear_periods_paid,
++        tax_collector_code, tax_collector_name
++      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8,$9,$10)`,
+       [
+         row.receiptNo,
+         row.holdingNo,
+@@ -47,6 +52,8 @@ export const paymentRepository = {
+         row.counter,
+         row.demandNo,
+         row.arrearPeriodsPaid,
++        row.taxCollectorCode,
++        row.taxCollectorName,
+       ],
+     );
+   },
+diff --git a/nnm-property-tax-api/src/routes/index.ts b/nnm-property-tax-api/src/routes/index.ts
+index 74be914..21b6beb 100644
+--- a/nnm-property-tax-api/src/routes/index.ts
++++ b/nnm-property-tax-api/src/routes/index.ts
+@@ -11,6 +11,7 @@ import { adminRouter } from "./admin.routes";
+ import { getFormOptions } from "../controllers/formOptions.controller";
+ import { dashboardSummaryRouter } from "./dashboardSummary.routes";
+ import { attendanceRouter } from "./attendance.routes";
++import { taxCollectorRouter } from "./taxCollector.routes";
+ 
+ export const apiRouter = Router();
+ 
+@@ -26,6 +27,7 @@ apiRouter.use("/shop-rental-applications", shopRentalApplicationRouter);
+ apiRouter.use("/trade-license-applications", tradeLicenseApplicationRouter);
+ apiRouter.use("/verify", verifyRouter);
+ apiRouter.use("/payments", paymentsRouter);
++apiRouter.use("/tax-collectors", taxCollectorRouter);
+ 
+ apiRouter.use("/dashboard-summary", dashboardSummaryRouter);
+ // Fully separate module - its own auth, its own tables, nothing shared with the property tax / shop / trade license system above.
+ 

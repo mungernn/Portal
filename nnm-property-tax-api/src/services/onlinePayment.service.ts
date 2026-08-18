@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { propertyRepository } from "../repositories/property.repository";
 import { onlinePaymentRepository } from "../repositories/onlinePayment.repository";
+import { taxCollectorRepository } from "../repositories/taxCollector.repository";
 import { paymentRepository } from "../repositories/payment.repository";
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
@@ -24,7 +25,11 @@ export interface InitiateResult {
  * below once you have the real spec — everything else (order tracking,
  * confirm/callback plumbing, DB recording) is ready to use as-is.
  */
-export async function initiateOnlinePayment(holdingNo: string, amount: number): Promise<InitiateResult> {
+export async function initiateOnlinePayment(
+  holdingNo: string,
+  amount: number,
+  taxCollectorCode: string | null,
+): Promise<InitiateResult> {
   if (!amount || amount <= 0) {
     throw ApiError.badRequest("Amount must be greater than zero.");
   }
@@ -34,12 +39,33 @@ export async function initiateOnlinePayment(holdingNo: string, amount: number): 
     throw ApiError.notFound(`Property not found for Holding No: ${holdingNo}`);
   }
 
+  // Optional, same reasoning as the operator counter-payment flow: if a
+  // code WAS given it must resolve to a real active collector, so a
+  // typo doesn't silently get recorded as "no collector".
+  let taxCollector: { code: string; name: string } | null = null;
+  if (taxCollectorCode) {
+    const collector = await taxCollectorRepository.findByCode(taxCollectorCode);
+    if (!collector) {
+      throw ApiError.badRequest(`No active tax collector with code "${taxCollectorCode}".`);
+    }
+    if (!property.ward) {
+      throw ApiError.badRequest("This property has no ward on file, so a tax collector cannot be assigned to its payment.");
+    }
+    const allowed = await taxCollectorRepository.isTaggedForWard(collector.id, property.ward);
+    if (!allowed) {
+      throw ApiError.badRequest(`Tax collector "${collector.name}" is not tagged for Ward ${property.ward}.`);
+    }
+    taxCollector = { code: collector.code, name: collector.name };
+  }
+
   const orderId = crypto.randomUUID();
   await onlinePaymentRepository.createPendingOrder({
     orderId,
     holdingNo,
     amount,
     gateway: GATEWAY_NAME,
+    taxCollectorCode: taxCollector?.code ?? null,
+    taxCollectorName: taxCollector?.name ?? null,
   });
 
   const returnUrl = `${env.FRONTEND_URL}/property-tax/payment-return`;

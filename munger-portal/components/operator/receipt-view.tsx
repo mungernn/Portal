@@ -327,6 +327,14 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
                   <b>{money(receipt.amountReceived)}</b>
                 </td>
               </tr>
+              {receipt.taxCollectorName && (
+                <tr>
+                  <td className="p-1.5">Tax Collector</td>
+                  <td className="p-1.5" colSpan={3}>
+                    {receipt.taxCollectorName} ({receipt.taxCollectorCode})
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

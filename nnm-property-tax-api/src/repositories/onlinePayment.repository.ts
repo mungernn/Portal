@@ -16,6 +16,8 @@ export interface TransactionRow {
   status: "pending" | "success" | "failed";
   gateway_response: unknown;
   confirmed_at: Date | null;
+  tax_collector_code: string | null;
+  tax_collector_name: string | null;
 }
 
 export const onlinePaymentRepository = {
@@ -24,13 +26,15 @@ export const onlinePaymentRepository = {
     holdingNo: string;
     amount: number;
     gateway: string;
+    taxCollectorCode: string | null;
+    taxCollectorName: string | null;
   }): Promise<void> {
     await pool.query(
       `INSERT INTO transactions (
         holding_no, txn_date, payment_mode, amount_received, collected_by,
-        order_id, gateway, status
-      ) VALUES ($1, now(), 'Online', $2, 'Citizen Self-Service', $3, $4, 'pending')`,
-      [row.holdingNo, row.amount, row.orderId, row.gateway],
+        order_id, gateway, status, tax_collector_code, tax_collector_name
+      ) VALUES ($1, now(), 'Online', $2, 'Citizen Self-Service', $3, $4, 'pending', $5, $6)`,
+      [row.holdingNo, row.amount, row.orderId, row.gateway, row.taxCollectorCode, row.taxCollectorName],
     );
   },
 

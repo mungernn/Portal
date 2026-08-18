@@ -286,6 +286,8 @@ export interface PrintableReceiptHistory {
   collectedBy: string;
   demandNo: string | null;
   verificationUrl: string;
+  taxCollectorCode: string | null;
+  taxCollectorName: string | null;
   breakdown: {
     arv: string;
     currentYearTaxNet: string;

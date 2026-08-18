@@ -8,6 +8,7 @@ const paymentSchema = z.object({
   paymentMode: z.string().min(1),
   counter: z.string().nullish(),
   demandNo: z.string().min(1, "Select a demand notice to pay against"),
+  taxCollectorCode: z.string().trim().max(32).nullish(),
 });
 
 const holdingNoParamSchema = z.object({

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, FileWarning, Loader2 } from "lucide-react";
 import { submitPayment, type PaymentError, type ReceiptData } from "@/lib/payment-api";
 import { fetchUnsettledDemandNotices, type UnsettledDemandNotice } from "@/lib/demand-notice-api";
+import { TaxCollectorCodeInput } from "@/components/tax-collector-code-input";
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
@@ -23,6 +24,7 @@ export function PaymentForm({
   const [selectedDemandNo, setSelectedDemandNo] = useState("");
   const [paymentMode, setPaymentMode] = useState(PAYMENT_MODES[0]);
   const [counter, setCounter] = useState("");
+  const [taxCollectorCode, setTaxCollectorCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<PaymentError | null>(null);
 
@@ -52,6 +54,7 @@ export function PaymentForm({
         paymentMode,
         counter: counter || undefined,
         demandNo: selectedDemandNo,
+        taxCollectorCode: taxCollectorCode.trim() || undefined,
       });
       onSuccess(receipt);
     } catch (err) {
@@ -145,6 +148,14 @@ export function PaymentForm({
             <div>
               <label className={labelClass}>Counter (optional)</label>
               <input value={counter} onChange={(e) => setCounter(e.target.value)} className={inputClass} />
+            </div>
+            <div className="sm:col-span-2">
+              <TaxCollectorCodeInput
+                value={taxCollectorCode}
+                onChange={setTaxCollectorCode}
+                inputClassName={inputClass}
+                labelClassName={labelClass}
+              />
             </div>
           </div>
 

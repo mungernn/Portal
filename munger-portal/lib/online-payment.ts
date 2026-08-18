@@ -12,11 +12,15 @@ export interface InitiatePaymentResult {
  * nnm-property-tax-api/src/services/onlinePayment.service.ts for the
  * placeholder note on why the redirect params aren't final yet.
  */
-export async function initiateOnlinePayment(holdingNo: string, amount: number): Promise<InitiatePaymentResult> {
+export async function initiateOnlinePayment(
+  holdingNo: string,
+  amount: number,
+  taxCollectorCode?: string,
+): Promise<InitiatePaymentResult> {
   const res = await fetch(`${API_BASE_URL}/properties/${encodeURIComponent(holdingNo)}/pay/online/initiate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ amount }),
+    body: JSON.stringify({ amount, taxCollectorCode: taxCollectorCode || undefined }),
   });
 
   if (!res.ok) {
