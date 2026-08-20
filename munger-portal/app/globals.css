@@ -13,9 +13,9 @@
   --color-nnm-gold: #c9a227;
   --color-ganga-teal: #2f7a6b;
 
-  --font-display: var(--font-fraunces), Georgia, serif;
-  --font-body: var(--font-public-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+ --font-display: "Fraunces", Georgia, serif;
+--font-body: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+--font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 }
 
 body {
