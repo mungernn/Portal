@@ -1,11 +1,12 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { holdingNoSchema } from "../utils/holdingNoSchema";
 import { searchPropertyByHoldingNo, searchPropertyForCitizen } from "../services/property.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 
 const holdingNoParamSchema = z.object({
-  holdingNo: z.string().trim().min(1, "holdingNo is required").max(32),
+  holdingNo: holdingNoSchema,
 });
 
 /**
@@ -31,8 +32,8 @@ export const getPropertyByHoldingNo = asyncHandler(async (req: Request, res: Res
 });
 
 const lookupBodySchema = z.object({
-  holdingNo: z.string().trim().min(1, "Holding number is required").max(32),
-  mobileNo: z.string().trim().min(1, "Mobile number is required").max(15),
+  holdingNo: holdingNoSchema,
+  holdingNo: holdingNoSchema,
 });
 
 /**

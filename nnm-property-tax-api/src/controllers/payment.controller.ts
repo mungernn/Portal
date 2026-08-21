@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { holdingNoSchema } from "../utils/holdingNoSchema";
 import { submitPayment, getReceiptForReprint, listPaymentHistory } from "../services/payment.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
@@ -12,7 +13,7 @@ const paymentSchema = z.object({
 });
 
 const holdingNoParamSchema = z.object({
-  holdingNo: z.string().trim().min(1).max(32),
+  holdingNo: holdingNoSchema,
 });
 
 /**

@@ -2,6 +2,7 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { Search, Loader2 } from "lucide-react";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 
 export interface PropertySearchFormProps {
   onSearch: (holdingNumber: string, mobileNumber: string) => void;
@@ -51,7 +52,7 @@ export function PropertySearchForm({
             type="text"
             placeholder="e.g. MUNG-08257"
             value={holdingValue}
-            onChange={(e) => setHoldingValue(e.target.value)}
+            onChange={(e) => setHoldingValue(sanitizeHoldingNoInput(e.target.value))}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? errorId : undefined}
             className="w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none placeholder:text-ink-soft/60 focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"

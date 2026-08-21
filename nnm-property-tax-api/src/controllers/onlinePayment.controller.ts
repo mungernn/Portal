@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { holdingNoSchema } from "../utils/holdingNoSchema";
 import { initiateOnlinePayment, confirmOnlinePayment } from "../services/onlinePayment.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
@@ -10,7 +11,7 @@ const initiateSchema = z.object({
 });
 
 const holdingNoParamSchema = z.object({
-  holdingNo: z.string().trim().min(1).max(32),
+  holdingNo: holdingNoSchema,
 });
 
 /** POST /api/v1/properties/:holdingNo/pay/online/initiate — public (citizen-facing). */

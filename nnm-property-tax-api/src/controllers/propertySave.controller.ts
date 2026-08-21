@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { holdingNoSchema } from "../utils/holdingNoSchema";
 import { savePropertyByHoldingNo } from "../services/propertySave.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
@@ -51,7 +52,7 @@ const propertySaveSchema = z.object({
 });
 
 const holdingNoParamSchema = z.object({
-  holdingNo: z.string().trim().min(1).max(32),
+  holdingNo: holdingNoSchema,
 });
 
 /**

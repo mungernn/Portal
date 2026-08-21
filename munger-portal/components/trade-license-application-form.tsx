@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Search } from "lucide-react";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 import {
   submitPublicTradeLicenseApplication,
   submitOperatorTradeLicenseApplication,
@@ -169,7 +170,7 @@ export function TradeLicenseApplicationForm({
           <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
             <label className={labelClass}>Holding number</label>
             <div className="flex gap-2">
-              <input value={form.holdingNo ?? ""} onChange={(e) => update("holdingNo", e.target.value)} className={inputClass} />
+              <input value={form.holdingNo ?? ""} onChange={(e) => update("holdingNo", sanitizeHoldingNoInput(e.target.value))} className={inputClass} />
               <button
                 type="button"
                 onClick={handleCheckRenewal}
@@ -217,7 +218,7 @@ export function TradeLicenseApplicationForm({
           {form.applicationType === "new" && (
             <div>
               <label className={labelClass}>Holding number (optional)</label>
-              <input value={form.holdingNo ?? ""} onChange={(e) => update("holdingNo", e.target.value)} className={inputClass} />
+              <input value={form.holdingNo ?? ""} onChange={(e) => update("holdingNo", sanitizeHoldingNoInput(e.target.value))} className={inputClass} />
             </div>
           )}
           <div className="flex items-center gap-2 pt-6">

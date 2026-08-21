@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
+import { holdingNoSchema } from "../utils/holdingNoSchema";
 import {
   submitTradeLicenseApplication,
   submitPublicTradeLicenseApplication,
@@ -26,7 +27,7 @@ const applicationInputSchema = z.object({
   entityNameHindi: z.string().nullish(),
   entityType: z.enum(["fully_owned", "partnership", "pvt_limited", "public_ltd"]).nullish(),
   completeAddress: z.string().min(1),
-  holdingNo: z.string().nullish(),
+  holdingNo: holdingNoSchema.nullish(),
   holdingReceiptAttached: z.boolean(),
   typeOfBusiness: z.string().nullish(),
   durationYears: z.coerce.number().refine((v) => [1, 3, 5].includes(v), "Duration must be 1, 3, or 5 years"),
@@ -59,7 +60,7 @@ export const postSubmitPublicTradeLicenseApplication = asyncHandler(async (req: 
   res.status(200).json(result);
 });
 
-const renewalAutofillQuerySchema = z.object({ holdingNo: z.string().trim().min(1) });
+const renewalAutofillQuerySchema = z.object({ holdingNo: holdingNoSchema });
 
 /** GET /api/v1/trade-license-applications/renewal-autofill?holdingNo=... — public. Prefills a renewal form from the last application on file for that holding. */
 export const getRenewalAutofillHandler = asyncHandler(async (req: Request, res: Response) => {

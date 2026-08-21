@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Search, Plus } from "lucide-react";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 
 export function OperatorPropertySearch({
   onSearch,
@@ -25,7 +26,7 @@ export function OperatorPropertySearch({
       <div className="flex flex-col gap-2.5 sm:flex-row">
         <input
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => setValue(sanitizeHoldingNoInput(e.target.value))}
           placeholder="e.g. MUNG-08257"
           className="w-full flex-1 rounded-md border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
         />
