@@ -119,18 +119,35 @@ export async function searchPropertyByHoldingNo(holdingNoRaw: string): Promise<P
 export async function searchPropertyForCitizen(
   holdingNoRaw: string,
   mobileNoRaw: string,
-): Promise<PropertySearchResult> {
-  const genericNotFound: PropertySearchResult = {
+): Promise<
+  PropertySearchResult & { mobileMismatch?: boolean; registeredMobileLastTwoDigits?: string | null }
+> {
+  const notFound: PropertySearchResult = {
     found: false,
-    message: "No matching property found. Please check the Holding Number and Mobile Number.",
+    message:
+      "No matching property found for this Holding Number. Please contact the Holding Tax Section, Municipal Corporation Office, Munger.",
   };
 
   const result = await searchPropertyByHoldingNo(holdingNoRaw);
-  if (!result.found || !result.property) return genericNotFound;
+  if (!result.found || !result.property) return notFound;
 
   const storedMobile = String(result.property.mobile_no || "").trim();
   const suppliedMobile = mobileNoRaw.trim();
-  if (!storedMobile || storedMobile !== suppliedMobile) return genericNotFound;
+  if (!storedMobile || storedMobile !== suppliedMobile) {
+    // Deliberately reveal only the last two digits - enough for a
+    // citizen to recognize their own number and self-correct, without
+    // exposing the full number to anyone who merely knows the holding
+    // number (which, being sequential, isn't itself sensitive).
+    const lastTwo = storedMobile.length >= 2 ? storedMobile.slice(-2) : null;
+    return {
+      found: false,
+      mobileMismatch: true,
+      registeredMobileLastTwoDigits: lastTwo,
+      message: lastTwo
+        ? `That mobile number doesn't match our records. The registered number ends in ${lastTwo}. If this still doesn't look right, please contact the Holding Tax Section, Municipal Corporation Office, Munger.`
+        : "That mobile number doesn't match our records. Please contact the Holding Tax Section, Municipal Corporation Office, Munger.",
+    };
+  }
 
   return result;
 }

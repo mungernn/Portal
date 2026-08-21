@@ -39,7 +39,10 @@ const lookupBodySchema = z.object({
  * POST /api/v1/properties/lookup
  * Public — the citizen-facing search. Requires the holding number AND
  * its registered mobile number to both match before returning anything;
- * see searchPropertyForCitizen() for why.
+ * see searchPropertyForCitizen() for why. Still distinguishes "holding
+ * doesn't exist" from "wrong mobile" in the error details (a masked
+ * last-two-digits hint), to help a citizen self-correct a typo without
+ * exposing their full registered number.
  */
 export const postPropertyLookup = asyncHandler(async (req: Request, res: Response) => {
   const parsed = lookupBodySchema.safeParse(req.body);
@@ -50,7 +53,10 @@ export const postPropertyLookup = asyncHandler(async (req: Request, res: Respons
   const result = await searchPropertyForCitizen(parsed.data.holdingNo, parsed.data.mobileNo);
 
   if (!result.found) {
-    throw ApiError.notFound(result.message ?? "No matching property found.");
+    throw ApiError.notFound(result.message ?? "No matching property found.", {
+      mobileMismatch: result.mobileMismatch ?? false,
+      registeredMobileLastTwoDigits: result.registeredMobileLastTwoDigits ?? null,
+    });
   }
 
   res.status(200).json(result);

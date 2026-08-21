@@ -1,30 +1,20 @@
 const LINES: { k: string; v: React.ReactNode }[] = [
   {
     k: "Address",
-    v: (
-      <>
-        <span className="rounded bg-[#fff4cf] px-1.5 py-0.5">
-          [Office address]
-        </span>
-        , Munger, Bihar –{" "}
-        <span className="rounded bg-[#fff4cf] px-1.5 py-0.5">[PIN]</span>
-      </>
-    ),
+    v: "Nagar Nigam Office (opposite Town Hall), Munger, Bihar – 811201",
   },
   {
     k: "Phone",
-    v: (
-      <span className="rounded bg-[#fff4cf] px-1.5 py-0.5">
-        [Office phone number]
-      </span>
-    ),
+    v: "06344296058",
   },
   {
     k: "Email",
     v: (
-      <span className="rounded bg-[#fff4cf] px-1.5 py-0.5">
-        [Office email]
-      </span>
+      <>
+        munger.ulb@gmail.com
+        <br />
+        munger.ulb.complaint@gmail.com
+      </>
     ),
   },
   { k: "Hours", v: "Monday – Saturday, 10:00 AM – 5:00 PM" },
@@ -43,7 +33,8 @@ export function Contact() {
           </h2>
           <p className="max-w-md text-[17px] text-ink-soft">
             For anything not yet available online, the Nigam office handles
-            it at the counter — in person or by phone or through email at: munger.ulb@gmail.com
+            it at the counter — in person, by phone, or by email at{" "}
+            munger.ulb@gmail.com
           </p>
         </div>
         <div className="rounded-[10px] border border-line bg-card p-7">

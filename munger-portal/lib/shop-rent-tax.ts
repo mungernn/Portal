@@ -40,14 +40,20 @@ interface ApiShopLookupResponse {
 /**
  * Public, two-factor lookup — same privacy reasoning as property tax's
  * searchPropertyByHoldingNumber: requires BOTH the shop number and its
- * registered mobile number to match, and returns the same generic
- * "not found" outcome whichever one is wrong, so this can't be used to
- * pull up one shop's details by guessing a shop number alone.
+ * registered mobile number to match. On a mismatch, reveals only the
+ * last two digits of the registered number (not the full number) so a
+ * citizen can recognize a typo, rather than being fully generic.
  */
-export async function lookupShopRent(shopNoQuery: string, mobileNoQuery: string): Promise<ShopRentRecord[]> {
+export interface ShopRentSearchOutcome {
+  records: ShopRentRecord[];
+  notFoundReason?: "not_found" | "mobile_mismatch";
+  registeredMobileLastTwoDigits?: string | null;
+}
+
+export async function lookupShopRent(shopNoQuery: string, mobileNoQuery: string): Promise<ShopRentSearchOutcome> {
   const shopNo = shopNoQuery.trim();
   const mobileNo = mobileNoQuery.trim();
-  if (!shopNo || !mobileNo) return [];
+  if (!shopNo || !mobileNo) return { records: [] };
 
   const res = await fetch(`${API_BASE_URL}/shops/lookup`, {
     method: "POST",
@@ -55,29 +61,39 @@ export async function lookupShopRent(shopNoQuery: string, mobileNoQuery: string)
     body: JSON.stringify({ shopNo, mobileNo }),
   });
 
-  if (res.status === 404) return [];
+  if (res.status === 404) {
+    const body = await res.json().catch(() => ({}));
+    const mismatch = Boolean(body?.details?.mobileMismatch);
+    return {
+      records: [],
+      notFoundReason: mismatch ? "mobile_mismatch" : "not_found",
+      registeredMobileLastTwoDigits: body?.details?.registeredMobileLastTwoDigits ?? null,
+    };
+  }
   if (!res.ok) throw new Error(`Shop lookup failed (${res.status})`);
 
   const data: ApiShopLookupResponse = await res.json();
-  if (!data.found || !data.shop || !data.agreement) return [];
+  if (!data.found || !data.shop || !data.agreement) return { records: [] };
 
   const pending = data.pendingRent;
 
-  return [
-    {
-      shopNo: data.shop.shop_no,
-      location: data.shop.location,
-      marketName: data.shop.market_name,
-      holderName: data.agreement.holder_name,
-      baseMonthlyRent: parseFloat(data.agreement.base_monthly_rent) || 0,
-      rentPaidTillMonth: data.agreement.rent_paid_till_month,
-      totalPending: pending ? parseFloat(pending.totalPending) || 0 : 0,
-      totalBase: pending ? parseFloat(pending.totalBase) || 0 : 0,
-      totalPenalty: pending ? parseFloat(pending.totalPenalty) || 0 : 0,
-      pendingMonthsCount: pending ? pending.pendingMonths.length : 0,
-      note: pending?.note ?? "",
-    },
-  ];
+  return {
+    records: [
+      {
+        shopNo: data.shop.shop_no,
+        location: data.shop.location,
+        marketName: data.shop.market_name,
+        holderName: data.agreement.holder_name,
+        baseMonthlyRent: parseFloat(data.agreement.base_monthly_rent) || 0,
+        rentPaidTillMonth: data.agreement.rent_paid_till_month,
+        totalPending: pending ? parseFloat(pending.totalPending) || 0 : 0,
+        totalBase: pending ? parseFloat(pending.totalBase) || 0 : 0,
+        totalPenalty: pending ? parseFloat(pending.totalPenalty) || 0 : 0,
+        pendingMonthsCount: pending ? pending.pendingMonths.length : 0,
+        note: pending?.note ?? "",
+      },
+    ],
+  };
 }
 
 export function formatINR(amount: number): string {

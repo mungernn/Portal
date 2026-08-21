@@ -77,13 +77,20 @@ interface ApiPropertyResponse {
   };
 }
 
+export interface PropertySearchOutcome {
+  records: PropertyRecord[];
+  /** Only set when nothing was found - lets the UI show a specific reason instead of a generic "not found". */
+  notFoundReason?: "not_found" | "mobile_mismatch";
+  registeredMobileLastTwoDigits?: string | null;
+}
+
 export async function searchPropertyByHoldingNumber(
   holdingNoQuery: string,
   mobileNoQuery: string,
-): Promise<PropertyRecord[]> {
+): Promise<PropertySearchOutcome> {
   const holdingNo = holdingNoQuery.trim();
   const mobileNo = mobileNoQuery.trim();
-  if (!holdingNo || !mobileNo) return [];
+  if (!holdingNo || !mobileNo) return { records: [] };
 
   const res = await fetch(`${API_BASE_URL}/properties/lookup`, {
     method: "POST",
@@ -92,32 +99,40 @@ export async function searchPropertyByHoldingNumber(
   });
 
   if (res.status === 404) {
-    return []; // no match — not an error, just an empty result set. Deliberately the same outcome whether the holding doesn't exist or the mobile number just doesn't match — see the backend's searchPropertyForCitizen().
+    const body = await res.json().catch(() => ({}));
+    const mismatch = Boolean(body?.details?.mobileMismatch);
+    return {
+      records: [],
+      notFoundReason: mismatch ? "mobile_mismatch" : "not_found",
+      registeredMobileLastTwoDigits: body?.details?.registeredMobileLastTwoDigits ?? null,
+    };
   }
   if (!res.ok) {
     throw new Error(`Property search failed (${res.status})`);
   }
 
   const data: ApiPropertyResponse = await res.json();
-  if (!data.found || !data.property) return [];
+  if (!data.found || !data.property) return { records: [] };
 
   const p = data.property;
   const totalRebate = (parseFloat(p.rebate) || 0) + (p.currentYearTiming?.rebate || 0);
 
-  return [
-    {
-      propertyId: p.old_pid || p.holding_no,
-      holdingNumber: p.holding_no,
-      ownerName: p.owner_name,
-      address: p.address,
-      currentTaxDue: p.currentYearTiming?.net ?? 0,
-      arrears: parseFloat(p.pendingArrearsTotal) || 0,
-      solidWasteCharge: parseFloat(p.solidWasteCharge) || 0,
-      penalty: parseFloat(p.autoPenalty) || 0,
-      rebate: totalRebate,
-      totalPayable: parseFloat(p.totalPayable) || 0,
-      currentCyclePaid: p.currentCyclePaid ?? false,
-      paidThroughYear: p.paidThroughYear ?? null,
-    },
-  ];
+  return {
+    records: [
+      {
+        propertyId: p.old_pid || p.holding_no,
+        holdingNumber: p.holding_no,
+        ownerName: p.owner_name,
+        address: p.address,
+        currentTaxDue: p.currentYearTiming?.net ?? 0,
+        arrears: parseFloat(p.pendingArrearsTotal) || 0,
+        solidWasteCharge: parseFloat(p.solidWasteCharge) || 0,
+        penalty: parseFloat(p.autoPenalty) || 0,
+        rebate: totalRebate,
+        totalPayable: parseFloat(p.totalPayable) || 0,
+        currentCyclePaid: p.currentCyclePaid ?? false,
+        paidThroughYear: p.paidThroughYear ?? null,
+      },
+    ],
+  };
 }

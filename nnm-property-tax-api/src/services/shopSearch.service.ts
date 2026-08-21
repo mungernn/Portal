@@ -50,18 +50,32 @@ export async function searchShopByShopNo(shopNoRaw: string): Promise<ShopSearchR
 }
 
 /** Public citizen-facing lookup — same two-factor pattern as property tax's searchPropertyForCitizen(). */
-export async function searchShopForCitizen(shopNoRaw: string, mobileNoRaw: string): Promise<ShopSearchResult> {
-  const genericNotFound: ShopSearchResult = {
+export async function searchShopForCitizen(
+  shopNoRaw: string,
+  mobileNoRaw: string,
+): Promise<ShopSearchResult & { mobileMismatch?: boolean; registeredMobileLastTwoDigits?: string | null }> {
+  const notFound: ShopSearchResult = {
     found: false,
-    message: "No matching shop found. Please check the Shop Number and Mobile Number.",
+    message:
+      "No matching shop found for this Shop Number. Please contact the Holding Tax Section, Municipal Corporation Office, Munger.",
   };
 
   const result = await searchShopByShopNo(shopNoRaw);
-  if (!result.found || !result.agreement) return genericNotFound;
+  if (!result.found || !result.agreement) return notFound;
 
   const storedMobile = String(result.agreement.holder_mobile || "").trim();
   const suppliedMobile = mobileNoRaw.trim();
-  if (!storedMobile || storedMobile !== suppliedMobile) return genericNotFound;
+  if (!storedMobile || storedMobile !== suppliedMobile) {
+    const lastTwo = storedMobile.length >= 2 ? storedMobile.slice(-2) : null;
+    return {
+      found: false,
+      mobileMismatch: true,
+      registeredMobileLastTwoDigits: lastTwo,
+      message: lastTwo
+        ? `That mobile number doesn't match our records. The registered number ends in ${lastTwo}. If this still doesn't look right, please contact the Holding Tax Section, Municipal Corporation Office, Munger.`
+        : "That mobile number doesn't match our records. Please contact the Holding Tax Section, Municipal Corporation Office, Munger.",
+    };
+  }
 
   return result;
 }

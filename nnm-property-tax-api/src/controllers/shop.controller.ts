@@ -24,12 +24,17 @@ const lookupBodySchema = z.object({
   mobileNo: z.string().trim().min(1, "Mobile number is required").max(15),
 });
 
-/** POST /api/v1/shops/lookup — public, two-factor citizen search (same pattern as property tax's postPropertyLookup). */
+/** POST /api/v1/shops/lookup — public, two-factor citizen search (same pattern as property tax's postPropertyLookup, including the masked mobile hint on mismatch). */
 export const postShopLookup = asyncHandler(async (req: Request, res: Response) => {
   const parsed = lookupBodySchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
   const result = await searchShopForCitizen(parsed.data.shopNo, parsed.data.mobileNo);
-  if (!result.found) throw ApiError.notFound(result.message ?? "No matching shop found.");
+  if (!result.found) {
+    throw ApiError.notFound(result.message ?? "No matching shop found.", {
+      mobileMismatch: result.mobileMismatch ?? false,
+      registeredMobileLastTwoDigits: result.registeredMobileLastTwoDigits ?? null,
+    });
+  }
   res.status(200).json(result);
 });
 
