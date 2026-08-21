@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export interface PortalBrandingHeaderProps {
   homeHref?: string;
@@ -14,9 +15,7 @@ export function PortalBrandingHeader({
       </div>
       <header className="flex justify-center pb-2 pt-10">
         <Link href={homeHref} className="flex flex-col items-center gap-3 text-center">
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-nnm-blue font-display text-2xl font-bold text-nnm-gold">
-            म
-          </span>
+          <Image src="/logo.png" alt="Munger Nagar Nigam" width={56} height={56} className="h-14 w-14" priority />
           <span>
             <span className="block font-display text-lg font-semibold text-slate-900">
               मुंगेर नगर निगम

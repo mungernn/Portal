@@ -8,8 +8,17 @@
   --color-ink-soft: #4a5164;
   --color-line: #d9d3c1;
 
-  --color-nnm-blue: #1a4d8f;
-  --color-nnm-blue-dark: #123863;
+/* Rebranded to Munger Nagar Nigam's official emblem colors (Aug 2026)
+   - a lighter shade derived from the emblem's crimson red (#b03f3c
+   extracted directly from the logo file) and its charcoal ring
+   (#373636). Variable names kept as "nnm-blue"/"nnm-blue-dark" even
+   though the color is now red, since renaming would require touching
+   every one of the ~84 files that reference these classes - only the
+   values changed here, so every existing bg-nnm-blue/text-nnm-blue/
+   etc. usage across the whole site updates automatically. Gold and
+   teal accents kept as-is; they already pair well with red. */
+  --color-nnm-blue: #c65c56;
+  --color-nnm-blue-dark: #a8433d;
   --color-nnm-gold: #c9a227;
   --color-ganga-teal: #2f7a6b;
 

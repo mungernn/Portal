@@ -2,17 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { PROPERTY_TAX_SEARCH_PATH } from "@/lib/config";
 import { getOperatorToken } from "@/lib/auth";
 import { getAdminToken } from "@/lib/admin-auth";
 
 export function SiteHeader() {
-  // Only relevant if an operator/admin happens to be viewing a public
-  // page (e.g. navigated back to "/" while still signed in elsewhere) —
-  // the marketing nav (About/Services/Contact) isn't useful to them
-  // there and just risks looking like it logged them out when it
-  // didn't. Checked client-side only, since these tokens live in
-  // sessionStorage.
   const [staffSignedIn, setStaffSignedIn] = useState(false);
 
   useEffect(() => {
@@ -23,9 +18,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 border-b border-line bg-paper/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-nnm-blue font-display text-lg font-bold text-nnm-gold">
-            म
-          </span>
+          <Image src="/logo.png" alt="Munger Nagar Nigam" width={40} height={40} className="h-10 w-10 shrink-0" priority />
           <span className="leading-tight">
             <span className="block font-display text-[16.5px] font-semibold text-ink">
               मुंगेर नगर निगम
