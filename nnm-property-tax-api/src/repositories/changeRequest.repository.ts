@@ -31,7 +31,16 @@ export const changeRequestRepository = {
     return rows[0] ?? null;
   },
 
-  /** Pending requests grouped by their current stage — a lightweight COUNT for the dashboard summary widget, not a full row fetch. */
+  /** Enforces at most one pending mutation request per holding at a time - checked before creating a new one. */
+  async findPendingForHolding(holdingNo: string): Promise<ChangeRequestRow | null> {
+    const { rows } = await pool.query<ChangeRequestRow>(
+      `SELECT * FROM property_change_requests WHERE holding_no = $1 AND status = 'pending' LIMIT 1`,
+      [holdingNo],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Pending requests grouped by their current stage - a lightweight COUNT for the dashboard summary widget, not a full row fetch. */
   async countPendingByStage(): Promise<Record<string, number>> {
     const { rows } = await pool.query<{ current_stage: string; count: string }>(
       `SELECT current_stage, COUNT(*) AS count FROM property_change_requests WHERE status = 'pending' GROUP BY current_stage`,
@@ -41,7 +50,7 @@ export const changeRequestRepository = {
     return result;
   },
 
-  /** Paginated pending-request list — for the dashboard overview widget's property-changes tab. */
+  /** Paginated pending-request list - for the dashboard overview widget's property-changes tab. */
   async listPendingPaginated(page: number, pageSize: number): Promise<{ rows: ChangeRequestRow[]; total: number }> {
     const offset = (page - 1) * pageSize;
     const [{ rows }, countResult] = await Promise.all([
@@ -54,7 +63,7 @@ export const changeRequestRepository = {
     return { rows, total: parseInt(countResult.rows[0]?.count ?? "0", 10) };
   },
 
-  /** status/stage filters are independent — pass either, both, or neither. */
+  /** status/stage filters are independent - pass either, both, or neither. */
   async list(filters: { status?: ChangeRequestStatus; stage?: AdminRole }): Promise<ChangeRequestRow[]> {
     const conditions: string[] = [];
     const params: unknown[] = [];

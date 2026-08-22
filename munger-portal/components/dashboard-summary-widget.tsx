@@ -24,8 +24,10 @@ export interface PaginatedResult<T> {
 interface HoldingListItem {
   holdingNo: string;
   ownerName: string;
-  address: string;
-  assessmentYear: string | null;
+  ward: string | null;
+  taxPaidTillYear: string | null;
+  annualTaxAmount: string | number | null;
+  solidWasteChargeAmount: string | number | null;
 }
 interface PropertyChangeListItem {
   id: number;
@@ -72,7 +74,13 @@ function fmtDate(v: string): string {
   return new Date(v).toLocaleDateString("en-IN");
 }
 
-/** Generic paginated table — one per active tab, columns supplied by the caller. */
+function fmtMoney(v: string | number | null): string {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  if (n === null || n === undefined || Number.isNaN(n)) return "-";
+  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+/** Generic paginated table - one per active tab, columns supplied by the caller. */
 function PaginatedTable<T>({
   fetchPage,
   columns,
@@ -97,7 +105,7 @@ function PaginatedTable<T>({
       .then(setResult)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load this list."))
       .finally(() => setLoading(false));
-    // fetchPage is a stable function identity from the parent per tab — intentionally not in deps to avoid re-fetch loops from inline arrow props.
+    // fetchPage is a stable function identity from the parent per tab - intentionally not in deps to avoid re-fetch loops from inline arrow props.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
@@ -202,7 +210,7 @@ function PaginatedTable<T>({
 
 export interface DashboardSummaryWidgetProps {
   fetchSummary: () => Promise<DashboardSummaryShape>;
-  fetchHoldings: (page: number, pageSize: number) => Promise<PaginatedResult<HoldingListItem>>;
+  fetchHoldings: (page: number, pageSize: number, ward?: string) => Promise<PaginatedResult<HoldingListItem>>;
   fetchPropertyChanges: (page: number, pageSize: number) => Promise<PaginatedResult<PropertyChangeListItem>>;
   fetchShops: (page: number, pageSize: number) => Promise<PaginatedResult<ShopListItem>>;
   fetchShopApplications: (page: number, pageSize: number) => Promise<PaginatedResult<ShopApplicationListItem>>;
@@ -214,13 +222,15 @@ export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
   const [summary, setSummary] = useState<DashboardSummaryShape | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("holdings");
+  const [wardFilter, setWardFilter] = useState("");
+  const [wardFilterInput, setWardFilterInput] = useState("");
 
   useEffect(() => {
     props
       .fetchSummary()
       .then(setSummary)
       .catch((err) => setSummaryError(err instanceof Error ? err.message : "Could not load the overview."));
-    // fetchSummary is a stable prop per dashboard page — intentionally not in deps.
+    // fetchSummary is a stable prop per dashboard page - intentionally not in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -260,17 +270,55 @@ export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
       </div>
 
       {activeTab === "holdings" && (
-        <PaginatedTable
-          fetchPage={props.fetchHoldings}
-          rowKey={(i) => i.holdingNo}
-          emptyLabel="No holdings on file."
-          columns={[
-            { label: "Holding No", render: (i) => <span className="font-mono">{i.holdingNo}</span> },
-            { label: "Owner", render: (i) => i.ownerName },
-            { label: "Address", render: (i) => i.address },
-            { label: "Assessment Yr", render: (i) => i.assessmentYear ?? "—" },
-          ]}
-        />
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setWardFilter(wardFilterInput.trim());
+            }}
+            className="mb-3 flex items-center gap-2"
+          >
+            <label className="text-xs font-medium text-slate-600">Ward</label>
+            <input
+              value={wardFilterInput}
+              onChange={(e) => setWardFilterInput(e.target.value)}
+              placeholder="e.g. 12 (leave blank for all wards)"
+              className="w-56 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+            />
+            <button
+              type="submit"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Apply
+            </button>
+            {wardFilter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setWardFilterInput("");
+                  setWardFilter("");
+                }}
+                className="text-xs font-semibold text-nnm-blue hover:underline"
+              >
+                Clear
+              </button>
+            )}
+          </form>
+          <PaginatedTable
+            key={wardFilter}
+            fetchPage={(page, pageSize) => props.fetchHoldings(page, pageSize, wardFilter || undefined)}
+            rowKey={(i) => i.holdingNo}
+            emptyLabel={wardFilter ? `No holdings on file for Ward ${wardFilter}.` : "No holdings on file."}
+            columns={[
+              { label: "Holding No", render: (i) => <span className="font-mono">{i.holdingNo}</span> },
+              { label: "Owner", render: (i) => i.ownerName },
+              { label: "Ward", render: (i) => i.ward ?? "-" },
+              { label: "Tax Paid Till Year", render: (i) => i.taxPaidTillYear ?? "-" },
+              { label: "Annual Tax Amount", render: (i) => fmtMoney(i.annualTaxAmount) },
+              { label: "Solid Waste Charge", render: (i) => fmtMoney(i.solidWasteChargeAmount) },
+            ]}
+          />
+        </>
       )}
 
       {activeTab === "propertyChanges" && (
@@ -301,7 +349,7 @@ export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
           emptyLabel="No shops on file."
           columns={[
             { label: "Shop No", render: (i) => <span className="font-mono">{i.shopNo}</span> },
-            { label: "Market", render: (i) => i.marketName ?? "—" },
+            { label: "Market", render: (i) => i.marketName ?? "-" },
             { label: "Location", render: (i) => i.location },
             { label: "Status", render: (i) => i.status },
           ]}

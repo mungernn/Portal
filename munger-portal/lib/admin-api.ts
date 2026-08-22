@@ -326,8 +326,10 @@ export interface PaginatedResult<T> {
 export interface HoldingListItem {
   holdingNo: string;
   ownerName: string;
-  address: string;
-  assessmentYear: string | null;
+  ward: string | null;
+  taxPaidTillYear: string | null;
+  annualTaxAmount: string | number | null;
+  solidWasteChargeAmount: string | number | null;
 }
 
 export interface PropertyChangeListItem {
@@ -371,16 +373,22 @@ export interface TradeLicenseIssuedListItem {
   requestedAt: string;
 }
 
-async function fetchDashboardListAdmin<T>(path: string, page: number, pageSize: number): Promise<PaginatedResult<T>> {
-  const res = await fetch(`${API_BASE_URL}/dashboard-summary/${path}?page=${page}&pageSize=${pageSize}`, {
+async function fetchDashboardListAdmin<T>(
+  path: string,
+  page: number,
+  pageSize: number,
+  extraParams?: Record<string, string>,
+): Promise<PaginatedResult<T>> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), ...extraParams });
+  const res = await fetch(`${API_BASE_URL}/dashboard-summary/${path}?${params.toString()}`, {
     headers: authHeaders(),
   });
   if (!res.ok) throw new Error("Could not load this list.");
   return res.json();
 }
 
-export const fetchDashboardHoldingsAdmin = (page: number, pageSize: number) =>
-  fetchDashboardListAdmin<HoldingListItem>("holdings", page, pageSize);
+export const fetchDashboardHoldingsAdmin = (page: number, pageSize: number, ward?: string) =>
+  fetchDashboardListAdmin<HoldingListItem>("holdings", page, pageSize, ward ? { ward } : undefined);
 export const fetchDashboardPropertyChangesAdmin = (page: number, pageSize: number) =>
   fetchDashboardListAdmin<PropertyChangeListItem>("property-changes", page, pageSize);
 export const fetchDashboardShopsAdmin = (page: number, pageSize: number) =>

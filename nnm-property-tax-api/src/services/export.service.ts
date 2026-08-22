@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { istDateString } from "../utils/istDate";
 import { propertyRepository } from "../repositories/property.repository";
 import { paymentRepository } from "../repositories/payment.repository";
 import { demandNoticeRepository } from "../repositories/demandNotice.repository";
@@ -19,7 +20,7 @@ import { tradeLicenseApplicationRepository } from "../repositories/tradeLicenseA
  * proposed_data JSON) are stringified; Dates are left as-is for Excel's
  * native date handling.
  */
-function addSheetFromRows(workbook: ExcelJS.Workbook, sheetName: string, rows: Record<string, unknown>[]): void {
+export function addSheetFromRows(workbook: ExcelJS.Workbook, sheetName: string, rows: Record<string, unknown>[]): void {
   const sheet = workbook.addWorksheet(sheetName);
   if (rows.length === 0) {
     sheet.addRow(["No data"]);
@@ -59,6 +60,42 @@ export type ExportDataset =
   | "shop_rental_applications"
   | "trade_license_applications"
   | "all";
+
+export async function buildReceiptsExportWorkbook(range: "daily" | "monthly" | "overall", dateStr?: string): Promise<ExcelJS.Workbook> {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "NNM Property Tax Portal";
+  workbook.created = new Date();
+
+  let rows;
+  let sheetName: string;
+
+  if (range === "overall") {
+    rows = await paymentRepository.findAll();
+    sheetName = "All Receipts";
+  } else {
+    // Same IST wall-clock -> UTC instant pattern as istShiftStartToday()
+    // in istDate.ts - never assume the server's local time is IST.
+    const IST_OFFSET_MS = (5 * 60 + 30) * 60000;
+    const todayIst = dateStr ?? istDateString(new Date());
+    const [y, mo, da] = todayIst.split("-").map((n) => parseInt(n, 10)) as [number, number, number];
+
+    let from: Date;
+    let to: Date;
+    if (range === "daily") {
+      from = new Date(Date.UTC(y, mo - 1, da, 0, 0, 0) - IST_OFFSET_MS);
+      to = new Date(from.getTime() + 24 * 3600 * 1000);
+      sheetName = `Receipts ${todayIst}`;
+    } else {
+      from = new Date(Date.UTC(y, mo - 1, 1, 0, 0, 0) - IST_OFFSET_MS);
+      to = new Date(Date.UTC(y, mo, 1, 0, 0, 0) - IST_OFFSET_MS);
+      sheetName = `Receipts ${todayIst.slice(0, 7)}`;
+    }
+    rows = await paymentRepository.findByDateRange(from, to);
+  }
+
+  addSheetFromRows(workbook, sheetName, rows as unknown as Record<string, unknown>[]);
+  return workbook;
+}
 
 /**
  * One sheet per requested dataset — "all" produces every sheet in a

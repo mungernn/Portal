@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { propertyRouter } from "./property.routes";
+import { operatorRouter } from "./operator.routes";
 import { shopRouter } from "./shop.routes";
 import { shopRentalApplicationRouter } from "./shopRentalApplication.routes";
 import { tradeLicenseApplicationRouter } from "./tradeLicenseApplication.routes";
@@ -22,6 +23,7 @@ apiRouter.get("/health", (_req, res) => {
 apiRouter.get("/form-options", getFormOptions);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/properties", propertyRouter);
+apiRouter.use("/operator", operatorRouter);
 apiRouter.use("/shops", shopRouter);
 apiRouter.use("/shop-rental-applications", shopRentalApplicationRouter);
 apiRouter.use("/trade-license-applications", tradeLicenseApplicationRouter);

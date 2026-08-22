@@ -70,12 +70,20 @@ function clampPageSize(pageSize: unknown): number {
   return Math.min(Math.floor(n), 100); // hard ceiling — the widget's own pager offers 25/50, this just guards against an arbitrary huge request
 }
 
-export async function listHoldingsForDashboard(page: unknown, pageSize: unknown) {
+export async function listHoldingsForDashboard(page: unknown, pageSize: unknown, ward: unknown) {
   const p = clampPage(page);
   const ps = clampPageSize(pageSize);
-  const { rows, total } = await propertyRepository.listPaginated(p, ps);
+  const wardFilter = typeof ward === "string" && ward.trim() !== "" ? ward.trim() : undefined;
+  const { rows, total } = await propertyRepository.listPaginated(p, ps, wardFilter);
   return {
-    items: rows.map((r) => ({ holdingNo: r.holding_no, ownerName: r.owner_name, address: r.address, assessmentYear: r.assessment_year })),
+    items: rows.map((r) => ({
+      holdingNo: r.holding_no,
+      ownerName: r.owner_name,
+      ward: r.ward,
+      taxPaidTillYear: r.tax_paid_till_year,
+      annualTaxAmount: r.tax_payable,
+      solidWasteChargeAmount: r.solid_waste_charge,
+    })),
     total,
     page: p,
     pageSize: ps,

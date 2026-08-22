@@ -16,9 +16,9 @@ export const getDashboardSummaryHandler = asyncHandler(async (_req: Request, res
   res.status(200).json(summary);
 });
 
-/** GET /api/v1/dashboard-summary/holdings?page=&pageSize= */
+/** GET /api/v1/dashboard-summary/holdings?page=&pageSize=&ward= */
 export const getDashboardHoldingsHandler = asyncHandler(async (req: Request, res: Response) => {
-  res.status(200).json(await listHoldingsForDashboard(req.query.page, req.query.pageSize));
+  res.status(200).json(await listHoldingsForDashboard(req.query.page, req.query.pageSize, req.query.ward));
 });
 
 /** GET /api/v1/dashboard-summary/property-changes?page=&pageSize= */

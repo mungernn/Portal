@@ -92,4 +92,19 @@ export const paymentRepository = {
     const { rows } = await pool.query<TransactionRow>(`SELECT * FROM transactions ORDER BY txn_date DESC`);
     return rows;
   },
+
+  /**
+   * Transactions within [from, to) - used by the operator's daily/
+   * monthly receipt export. `to` is exclusive, so callers pass the
+   * start of the day/month *after* the one they want, avoiding any
+   * timezone-boundary ambiguity about whether the last moment of a
+   * day/month is included.
+   */
+  async findByDateRange(from: Date, to: Date): Promise<TransactionRow[]> {
+    const { rows } = await pool.query<TransactionRow>(
+      `SELECT * FROM transactions WHERE txn_date >= $1 AND txn_date < $2 ORDER BY txn_date ASC`,
+      [from, to],
+    );
+    return rows;
+  },
 };

@@ -338,8 +338,10 @@ export interface PaginatedResult<T> {
 export interface HoldingListItem {
   holdingNo: string;
   ownerName: string;
-  address: string;
-  assessmentYear: string | null;
+  ward: string | null;
+  taxPaidTillYear: string | null;
+  annualTaxAmount: string | number | null;
+  solidWasteChargeAmount: string | number | null;
 }
 
 export interface PropertyChangeListItem {
@@ -383,18 +385,24 @@ export interface TradeLicenseIssuedListItem {
   requestedAt: string;
 }
 
-async function fetchDashboardList<T>(path: string, page: number, pageSize: number): Promise<PaginatedResult<T>> {
+async function fetchDashboardList<T>(
+  path: string,
+  page: number,
+  pageSize: number,
+  extraParams?: Record<string, string>,
+): Promise<PaginatedResult<T>> {
   const token = getOperatorToken();
   if (!token) throw new Error("Not logged in — please log in again.");
-  const res = await fetch(`${API_BASE_URL}/dashboard-summary/${path}?page=${page}&pageSize=${pageSize}`, {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), ...extraParams });
+  const res = await fetch(`${API_BASE_URL}/dashboard-summary/${path}?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) throw new Error("Could not load this list.");
   return res.json();
 }
 
-export const fetchDashboardHoldings = (page: number, pageSize: number) =>
-  fetchDashboardList<HoldingListItem>("holdings", page, pageSize);
+export const fetchDashboardHoldings = (page: number, pageSize: number, ward?: string) =>
+  fetchDashboardList<HoldingListItem>("holdings", page, pageSize, ward ? { ward } : undefined);
 export const fetchDashboardPropertyChanges = (page: number, pageSize: number) =>
   fetchDashboardList<PropertyChangeListItem>("property-changes", page, pageSize);
 export const fetchDashboardShops = (page: number, pageSize: number) =>
@@ -405,3 +413,38 @@ export const fetchDashboardTradeLicenseApplications = (page: number, pageSize: n
   fetchDashboardList<TradeLicenseApplicationListItem>("trade-license-applications", page, pageSize);
 export const fetchDashboardTradeLicensesIssued = (page: number, pageSize: number) =>
   fetchDashboardList<TradeLicenseIssuedListItem>("trade-licenses-issued", page, pageSize);
+
+// ---------------------------------------------------------------------------
+// Receipt data export — daily / monthly / overall
+// ---------------------------------------------------------------------------
+
+export type ReceiptExportRange = "daily" | "monthly" | "overall";
+
+/** date: "YYYY-MM-DD" for daily, or any date within the target month for monthly. Ignored for "overall". */
+export async function downloadReceiptsExport(range: ReceiptExportRange, date?: string): Promise<void> {
+  const token = getOperatorToken();
+  if (!token) throw new Error("Not logged in - please log in again.");
+
+  const params = new URLSearchParams({ range });
+  if (date) params.set("date", date);
+
+  const res = await fetch(`${API_BASE_URL}/operator/receipts/export?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Download failed.");
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const disposition = res.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="(.+)"/);
+  a.download = match ? match[1]! : `nnm-receipts-${range}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

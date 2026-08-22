@@ -188,6 +188,17 @@ export async function savePropertyByHoldingNo(
 	const approvalTier = classifyPropertyChange(existing, existingFloors, input);
 	const finalStage = TIER_FINAL_STAGE[approvalTier];
 
+  // Only one mutation request may be pending per holding at a time -
+  // otherwise two operators (or the same operator twice) could queue
+  // conflicting proposed changes for the same property before either
+  // gets reviewed.
+  const alreadyPending = await changeRequestRepository.findPendingForHolding(holdingNo);
+  if (alreadyPending) {
+    throw ApiError.badRequest(
+      `A mutation request (number ${alreadyPending.id}) is already pending approval for this holding. Please wait for it to be approved or rejected before submitting another change.`,
+    );
+  }
+
   const changeRequest: ChangeRequestRow = await changeRequestRepository.create(
     holdingNo,
     operatorDisplayName,

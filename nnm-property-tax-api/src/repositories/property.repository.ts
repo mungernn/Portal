@@ -72,9 +72,19 @@ export const propertyRepository = {
     return rows.map((r) => r.ward);
   },
 
-  /** Paginated holding list — for the dashboard overview widget's holdings tab. */
-  async listPaginated(page: number, pageSize: number): Promise<{ rows: PropertyRow[]; total: number }> {
+  /** Paginated holding list — for the dashboard overview widget's holdings tab. Optional ward filter for ward-wise viewing. */
+  async listPaginated(page: number, pageSize: number, ward?: string): Promise<{ rows: PropertyRow[]; total: number }> {
     const offset = (page - 1) * pageSize;
+    if (ward) {
+      const [{ rows }, { rows: countRows }] = await Promise.all([
+        pool.query<PropertyRow>(
+          `SELECT * FROM properties WHERE ward = $1 ORDER BY holding_no ASC LIMIT $2 OFFSET $3`,
+          [ward, pageSize, offset],
+        ),
+        pool.query<{ count: string }>(`SELECT COUNT(*) AS count FROM properties WHERE ward = $1`, [ward]),
+      ]);
+      return { rows, total: parseInt(countRows[0]?.count ?? "0", 10) };
+    }
     const [{ rows }, total] = await Promise.all([
       pool.query<PropertyRow>(`SELECT * FROM properties ORDER BY holding_no ASC LIMIT $1 OFFSET $2`, [pageSize, offset]),
       this.countAll(),

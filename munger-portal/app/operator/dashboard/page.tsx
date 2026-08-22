@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, Building2, ShoppingBag, Award } from "lucide-react";
+import { Store, Building2, ShoppingBag, Award, Download } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { OperatorTaskCard } from "@/components/operator-task-card";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
@@ -66,6 +66,13 @@ export default function OperatorDashboardPage() {
             icon={ShoppingBag}
             title="Building Map Application"
             description="Coming soon."
+          />
+
+          <OperatorTaskCard
+            href="/operator/receipts"
+            icon={Download}
+            title="Tax Receipt Data"
+            description="Download collected receipts - daily, monthly, or overall."
           />
         </div>
       </main>
