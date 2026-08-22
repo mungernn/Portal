@@ -77,7 +77,12 @@ export async function generateDemandNotice(holdingNo: string, generatedBy: strin
     num(property.boring_charge) +
     num(property.form_fee) +
     num(property.misc_cost);
-  const grandTotal = currentTotal + yearWiseArrears + arrears.penalty + otherCharges - num(property.misc_rebate);
+  // Rounded up to the next whole rupee - the Nigam collects in whole
+  // rupees, not paise, and rounding up (rather than to nearest) means
+  // this can never under-collect by a fraction. Only the final total
+  // is rounded; the itemized breakdown below keeps full precision for
+  // transparency about how that total was reached.
+  const grandTotal = Math.ceil(currentTotal + yearWiseArrears + arrears.penalty + otherCharges - num(property.misc_rebate));
 
   const demandNoNum = await demandNoticeRepository.getNextDemandNo();
   const demandNo = String(demandNoNum);

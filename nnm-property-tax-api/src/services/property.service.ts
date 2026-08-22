@@ -69,10 +69,14 @@ export async function searchPropertyByHoldingNo(holdingNoRaw: string): Promise<P
     num(property.misc_cost) -
     num(property.misc_rebate);
 
-  const totalPayable =
-    arrears.totalPending +
-    arrears.penalty +
-    (currentCyclePaid ? 0 : currentYearTiming.net + currentCycleOtherCharges);
+	// Rounded up to the next whole rupee - same reasoning as demand notice
+	// generation (see demandNotice.service.ts): the Nigam collects in
+	// whole rupees, and this figure needs to match what a demand notice
+	// for the same property would show, or citizens and operators would
+	// see two different "amounts due" for the same holding.
+	const totalPayable = Math.ceil(
+		arrears.totalPending + arrears.penalty + (currentCyclePaid ? 0 : currentYearTiming.net + currentCycleOtherCharges),
+	);
 
   return {
     found: true,

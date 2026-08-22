@@ -33,7 +33,7 @@ export const getPropertyByHoldingNo = asyncHandler(async (req: Request, res: Res
 
 const lookupBodySchema = z.object({
   holdingNo: holdingNoSchema,
-  holdingNo: holdingNoSchema,
+  mobileNo: z.string().trim().min(1, "Mobile number is required").max(15),
 });
 
 /**
