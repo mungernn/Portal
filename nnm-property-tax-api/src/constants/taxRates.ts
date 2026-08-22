@@ -6,10 +6,14 @@
  */
 
 export const TAX_RATE = 0.09; // 9% of ARV
-// Receipt numbers auto-increment from this starting point — matches
-// Code.gs's RECEIPT_START_NO (the next number after their last physical
-// receipt, 40558, at the time of migration).
-export const RECEIPT_START_NO = 40559;
+// Receipt numbers auto-increment from this floor onwards - originally
+// matched Code.gs's RECEIPT_START_NO (the next number after their last
+// physical receipt, 40558, at the time of migration). Advanced to
+// 40747 (Aug 2026) to catch up with further physical receipts issued
+// since then. getNextReceiptNo() treats this as a floor, not just an
+// empty-table fallback - it's always the minimum, so raising this
+// value is always safe even if live usage has already passed it.
+export const RECEIPT_START_NO = 40747;
 // Independent numbering sequence from payment receipts — matches
 // Code.gs's DEMAND_NOTICE_START_NO.
 export const DEMAND_NOTICE_START_NO = 1;

@@ -16,13 +16,22 @@ export interface TransactionRow {
 }
 
 export const paymentRepository = {
-  /** Port of getNextReceiptNo_() — auto-increments off the highest numeric receipt_no on file. */
+    /**
+   * Port of getNextReceiptNo_() — auto-increments off the highest
+   * numeric receipt_no on file, never going below RECEIPT_START_NO.
+   * That floor matters beyond just the empty-table case: it's also
+   * how the receipt sequence gets deliberately advanced (e.g. to catch
+   * up with physical receipts issued outside this system) - raising
+   * the constant is always safe, since this only ever pushes the
+   * number up, never back down below whatever's already been issued.
+   */
   async getNextReceiptNo(): Promise<number> {
     const { rows } = await pool.query<{ max: string | null }>(
       `SELECT max(receipt_no::bigint) AS max FROM transactions WHERE receipt_no ~ '^[0-9]+$'`,
     );
     const lastNum = rows[0]?.max ? parseInt(rows[0].max, 10) : NaN;
-    return Number.isNaN(lastNum) ? RECEIPT_START_NO : lastNum + 1;
+    const nextFromExisting = Number.isNaN(lastNum) ? RECEIPT_START_NO : lastNum + 1;
+    return Math.max(nextFromExisting, RECEIPT_START_NO);
   },
 
   async insertTransaction(row: {

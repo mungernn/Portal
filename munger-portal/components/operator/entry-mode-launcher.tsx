@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { FileText, Sparkles, HelpCircle, ArrowRight } from "lucide-react";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 
 export type NewEntryChoice = "known-number" | "new" | "partiallyKnown";
 
@@ -38,7 +39,7 @@ export function EntryModeLauncher({
           <div className="flex gap-1.5">
             <input
               value={knownNumber}
-              onChange={(e) => setKnownNumber(e.target.value)}
+              onChange={(e) => setKnownNumber(sanitizeHoldingNoInput(e.target.value))}
               placeholder="e.g. MUNG-08257"
               className="w-full min-w-0 rounded-md border border-slate-300 px-2.5 py-2 text-xs outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
             />

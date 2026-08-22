@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Calculator, Clock, Plus } from "lucide-react";
 import { FloorRow, makeBlankFloor, type FloorFormState } from "./floor-row";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 import { FinancialYearSelect } from "./financial-year-select";
 import { saveProperty, createNewEntryProperty, previewPropertyTax, type FormOptions, type SaveError, type SavePropertyApiResult, type TaxPreviewResult } from "@/lib/operator-api";
 
@@ -419,7 +420,7 @@ export function PropertyEditorForm({
             <label className={labelClass}>Old MUNG- holding no. (optional)</label>
             <input
               value={master.oldHoldingNo}
-              onChange={(e) => updateMaster("oldHoldingNo", e.target.value)}
+              onChange={(e) => updateMaster("oldHoldingNo", sanitizeHoldingNoInput(e.target.value))}
               placeholder="Fill in if an old/original MUNG- number is later found for this holding"
               className={inputClass}
             />

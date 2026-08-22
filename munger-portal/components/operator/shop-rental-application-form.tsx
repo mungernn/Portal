@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, Clock } from "lucide-react";
 import { submitRentalApplication, type RentalApplicationInput } from "@/lib/shop-api";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
@@ -145,7 +146,7 @@ export function ShopRentalApplicationForm({
         </p>
         <input
           value={form.applicantPropertyHoldingNo ?? ""}
-          onChange={(e) => update("applicantPropertyHoldingNo", e.target.value)}
+          onChange={(e) => update("applicantPropertyHoldingNo", sanitizeHoldingNoInput(e.target.value))}
           placeholder="e.g. MUNG-08257 (leave blank if not applicable)"
           className={inputClass}
         />

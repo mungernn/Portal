@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Plus } from "lucide-react";
 import { PhaseArvRow, makeBlankPhaseArv, type PhaseArvEntry } from "./phase-arv-row";
+import { sanitizeHoldingNoInput } from "@/lib/holding-no";
 import { FinancialYearSelect } from "./financial-year-select";
 import { createNewEntryProperty, type FormOptions, type SaveError, type NewEntryResult } from "@/lib/operator-api";
+
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
@@ -142,7 +144,7 @@ export function PartiallyKnownForm({
             <label className={labelClass}>Related MUNG- holding no. (optional)</label>
             <input
               value={oldPid}
-              onChange={(e) => setOldPid(e.target.value)}
+              onChange={(e) => setOldPid(sanitizeHoldingNoInput(e.target.value))}
               placeholder="Fill in if later matched to an existing digitized MUNG- record"
               className={inputClass}
             />
