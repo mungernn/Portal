@@ -20,7 +20,10 @@ const previewSchema = z.object({
   rainWaterHarvesting: z.boolean().optional(),
   assessmentYear: z.string().regex(/^\d{4}-\d{4}$/, "Use YYYY-YYYY format"),
   solidWasteChargeType: z.string().nullish(),
-  solidWasteMonths: z.coerce.number().min(1).max(12).optional(),
+  // No upper bound - an operator can enter more than 12 months to
+	// reflect multiple pending years of solid waste charge as part of
+	// arrears (see migration 018_remove_solid_waste_months_cap.sql).
+	solidWasteMonths: z.coerce.number().min(1).optional(),
   floors: z.array(floorSchema),
 });
 

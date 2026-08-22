@@ -39,7 +39,10 @@ const newEntrySchema = z.object({
   rainWaterHarvesting: z.boolean().optional(),
   arrearTax: z.coerce.number().optional(),
   solidWasteChargeType: z.string().nullish(),
-  solidWasteMonths: z.coerce.number().min(1).max(12).optional(),
+  // No upper bound - an operator can enter more than 12 months to
+	// reflect multiple pending years of solid waste charge as part of
+	// arrears (see migration 018_remove_solid_waste_months_cap.sql).
+	solidWasteMonths: z.coerce.number().min(1).optional(),
   penalCharge: z.coerce.number().optional(),
   waterCharge: z.coerce.number().optional(),
   boringCharge: z.coerce.number().optional(),

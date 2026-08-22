@@ -226,11 +226,13 @@ export function PartiallyKnownForm({
             <input
               type="number"
               min="1"
-              max="12"
               value={solidWasteMonths}
               onChange={(e) => setSolidWasteMonths(e.target.value)}
               className={inputClass}
             />
+            <p className="mt-1 text-xs text-slate-400">
+              Enter more than 12 to include multiple pending years (e.g. 36 for 3 years) as part of arrears.
+            </p>
           </div>
         </div>
       </section>

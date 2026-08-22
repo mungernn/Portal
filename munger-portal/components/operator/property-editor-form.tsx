@@ -283,7 +283,9 @@ export function PropertyEditorForm({
                   {(
                     formOptions.solidWasteRates[master.solidWasteChargeType]! * (Number(master.solidWasteMonths) || 12)
                   ).toLocaleString("en-IN")}
-                  <span className="ml-1 text-xs font-normal text-slate-400">/ year</span>
+                  <span className="ml-1 text-xs font-normal text-slate-400">
+                    for {master.solidWasteMonths || 12} mo
+                  </span>
                 </span>
               </div>
             )}
@@ -570,11 +572,13 @@ export function PropertyEditorForm({
             <input
               type="number"
               min="1"
-              max="12"
               value={master.solidWasteMonths}
               onChange={(e) => updateMaster("solidWasteMonths", e.target.value)}
               className={inputClass}
             />
+            <p className="mt-1 text-xs text-slate-400">
+              Enter more than 12 to include multiple pending years (e.g. 36 for 3 years) as part of arrears.
+            </p>
           </div>
         </div>
       </section>
