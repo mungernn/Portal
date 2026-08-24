@@ -1,0 +1,1518 @@
+diff --git a/munger-portal/app/attendance/dashboard/page.tsx b/munger-portal/app/attendance/dashboard/page.tsx
+index 4ae55af..b00fe07 100644
+--- a/munger-portal/app/attendance/dashboard/page.tsx
++++ b/munger-portal/app/attendance/dashboard/page.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { useEffect, useState } from "react";
+ import Link from "next/link";
+-import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users } from "lucide-react";
++import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users, UserCog, Truck } from "lucide-react";
+ import { AttendanceHeader } from "@/components/attendance/attendance-header";
+ import { useAttendanceGuard } from "@/lib/use-attendance-guard";
+ import { fetchAttendanceDashboardSummary, type AttendanceDashboardSummary } from "@/lib/attendance-api";
+@@ -113,6 +113,26 @@ export default function AttendanceDashboardPage() {
+               <p className="text-sm text-slate-500">Create Jamadar/Supervisor/Officer logins, activate or deactivate accounts.</p>
+             </Link>
+           )}
++
++          {user.role === "attendance_admin" && (
++            <Link href="/attendance/manage-staff" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
++              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
++                <UserCog className="h-6 w-6" strokeWidth={1.8} />
++              </span>
++              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Manage Field Staff</h3>
++              <p className="text-sm text-slate-500">Add sanitation workers one at a time, or upload a full list.</p>
++            </Link>
++          )}
++
++          {user.role === "attendance_admin" && (
++            <Link href="/attendance/manage-drivers" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
++              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
++                <Truck className="h-6 w-6" strokeWidth={1.8} />
++              </span>
++              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Manage Drivers</h3>
++              <p className="text-sm text-slate-500">Add drivers one at a time, or upload a full list.</p>
++            </Link>
++          )}
+         </div>
+       </main>
+     </div>
+diff --git a/munger-portal/app/attendance/manage-drivers/page.tsx b/munger-portal/app/attendance/manage-drivers/page.tsx
+new file mode 100644
+index 0000000..597bef5
+--- /dev/null
++++ b/munger-portal/app/attendance/manage-drivers/page.tsx
+@@ -0,0 +1,334 @@
++"use client";
++
++import { useEffect, useRef, useState } from "react";
++import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload } from "lucide-react";
++import { AttendanceHeader } from "@/components/attendance/attendance-header";
++import { useAttendanceGuard } from "@/lib/use-attendance-guard";
++import {
++  fetchAttendanceWards,
++  fetchAttendanceShifts,
++  fetchAllFieldDrivers,
++  createFieldDriver,
++  setFieldDriverActive,
++  uploadFieldDriverRosterCsv,
++  type AttendanceWard,
++  type AttendanceShift,
++  type FieldDriverSummary,
++  type RosterSyncResult,
++} from "@/lib/attendance-api";
++
++const inputClass =
++  "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
++const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
++
++export default function ManageDriversPage() {
++  const user = useAttendanceGuard(["attendance_admin"]);
++  const [wards, setWards] = useState<AttendanceWard[]>([]);
++  const [shifts, setShifts] = useState<AttendanceShift[]>([]);
++  const [drivers, setDrivers] = useState<FieldDriverSummary[] | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  const [name, setName] = useState("");
++  const [vehicleNumber, setVehicleNumber] = useState("");
++  const [chassisNumber, setChassisNumber] = useState("");
++  const [dlNumber, setDlNumber] = useState("");
++  const [wardNo, setWardNo] = useState("");
++  const [wardId, setWardId] = useState("");
++  const [shiftId, setShiftId] = useState("");
++  const [creating, setCreating] = useState(false);
++  const [createError, setCreateError] = useState<string | null>(null);
++  const [created, setCreated] = useState(false);
++
++  const [uploading, setUploading] = useState(false);
++  const [uploadResult, setUploadResult] = useState<RosterSyncResult | null>(null);
++  const [uploadError, setUploadError] = useState<string | null>(null);
++  const fileInputRef = useRef<HTMLInputElement>(null);
++
++  const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
++  const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
++
++  async function loadDrivers() {
++    try {
++      setDrivers(await fetchAllFieldDrivers());
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Could not load driver list.");
++    }
++  }
++
++  useEffect(() => {
++    if (!user) return;
++    fetchAttendanceWards()
++      .then(setWards)
++      .catch(() => setWards([]));
++    fetchAttendanceShifts()
++      .then(setShifts)
++      .catch(() => setShifts([]));
++    loadDrivers();
++  }, [user]);
++
++  async function handleCreate(e: React.FormEvent) {
++    e.preventDefault();
++    setCreateError(null);
++    setCreated(false);
++    if (!wardId) {
++      setCreateError("Select a ward.");
++      return;
++    }
++    setCreating(true);
++    try {
++      await createFieldDriver({
++        name,
++        vehicleNumber: vehicleNumber || null,
++        chassisNumber: chassisNumber || null,
++        dlNumber: dlNumber || null,
++        wardNo: wardNo || null,
++        wardId: Number(wardId),
++        shiftId: shiftId ? Number(shiftId) : null,
++      });
++      setCreated(true);
++      setName("");
++      setVehicleNumber("");
++      setChassisNumber("");
++      setDlNumber("");
++      setWardNo("");
++      setWardId("");
++      setShiftId("");
++      await loadDrivers();
++    } catch (err) {
++      setCreateError(err instanceof Error ? err.message : "Could not add driver.");
++    } finally {
++      setCreating(false);
++    }
++  }
++
++  async function handleToggleActive(id: number, active: boolean) {
++    setError(null);
++    try {
++      await setFieldDriverActive(id, active);
++      await loadDrivers();
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Could not update status.");
++    }
++  }
++
++  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
++    const file = e.target.files?.[0];
++    if (!file) return;
++    setUploading(true);
++    setUploadError(null);
++    setUploadResult(null);
++    try {
++      const text = await file.text();
++      const result = await uploadFieldDriverRosterCsv(text);
++      setUploadResult(result);
++      await loadDrivers();
++    } catch (err) {
++      setUploadError(err instanceof Error ? err.message : "Upload failed.");
++    } finally {
++      setUploading(false);
++      if (fileInputRef.current) fileInputRef.current.value = "";
++    }
++  }
++
++  if (!user) {
++    return <div className="flex min-h-screen items-center justify-center text-sm text-slate-400">Loading...</div>;
++  }
++
++  return (
++    <div className="min-h-screen bg-slate-50">
++      <AttendanceHeader user={user} />
++
++      <main className="mx-auto max-w-4xl px-6 py-10">
++        <h1 className="mb-1 text-2xl font-semibold text-slate-900">Manage Field Drivers</h1>
++        <p className="mb-6 text-sm text-slate-500">Add drivers one at a time, or upload a full list.</p>
++
++        {error && (
++          <div role="alert" className="mb-5 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
++            <AlertCircle className="h-4 w-4 shrink-0" />
++            {error}
++          </div>
++        )}
++
++        {/* One-by-one entry */}
++        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
++            <UserPlus className="h-4 w-4" />
++            Add One Driver
++          </h2>
++
++          {createError && (
++            <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
++              <AlertCircle className="h-4 w-4 shrink-0" />
++              {createError}
++            </div>
++          )}
++          {created && (
++            <div role="status" className="mb-4 flex items-center gap-1.5 text-sm text-green-700">
++              <CheckCircle2 className="h-4 w-4" />
++              Driver added.
++            </div>
++          )}
++
++          <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
++            <div>
++              <label className={labelClass}>Name</label>
++              <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>Vehicle Number</label>
++              <input value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>Chassis Number</label>
++              <input value={chassisNumber} onChange={(e) => setChassisNumber(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>DL Number</label>
++              <input value={dlNumber} onChange={(e) => setDlNumber(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>Ward No (label)</label>
++              <input value={wardNo} onChange={(e) => setWardNo(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>Ward</label>
++              <select required value={wardId} onChange={(e) => setWardId(e.target.value)} className={inputClass}>
++                <option value="">Select...</option>
++                {wards.map((w) => (
++                  <option key={w.id} value={w.id}>
++                    {w.wardName}
++                  </option>
++                ))}
++              </select>
++            </div>
++            <div>
++              <label className={labelClass}>Shift (optional)</label>
++              <select value={shiftId} onChange={(e) => setShiftId(e.target.value)} className={inputClass}>
++                <option value="">None</option>
++                {shifts.map((s) => (
++                  <option key={s.id} value={s.id}>
++                    {s.shiftName}
++                  </option>
++                ))}
++              </select>
++            </div>
++            <div className="sm:col-span-3">
++              <button
++                type="submit"
++                disabled={creating}
++                className="w-full rounded-md bg-nnm-blue py-3 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60 sm:w-auto sm:px-8"
++              >
++                {creating ? "Adding..." : "Add Driver"}
++              </button>
++            </div>
++          </form>
++        </section>
++
++        {/* Bulk upload */}
++        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
++            <Upload className="h-4 w-4" />
++            Upload Full List (CSV)
++          </h2>
++          <p className="mb-4 text-xs text-slate-500">
++            Columns:{" "}
++            <code className="rounded bg-slate-100 px-1 py-0.5">Name, VehicleNumber, ChassisNumber, DLNumber, WardNo, Ward, Shift</code>.
++            Ward and Shift must match the names shown above exactly; the rest are optional. This replaces the entire active roster -
++            anyone not in the uploaded file will be marked inactive, not deleted.
++          </p>
++
++          <input
++            ref={fileInputRef}
++            type="file"
++            accept=".csv"
++            onChange={handleFileSelected}
++            disabled={uploading}
++            className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-nnm-blue file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-nnm-blue-dark disabled:opacity-60"
++          />
++
++          {uploading && (
++            <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
++              <Loader2 className="h-4 w-4 animate-spin" />
++              Processing upload...
++            </div>
++          )}
++
++          {uploadError && (
++            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
++              <AlertCircle className="h-4 w-4 shrink-0" />
++              {uploadError}
++            </div>
++          )}
++
++          {uploadResult && (
++            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
++              <p className="mb-2 font-semibold text-slate-700">
++                Created {uploadResult.created}, updated {uploadResult.updated}, deactivated {uploadResult.deactivated}.
++              </p>
++              {uploadResult.errors.length > 0 && (
++                <div>
++                  <p className="mb-1 font-semibold text-amber-700">{uploadResult.errors.length} row(s) skipped:</p>
++                  <ul className="list-inside list-disc space-y-0.5 text-xs text-amber-700">
++                    {uploadResult.errors.map((e, i) => (
++                      <li key={i}>
++                        Row {e.row}: {e.message}
++                      </li>
++                    ))}
++                  </ul>
++                </div>
++              )}
++            </div>
++          )}
++        </section>
++
++        {/* Roster table */}
++        <section className="rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-4 text-sm font-semibold text-slate-700">All Drivers ({drivers?.length ?? "..."})</h2>
++          {!drivers ? (
++            <div className="flex items-center gap-2 text-sm text-slate-400">
++              <Loader2 className="h-4 w-4 animate-spin" />
++              Loading...
++            </div>
++          ) : (
++            <div className="max-h-96 overflow-y-auto rounded-md border border-slate-200">
++              <table className="w-full text-sm">
++                <thead className="sticky top-0 bg-slate-50">
++                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
++                    <th className="px-3 py-2 font-medium">Name</th>
++                    <th className="px-3 py-2 font-medium">Vehicle</th>
++                    <th className="px-3 py-2 font-medium">Ward</th>
++                    <th className="px-3 py-2 font-medium">Shift</th>
++                    <th className="px-3 py-2 font-medium">Status</th>
++                    <th className="px-3 py-2 font-medium"></th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {drivers.map((d) => (
++                    <tr key={d.id} className="border-b border-slate-100 last:border-0">
++                      <td className="px-3 py-2">{d.name}</td>
++                      <td className="px-3 py-2 font-mono text-xs">{d.vehicleNumber ?? "-"}</td>
++                      <td className="px-3 py-2">{wardName(d.wardId)}</td>
++                      <td className="px-3 py-2">{shiftName(d.shiftId)}</td>
++                      <td className="px-3 py-2">
++                        <span
++                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${d.active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-500"}`}
++                        >
++                          {d.active ? "Active" : "Inactive"}
++                        </span>
++                      </td>
++                      <td className="px-3 py-2 text-right">
++                        <button onClick={() => handleToggleActive(d.id, !d.active)} className="text-xs font-medium text-nnm-blue hover:underline">
++                          {d.active ? "Deactivate" : "Activate"}
++                        </button>
++                      </td>
++                    </tr>
++                  ))}
++                </tbody>
++              </table>
++            </div>
++          )}
++        </section>
++      </main>
++    </div>
++  );
++}
+diff --git a/munger-portal/app/attendance/manage-staff/page.tsx b/munger-portal/app/attendance/manage-staff/page.tsx
+new file mode 100644
+index 0000000..a1e7807
+--- /dev/null
++++ b/munger-portal/app/attendance/manage-staff/page.tsx
+@@ -0,0 +1,299 @@
++"use client";
++
++import { useEffect, useRef, useState } from "react";
++import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload } from "lucide-react";
++import { AttendanceHeader } from "@/components/attendance/attendance-header";
++import { useAttendanceGuard } from "@/lib/use-attendance-guard";
++import {
++  fetchAttendanceWards,
++  fetchAttendanceShifts,
++  fetchAllFieldStaff,
++  createFieldStaff,
++  setFieldStaffActive,
++  uploadFieldStaffRosterCsv,
++  type AttendanceWard,
++  type AttendanceShift,
++  type FieldStaffSummary,
++  type RosterSyncResult,
++} from "@/lib/attendance-api";
++
++const inputClass =
++  "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
++const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
++
++export default function ManageStaffPage() {
++  const user = useAttendanceGuard(["attendance_admin"]);
++  const [wards, setWards] = useState<AttendanceWard[]>([]);
++  const [shifts, setShifts] = useState<AttendanceShift[]>([]);
++  const [staff, setStaff] = useState<FieldStaffSummary[] | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  const [name, setName] = useState("");
++  const [wardId, setWardId] = useState("");
++  const [shiftId, setShiftId] = useState("");
++  const [creating, setCreating] = useState(false);
++  const [createError, setCreateError] = useState<string | null>(null);
++  const [created, setCreated] = useState(false);
++
++  const [uploading, setUploading] = useState(false);
++  const [uploadResult, setUploadResult] = useState<RosterSyncResult | null>(null);
++  const [uploadError, setUploadError] = useState<string | null>(null);
++  const fileInputRef = useRef<HTMLInputElement>(null);
++
++  const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
++  const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
++
++  async function loadStaff() {
++    try {
++      setStaff(await fetchAllFieldStaff());
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Could not load staff list.");
++    }
++  }
++
++  useEffect(() => {
++    if (!user) return;
++    fetchAttendanceWards()
++      .then(setWards)
++      .catch(() => setWards([]));
++    fetchAttendanceShifts()
++      .then(setShifts)
++      .catch(() => setShifts([]));
++    loadStaff();
++  }, [user]);
++
++  async function handleCreate(e: React.FormEvent) {
++    e.preventDefault();
++    setCreateError(null);
++    setCreated(false);
++    if (!wardId) {
++      setCreateError("Select a ward.");
++      return;
++    }
++    setCreating(true);
++    try {
++      await createFieldStaff({ name, wardId: Number(wardId), shiftId: shiftId ? Number(shiftId) : null });
++      setCreated(true);
++      setName("");
++      setWardId("");
++      setShiftId("");
++      await loadStaff();
++    } catch (err) {
++      setCreateError(err instanceof Error ? err.message : "Could not add staff member.");
++    } finally {
++      setCreating(false);
++    }
++  }
++
++  async function handleToggleActive(id: number, active: boolean) {
++    setError(null);
++    try {
++      await setFieldStaffActive(id, active);
++      await loadStaff();
++    } catch (err) {
++      setError(err instanceof Error ? err.message : "Could not update status.");
++    }
++  }
++
++  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
++    const file = e.target.files?.[0];
++    if (!file) return;
++    setUploading(true);
++    setUploadError(null);
++    setUploadResult(null);
++    try {
++      const text = await file.text();
++      const result = await uploadFieldStaffRosterCsv(text);
++      setUploadResult(result);
++      await loadStaff();
++    } catch (err) {
++      setUploadError(err instanceof Error ? err.message : "Upload failed.");
++    } finally {
++      setUploading(false);
++      if (fileInputRef.current) fileInputRef.current.value = "";
++    }
++  }
++
++  if (!user) {
++    return <div className="flex min-h-screen items-center justify-center text-sm text-slate-400">Loading...</div>;
++  }
++
++  return (
++    <div className="min-h-screen bg-slate-50">
++      <AttendanceHeader user={user} />
++
++      <main className="mx-auto max-w-4xl px-6 py-10">
++        <h1 className="mb-1 text-2xl font-semibold text-slate-900">Manage Field Staff</h1>
++        <p className="mb-6 text-sm text-slate-500">Add sanitation workers one at a time, or upload a full list.</p>
++
++        {error && (
++          <div role="alert" className="mb-5 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
++            <AlertCircle className="h-4 w-4 shrink-0" />
++            {error}
++          </div>
++        )}
++
++        {/* One-by-one entry */}
++        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
++            <UserPlus className="h-4 w-4" />
++            Add One Staff Member
++          </h2>
++
++          {createError && (
++            <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
++              <AlertCircle className="h-4 w-4 shrink-0" />
++              {createError}
++            </div>
++          )}
++          {created && (
++            <div role="status" className="mb-4 flex items-center gap-1.5 text-sm text-green-700">
++              <CheckCircle2 className="h-4 w-4" />
++              Staff member added.
++            </div>
++          )}
++
++          <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
++            <div>
++              <label className={labelClass}>Name</label>
++              <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
++            </div>
++            <div>
++              <label className={labelClass}>Ward</label>
++              <select required value={wardId} onChange={(e) => setWardId(e.target.value)} className={inputClass}>
++                <option value="">Select...</option>
++                {wards.map((w) => (
++                  <option key={w.id} value={w.id}>
++                    {w.wardName}
++                  </option>
++                ))}
++              </select>
++            </div>
++            <div>
++              <label className={labelClass}>Shift (optional)</label>
++              <select value={shiftId} onChange={(e) => setShiftId(e.target.value)} className={inputClass}>
++                <option value="">None</option>
++                {shifts.map((s) => (
++                  <option key={s.id} value={s.id}>
++                    {s.shiftName}
++                  </option>
++                ))}
++              </select>
++            </div>
++            <div className="sm:col-span-3">
++              <button
++                type="submit"
++                disabled={creating}
++                className="w-full rounded-md bg-nnm-blue py-3 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60 sm:w-auto sm:px-8"
++              >
++                {creating ? "Adding..." : "Add Staff Member"}
++              </button>
++            </div>
++          </form>
++        </section>
++
++        {/* Bulk upload */}
++        <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
++            <Upload className="h-4 w-4" />
++            Upload Full List (CSV)
++          </h2>
++          <p className="mb-4 text-xs text-slate-500">
++            Columns: <code className="rounded bg-slate-100 px-1 py-0.5">Name, Ward, Shift</code>. Ward and Shift must match the
++            names shown above exactly. This replaces the entire active roster - anyone not in the uploaded file will be marked
++            inactive, not deleted.
++          </p>
++
++          <input
++            ref={fileInputRef}
++            type="file"
++            accept=".csv"
++            onChange={handleFileSelected}
++            disabled={uploading}
++            className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-nnm-blue file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-nnm-blue-dark disabled:opacity-60"
++          />
++
++          {uploading && (
++            <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
++              <Loader2 className="h-4 w-4 animate-spin" />
++              Processing upload...
++            </div>
++          )}
++
++          {uploadError && (
++            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
++              <AlertCircle className="h-4 w-4 shrink-0" />
++              {uploadError}
++            </div>
++          )}
++
++          {uploadResult && (
++            <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4 text-sm">
++              <p className="mb-2 font-semibold text-slate-700">
++                Created {uploadResult.created}, updated {uploadResult.updated}, deactivated {uploadResult.deactivated}.
++              </p>
++              {uploadResult.errors.length > 0 && (
++                <div>
++                  <p className="mb-1 font-semibold text-amber-700">{uploadResult.errors.length} row(s) skipped:</p>
++                  <ul className="list-inside list-disc space-y-0.5 text-xs text-amber-700">
++                    {uploadResult.errors.map((e, i) => (
++                      <li key={i}>
++                        Row {e.row}: {e.message}
++                      </li>
++                    ))}
++                  </ul>
++                </div>
++              )}
++            </div>
++          )}
++        </section>
++
++        {/* Roster table */}
++        <section className="rounded-xl border border-slate-200 bg-white p-6">
++          <h2 className="mb-4 text-sm font-semibold text-slate-700">All Staff ({staff?.length ?? "..."})</h2>
++          {!staff ? (
++            <div className="flex items-center gap-2 text-sm text-slate-400">
++              <Loader2 className="h-4 w-4 animate-spin" />
++              Loading...
++            </div>
++          ) : (
++            <div className="max-h-96 overflow-y-auto rounded-md border border-slate-200">
++              <table className="w-full text-sm">
++                <thead className="sticky top-0 bg-slate-50">
++                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
++                    <th className="px-3 py-2 font-medium">Name</th>
++                    <th className="px-3 py-2 font-medium">Ward</th>
++                    <th className="px-3 py-2 font-medium">Shift</th>
++                    <th className="px-3 py-2 font-medium">Status</th>
++                    <th className="px-3 py-2 font-medium"></th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {staff.map((s) => (
++                    <tr key={s.id} className="border-b border-slate-100 last:border-0">
++                      <td className="px-3 py-2">{s.name}</td>
++                      <td className="px-3 py-2">{wardName(s.wardId)}</td>
++                      <td className="px-3 py-2">{shiftName(s.shiftId)}</td>
++                      <td className="px-3 py-2">
++                        <span
++                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${s.active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-500"}`}
++                        >
++                          {s.active ? "Active" : "Inactive"}
++                        </span>
++                      </td>
++                      <td className="px-3 py-2 text-right">
++                        <button onClick={() => handleToggleActive(s.id, !s.active)} className="text-xs font-medium text-nnm-blue hover:underline">
++                          {s.active ? "Deactivate" : "Activate"}
++                        </button>
++                      </td>
++                    </tr>
++                  ))}
++                </tbody>
++              </table>
++            </div>
++          )}
++        </section>
++      </main>
++    </div>
++  );
++}
+diff --git a/munger-portal/lib/attendance-api.ts b/munger-portal/lib/attendance-api.ts
+index 3f68f2d..f8b94ae 100644
+--- a/munger-portal/lib/attendance-api.ts
++++ b/munger-portal/lib/attendance-api.ts
+@@ -453,3 +453,132 @@ export async function fetchAttendanceDashboardSummary(): Promise<AttendanceDashb
+   if (!res.ok) throw new Error("Could not load the dashboard summary.");
+   return res.json();
+ }
++
++// ---------------------------------------------------------------------------
++// Field staff roster management (attendance_admin only)
++// ---------------------------------------------------------------------------
++
++export interface FieldStaffSummary {
++  id: number;
++  name: string;
++  wardId: number;
++  shiftId: number | null;
++  active: boolean;
++}
++
++export async function fetchAllFieldStaff(): Promise<FieldStaffSummary[]> {
++  const res = await fetch(`${API_BASE_URL}/attendance/staff/all`, { headers: authHeaders() });
++  if (!res.ok) throw new Error("Could not load staff list.");
++  const data: { staff: FieldStaffSummary[] } = await res.json();
++  return data.staff;
++}
++
++export async function createFieldStaff(input: { name: string; wardId: number; shiftId: number | null }): Promise<FieldStaffSummary> {
++  const res = await fetch(`${API_BASE_URL}/attendance/staff`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify(input),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Could not add staff member.");
++  }
++  const data: { staff: FieldStaffSummary } = await res.json();
++  return data.staff;
++}
++
++export async function setFieldStaffActive(id: number, active: boolean): Promise<void> {
++  const res = await fetch(`${API_BASE_URL}/attendance/staff/${id}/active`, {
++    method: "PATCH",
++    headers: authHeaders(),
++    body: JSON.stringify({ active }),
++  });
++  if (!res.ok) throw new Error("Could not update staff status.");
++}
++
++export interface RosterSyncResult {
++  created: number;
++  updated: number;
++  deactivated: number;
++  errors: { row: number; message: string }[];
++}
++
++export async function uploadFieldStaffRosterCsv(csvContent: string): Promise<RosterSyncResult> {
++  const res = await fetch(`${API_BASE_URL}/attendance/staff/bulk-upload`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ csvContent }),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Upload failed.");
++  }
++  return res.json();
++}
++
++// ---------------------------------------------------------------------------
++// Field driver roster management (attendance_admin only)
++// ---------------------------------------------------------------------------
++
++export interface FieldDriverSummary {
++  id: number;
++  name: string;
++  vehicleNumber: string | null;
++  chassisNumber: string | null;
++  dlNumber: string | null;
++  wardNo: string | null;
++  wardId: number;
++  shiftId: number | null;
++  active: boolean;
++}
++
++export async function fetchAllFieldDrivers(): Promise<FieldDriverSummary[]> {
++  const res = await fetch(`${API_BASE_URL}/attendance/drivers/all`, { headers: authHeaders() });
++  if (!res.ok) throw new Error("Could not load driver list.");
++  const data: { drivers: FieldDriverSummary[] } = await res.json();
++  return data.drivers;
++}
++
++export async function createFieldDriver(input: {
++  name: string;
++  vehicleNumber: string | null;
++  chassisNumber: string | null;
++  dlNumber: string | null;
++  wardNo: string | null;
++  wardId: number;
++  shiftId: number | null;
++}): Promise<FieldDriverSummary> {
++  const res = await fetch(`${API_BASE_URL}/attendance/drivers`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify(input),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Could not add driver.");
++  }
++  const data: { driver: FieldDriverSummary } = await res.json();
++  return data.driver;
++}
++
++export async function setFieldDriverActive(id: number, active: boolean): Promise<void> {
++  const res = await fetch(`${API_BASE_URL}/attendance/drivers/${id}/active`, {
++    method: "PATCH",
++    headers: authHeaders(),
++    body: JSON.stringify({ active }),
++  });
++  if (!res.ok) throw new Error("Could not update driver status.");
++}
++
++export async function uploadFieldDriverRosterCsv(csvContent: string): Promise<RosterSyncResult> {
++  const res = await fetch(`${API_BASE_URL}/attendance/drivers/bulk-upload`, {
++    method: "POST",
++    headers: authHeaders(),
++    body: JSON.stringify({ csvContent }),
++  });
++  if (!res.ok) {
++    const body = await res.json().catch(() => ({}));
++    throw new Error(body.error || "Upload failed.");
++  }
++  return res.json();
++}
+diff --git a/nnm-property-tax-api/.gitignore b/nnm-property-tax-api/.gitignore
+index 8be2af7..c2c5a64 100644
+--- a/nnm-property-tax-api/.gitignore
++++ b/nnm-property-tax-api/.gitignore
+@@ -2,4 +2,5 @@ node_modules/
+ dist/
+ .env
+ service-account.json
+-*.log
+\ No newline at end of file
++*.log
++*-credentials.csv
+diff --git a/nnm-property-tax-api/package.json b/nnm-property-tax-api/package.json
+index d7b33d5..a80efdd 100644
+--- a/nnm-property-tax-api/package.json
++++ b/nnm-property-tax-api/package.json
+@@ -17,6 +17,7 @@
+     "create-admin": "tsx scripts/create-admin.ts",
+ 	"create-operator": "tsx scripts/create-operator.ts",
+     "create-attendance-user": "tsx scripts/create-attendance-user.ts",
++    "bulk-create-jamadars": "tsx scripts/bulk-create-jamadars.ts",
+     "create-attendance-ward": "tsx scripts/create-attendance-ward.ts",
+     "list-attendance-wards": "tsx scripts/list-attendance-wards.ts",
+     "import-stalls": "tsx scripts/import-stalls.ts",
+diff --git a/nnm-property-tax-api/scripts/bulk-create-jamadars.ts b/nnm-property-tax-api/scripts/bulk-create-jamadars.ts
+new file mode 100644
+index 0000000..759cdcf
+--- /dev/null
++++ b/nnm-property-tax-api/scripts/bulk-create-jamadars.ts
+@@ -0,0 +1,109 @@
++/**
++ * One-off CLI to create a Jamadar login for every ward that doesn't
++ * already have one - reads directly from attendance_wards, so there's
++ * no need to type out 50+ ward IDs by hand. Generates a random
++ * password per account and prints a full credentials sheet at the end
++ * (also saved to a CSV file) for handing out to field staff.
++ *
++ * Idempotent: if a ward already has an active jamadar, it's skipped
++ * (not recreated, not overwritten) - safe to re-run after adding new
++ * wards later without disturbing existing logins.
++ *
++ * Usage:
++ *   npm run bulk-create-jamadars
++ */
++import "dotenv/config";
++import fs from "node:fs";
++import path from "node:path";
++import bcrypt from "bcrypt";
++import { Pool } from "pg";
++
++const pool = new Pool({ connectionString: process.env.DATABASE_URL });
++
++function randomPassword(): string {
++  // Short, readable, still hard to guess - two words + a number, easy
++  // to read aloud or write on a slip of paper for field staff who may
++  // not be tech-savvy.
++  const words = ["Kiran", "Surya", "Nadi", "Bihar", "Ganga", "Munger", "Prakash", "Sagar", "Vayu", "Megh"];
++  const w1 = words[Math.floor(Math.random() * words.length)];
++  const w2 = words[Math.floor(Math.random() * words.length)];
++  const n = Math.floor(1000 + Math.random() * 9000);
++  return `${w1}${w2}${n}`;
++}
++
++function usernameFromWard(wardName: string): string {
++  const slug = wardName
++    .toLowerCase()
++    .replace(/[^a-z0-9]+/g, "")
++    .slice(0, 20);
++  return `jamadar-${slug}`;
++}
++
++async function main() {
++  const { rows: wards } = await pool.query<{ id: number; ward_name: string }>(
++    `SELECT id, ward_name FROM attendance_wards ORDER BY id ASC`,
++  );
++  console.log(`Found ${wards.length} wards.`);
++
++  const created: { wardId: number; wardName: string; username: string; password: string }[] = [];
++  const skipped: { wardId: number; wardName: string; existingUsername: string }[] = [];
++
++  for (const ward of wards) {
++    const { rows: existing } = await pool.query<{ username: string }>(
++      `SELECT username FROM attendance_users WHERE ward_id = $1 AND role = 'jamadar' AND active = TRUE LIMIT 1`,
++      [ward.id],
++    );
++    if (existing.length > 0) {
++      skipped.push({ wardId: ward.id, wardName: ward.ward_name, existingUsername: existing[0]!.username });
++      continue;
++    }
++
++    let username = usernameFromWard(ward.ward_name);
++    // Guard against a slug collision across two differently-named wards - append the ward id if needed.
++    const { rows: usernameTaken } = await pool.query(`SELECT 1 FROM attendance_users WHERE username = $1`, [username]);
++    if (usernameTaken.length > 0) username = `${username}-${ward.id}`;
++
++    const password = randomPassword();
++    const passwordHash = await bcrypt.hash(password, 12);
++    const displayName = `Jamadar - ${ward.ward_name}`;
++
++    await pool.query(
++      `INSERT INTO attendance_users (username, password_hash, display_name, role, ward_id, active)
++       VALUES ($1, $2, $3, 'jamadar', $4, TRUE)`,
++      [username, passwordHash, displayName, ward.id],
++    );
++    created.push({ wardId: ward.id, wardName: ward.ward_name, username, password });
++  }
++
++  console.log(`\nCreated ${created.length} new Jamadar logins. Skipped ${skipped.length} wards that already had one.\n`);
++
++  if (created.length > 0) {
++    console.log("Ward ID | Ward Name | Username | Password");
++    console.log("--------|-----------|----------|----------");
++    for (const c of created) {
++      console.log(`${c.wardId} | ${c.wardName} | ${c.username} | ${c.password}`);
++    }
++
++    const csvLines = ["ward_id,ward_name,username,password"];
++    for (const c of created) {
++      csvLines.push(`${c.wardId},"${c.wardName}",${c.username},${c.password}`);
++    }
++    const outPath = path.join(__dirname, "..", "jamadar-credentials.csv");
++    fs.writeFileSync(outPath, csvLines.join("\n") + "\n");
++    console.log(`\nSaved to ${outPath} - copy this off the server and delete it once distributed to staff.`);
++  }
++
++  if (skipped.length > 0) {
++    console.log("\nSkipped (already had a jamadar):");
++    for (const s of skipped) {
++      console.log(`  Ward ${s.wardId} (${s.wardName}) - existing username: ${s.existingUsername}`);
++    }
++  }
++
++  await pool.end();
++}
++
++main().catch((err) => {
++  console.error("Bulk creation failed:", err);
++  process.exit(1);
++});
+diff --git a/nnm-property-tax-api/src/controllers/fieldRoster.controller.ts b/nnm-property-tax-api/src/controllers/fieldRoster.controller.ts
+new file mode 100644
+index 0000000..4e90afb
+--- /dev/null
++++ b/nnm-property-tax-api/src/controllers/fieldRoster.controller.ts
+@@ -0,0 +1,161 @@
++import type { Request, Response } from "express";
++import { z } from "zod";
++import { fieldStaffRepository } from "../repositories/fieldStaff.repository";
++import { fieldDriverRepository } from "../repositories/fieldDriver.repository";
++import { syncStaffRosterFromCsv, createOneStaff } from "../services/fieldStaffRoster.service";
++import { syncDriverRosterFromCsv, createOneDriver } from "../services/fieldDriverRoster.service";
++import { asyncHandler } from "../middleware/asyncHandler";
++import { ApiError } from "../utils/ApiError";
++
++// ---------------------------------------------------------------------------
++// Staff
++// ---------------------------------------------------------------------------
++
++/** GET /api/v1/attendance/staff/all - attendance_admin only. Full roster (all wards), for the management page. */
++export const listAllStaffHandler = asyncHandler(async (_req: Request, res: Response) => {
++  const staff = await fieldStaffRepository.listAll();
++  res.status(200).json({
++    staff: staff.map((s) => ({ id: s.id, name: s.name, wardId: s.ward_id, shiftId: s.shift_id, active: s.active })),
++  });
++});
++
++const createStaffSchema = z.object({
++  name: z.string().trim().min(1),
++  wardId: z.coerce.number().int().positive(),
++  shiftId: z.coerce.number().int().positive().nullish(),
++});
++
++/** POST /api/v1/attendance/staff - attendance_admin only. One-by-one entry. */
++export const createStaffHandler = asyncHandler(async (req: Request, res: Response) => {
++  const parsed = createStaffSchema.safeParse(req.body);
++  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
++
++  const staff = await createOneStaff(parsed.data.name, parsed.data.wardId, parsed.data.shiftId ?? null);
++  res.status(200).json({ staff: { id: staff.id, name: staff.name, wardId: staff.ward_id, shiftId: staff.shift_id, active: staff.active } });
++});
++
++const staffIdParamSchema = z.object({ id: z.coerce.number().int().positive() });
++const activeBodySchema = z.object({ active: z.boolean() });
++
++/** PATCH /api/v1/attendance/staff/:id/active - attendance_admin only. */
++export const setStaffActiveHandler = asyncHandler(async (req: Request, res: Response) => {
++  const paramsParsed = staffIdParamSchema.safeParse(req.params);
++  if (!paramsParsed.success) throw ApiError.badRequest("Invalid staff id");
++  const bodyParsed = activeBodySchema.safeParse(req.body);
++  if (!bodyParsed.success) throw ApiError.badRequest("Body must include { active: boolean }");
++
++  const updated = await fieldStaffRepository.setActive(paramsParsed.data.id, bodyParsed.data.active);
++  if (!updated) throw ApiError.notFound("Staff member not found");
++  res.status(200).json({ staff: { id: updated.id, name: updated.name, wardId: updated.ward_id, shiftId: updated.shift_id, active: updated.active } });
++});
++
++const csvUploadSchema = z.object({ csvContent: z.string().min(1, "File appears to be empty") });
++
++/**
++ * POST /api/v1/attendance/staff/bulk-upload - attendance_admin only.
++ * Body: { csvContent: string } - the frontend reads the file client-side
++ * (FileReader/.text()) and sends its raw text, rather than a multipart
++ * upload - keeps this consistent with the rest of the API's plain-JSON
++ * design instead of adding a file-upload middleware dependency.
++ */
++export const uploadStaffRosterHandler = asyncHandler(async (req: Request, res: Response) => {
++  const parsed = csvUploadSchema.safeParse(req.body);
++  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
++
++  const result = await syncStaffRosterFromCsv(parsed.data.csvContent);
++  res.status(200).json(result);
++});
++
++// ---------------------------------------------------------------------------
++// Drivers
++// ---------------------------------------------------------------------------
++
++/** GET /api/v1/attendance/drivers/all - attendance_admin only. */
++export const listAllDriversHandler = asyncHandler(async (_req: Request, res: Response) => {
++  const drivers = await fieldDriverRepository.listAll();
++  res.status(200).json({
++    drivers: drivers.map((d) => ({
++      id: d.id,
++      name: d.name,
++      vehicleNumber: d.vehicle_number,
++      chassisNumber: d.chassis_number,
++      dlNumber: d.dl_number,
++      wardNo: d.ward_no,
++      wardId: d.ward_id,
++      shiftId: d.shift_id,
++      active: d.active,
++    })),
++  });
++});
++
++const createDriverSchema = z.object({
++  name: z.string().trim().min(1),
++  vehicleNumber: z.string().trim().nullish(),
++  chassisNumber: z.string().trim().nullish(),
++  dlNumber: z.string().trim().nullish(),
++  wardNo: z.string().trim().nullish(),
++  wardId: z.coerce.number().int().positive(),
++  shiftId: z.coerce.number().int().positive().nullish(),
++});
++
++/** POST /api/v1/attendance/drivers - attendance_admin only. One-by-one entry. */
++export const createDriverHandler = asyncHandler(async (req: Request, res: Response) => {
++  const parsed = createDriverSchema.safeParse(req.body);
++  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
++
++  const driver = await createOneDriver({
++    name: parsed.data.name,
++    vehicleNumber: parsed.data.vehicleNumber ?? null,
++    chassisNumber: parsed.data.chassisNumber ?? null,
++    dlNumber: parsed.data.dlNumber ?? null,
++    wardNo: parsed.data.wardNo ?? null,
++    wardId: parsed.data.wardId,
++    shiftId: parsed.data.shiftId ?? null,
++  });
++  res.status(200).json({
++    driver: {
++      id: driver.id,
++      name: driver.name,
++      vehicleNumber: driver.vehicle_number,
++      chassisNumber: driver.chassis_number,
++      dlNumber: driver.dl_number,
++      wardNo: driver.ward_no,
++      wardId: driver.ward_id,
++      shiftId: driver.shift_id,
++      active: driver.active,
++    },
++  });
++});
++
++/** PATCH /api/v1/attendance/drivers/:id/active - attendance_admin only. */
++export const setDriverActiveHandler = asyncHandler(async (req: Request, res: Response) => {
++  const paramsParsed = staffIdParamSchema.safeParse(req.params);
++  if (!paramsParsed.success) throw ApiError.badRequest("Invalid driver id");
++  const bodyParsed = activeBodySchema.safeParse(req.body);
++  if (!bodyParsed.success) throw ApiError.badRequest("Body must include { active: boolean }");
++
++  const updated = await fieldDriverRepository.setActive(paramsParsed.data.id, bodyParsed.data.active);
++  if (!updated) throw ApiError.notFound("Driver not found");
++  res.status(200).json({
++    driver: {
++      id: updated.id,
++      name: updated.name,
++      vehicleNumber: updated.vehicle_number,
++      chassisNumber: updated.chassis_number,
++      dlNumber: updated.dl_number,
++      wardNo: updated.ward_no,
++      wardId: updated.ward_id,
++      shiftId: updated.shift_id,
++      active: updated.active,
++    },
++  });
++});
++
++/** POST /api/v1/attendance/drivers/bulk-upload - attendance_admin only. Same CSV-as-JSON-string approach as staff. */
++export const uploadDriverRosterHandler = asyncHandler(async (req: Request, res: Response) => {
++  const parsed = csvUploadSchema.safeParse(req.body);
++  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
++
++  const result = await syncDriverRosterFromCsv(parsed.data.csvContent);
++  res.status(200).json(result);
++});
+diff --git a/nnm-property-tax-api/src/repositories/fieldDriver.repository.ts b/nnm-property-tax-api/src/repositories/fieldDriver.repository.ts
+index 9ea196a..0b6aa4d 100644
+--- a/nnm-property-tax-api/src/repositories/fieldDriver.repository.ts
++++ b/nnm-property-tax-api/src/repositories/fieldDriver.repository.ts
+@@ -38,8 +38,46 @@ export const fieldDriverRepository = {
+     return rows[0]!;
+   },
+ 
++  async findByNameAndWard(name: string, wardId: number): Promise<FieldDriverRow | null> {
++    const { rows } = await pool.query<FieldDriverRow>(
++      `SELECT * FROM field_drivers WHERE lower(name) = lower($1) AND ward_id = $2 LIMIT 1`,
++      [name, wardId],
++    );
++    return rows[0] ?? null;
++  },
++
+   async setActive(id: number, active: boolean): Promise<FieldDriverRow | null> {
+     const { rows } = await pool.query<FieldDriverRow>(`UPDATE field_drivers SET active = $2 WHERE id = $1 RETURNING *`, [id, active]);
+     return rows[0] ?? null;
+   },
++
++  async update(
++    id: number,
++    input: {
++      vehicleNumber: string | null;
++      chassisNumber: string | null;
++      dlNumber: string | null;
++      wardNo: string | null;
++      shiftId: number | null;
++      active: boolean;
++    },
++  ): Promise<FieldDriverRow | null> {
++    const { rows } = await pool.query<FieldDriverRow>(
++      `UPDATE field_drivers
++       SET vehicle_number = $2, chassis_number = $3, dl_number = $4, ward_no = $5, shift_id = $6, active = $7
++       WHERE id = $1 RETURNING *`,
++      [id, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.shiftId, input.active],
++    );
++    return rows[0] ?? null;
++  },
++
++  async listActiveIds(): Promise<number[]> {
++    const { rows } = await pool.query<{ id: number }>(`SELECT id FROM field_drivers WHERE active = TRUE`);
++    return rows.map((r) => r.id);
++  },
++
++  async setActiveMany(ids: number[], active: boolean): Promise<void> {
++    if (ids.length === 0) return;
++    await pool.query(`UPDATE field_drivers SET active = $2 WHERE id = ANY($1::bigint[])`, [ids, active]);
++  },
+ };
+diff --git a/nnm-property-tax-api/src/repositories/fieldStaff.repository.ts b/nnm-property-tax-api/src/repositories/fieldStaff.repository.ts
+index 768274d..2bf6ee0 100644
+--- a/nnm-property-tax-api/src/repositories/fieldStaff.repository.ts
++++ b/nnm-property-tax-api/src/repositories/fieldStaff.repository.ts
+@@ -28,6 +28,14 @@ export const fieldStaffRepository = {
+     return rows[0]!;
+   },
+ 
++  async findByNameAndWard(name: string, wardId: number): Promise<FieldStaffRow | null> {
++    const { rows } = await pool.query<FieldStaffRow>(
++      `SELECT * FROM field_staff WHERE lower(name) = lower($1) AND ward_id = $2 LIMIT 1`,
++      [name, wardId],
++    );
++    return rows[0] ?? null;
++  },
++
+   async setActive(id: number, active: boolean): Promise<FieldStaffRow | null> {
+     const { rows } = await pool.query<FieldStaffRow>(
+       `UPDATE field_staff SET active = $2 WHERE id = $1 RETURNING *`,
+@@ -35,4 +43,23 @@ export const fieldStaffRepository = {
+     );
+     return rows[0] ?? null;
+   },
++
++  async update(id: number, input: { shiftId: number | null; active: boolean }): Promise<FieldStaffRow | null> {
++    const { rows } = await pool.query<FieldStaffRow>(
++      `UPDATE field_staff SET shift_id = $2, active = $3 WHERE id = $1 RETURNING *`,
++      [id, input.shiftId, input.active],
++    );
++    return rows[0] ?? null;
++  },
++
++  /** Every staff id currently active, for the bulk-upload sync to know who to deactivate. */
++  async listActiveIds(): Promise<number[]> {
++    const { rows } = await pool.query<{ id: number }>(`SELECT id FROM field_staff WHERE active = TRUE`);
++    return rows.map((r) => r.id);
++  },
++
++  async setActiveMany(ids: number[], active: boolean): Promise<void> {
++    if (ids.length === 0) return;
++    await pool.query(`UPDATE field_staff SET active = $2 WHERE id = ANY($1::bigint[])`, [ids, active]);
++  },
+ };
+diff --git a/nnm-property-tax-api/src/routes/attendance.routes.ts b/nnm-property-tax-api/src/routes/attendance.routes.ts
+index 52b6a07..dbd0239 100644
+--- a/nnm-property-tax-api/src/routes/attendance.routes.ts
++++ b/nnm-property-tax-api/src/routes/attendance.routes.ts
+@@ -31,6 +31,16 @@ import {
+   setAttendanceUserActiveHandler,
+ } from "../controllers/attendanceUserManagement.controller";
+ import { getAttendanceDashboardSummaryHandler } from "../controllers/attendanceDashboardSummary.controller";
++import {
++  listAllStaffHandler,
++  createStaffHandler,
++  setStaffActiveHandler,
++  uploadStaffRosterHandler,
++  listAllDriversHandler,
++  createDriverHandler,
++  setDriverActiveHandler,
++  uploadDriverRosterHandler,
++} from "../controllers/fieldRoster.controller";
+ import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
+ import { loginRateLimiter } from "../middleware/loginRateLimiter";
+ 
+@@ -118,6 +128,18 @@ attendanceRouter.get("/users", requireAttendanceRole(["attendance_admin"]), list
+ attendanceRouter.post("/users", requireAttendanceRole(["attendance_admin"]), createAttendanceUserHandler);
+ attendanceRouter.patch("/users/:id/active", requireAttendanceRole(["attendance_admin"]), setAttendanceUserActiveHandler);
+ 
++// --- Field staff roster management (attendance_admin only) - separate from the day-to-day mark-in/out routes above ---
++attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin"]), listAllStaffHandler);
++attendanceRouter.post("/staff", requireAttendanceRole(["attendance_admin"]), createStaffHandler);
++attendanceRouter.patch("/staff/:id/active", requireAttendanceRole(["attendance_admin"]), setStaffActiveHandler);
++attendanceRouter.post("/staff/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadStaffRosterHandler);
++
++// --- Field driver roster management (attendance_admin only) ---
++attendanceRouter.get("/drivers/all", requireAttendanceRole(["attendance_admin"]), listAllDriversHandler);
++attendanceRouter.post("/drivers", requireAttendanceRole(["attendance_admin"]), createDriverHandler);
++attendanceRouter.patch("/drivers/:id/active", requireAttendanceRole(["attendance_admin"]), setDriverActiveHandler);
++attendanceRouter.post("/drivers/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadDriverRosterHandler);
++
+ // --- Officer dashboard ---
+ attendanceRouter.get(
+   "/dashboard-summary",
+diff --git a/nnm-property-tax-api/src/services/fieldDriverRoster.service.ts b/nnm-property-tax-api/src/services/fieldDriverRoster.service.ts
+new file mode 100644
+index 0000000..1dcc289
+--- /dev/null
++++ b/nnm-property-tax-api/src/services/fieldDriverRoster.service.ts
+@@ -0,0 +1,131 @@
++import { parse } from "csv-parse/sync";
++import { fieldDriverRepository } from "../repositories/fieldDriver.repository";
++import { attendanceWardRepository, attendanceShiftRepository } from "../repositories/attendanceWard.repository";
++import { ApiError } from "../utils/ApiError";
++import type { FieldDriverRow } from "../types/attendance.types";
++import type { RosterSyncResult } from "./fieldStaffRoster.service";
++
++interface ParsedDriverRow {
++  name: string;
++  vehicleNumber: string | null;
++  chassisNumber: string | null;
++  dlNumber: string | null;
++  wardNo: string | null;
++  wardId: number;
++  shiftId: number | null;
++}
++
++/** Expected CSV columns: Name, VehicleNumber, ChassisNumber, DLNumber, WardNo, Ward, Shift. Only Name and Ward are required. */
++async function parseDriverCsv(csvContent: string): Promise<{ rows: ParsedDriverRow[]; errors: { row: number; message: string }[] }> {
++  const records: Record<string, string>[] = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
++
++  const wards = await attendanceWardRepository.listAll();
++  const wardByName = new Map(wards.map((w) => [w.ward_name.toLowerCase(), w.id]));
++  const shifts = await attendanceShiftRepository.listAll();
++  const shiftByName = new Map(shifts.map((s) => [s.shift_name.toLowerCase(), s.id]));
++
++  const rows: ParsedDriverRow[] = [];
++  const errors: { row: number; message: string }[] = [];
++
++  records.forEach((r, i) => {
++    const rowNum = i + 2;
++    const name = (r.Name || r.name || "").trim();
++    const wardName = (r.Ward || r.ward || "").trim();
++    const shiftName = (r.Shift || r.shift || "").trim();
++
++    if (!name) {
++      errors.push({ row: rowNum, message: "Missing Name" });
++      return;
++    }
++    if (!wardName) {
++      errors.push({ row: rowNum, message: "Missing Ward" });
++      return;
++    }
++    const wardId = wardByName.get(wardName.toLowerCase());
++    if (!wardId) {
++      errors.push({ row: rowNum, message: `Ward "${wardName}" not found - check spelling against the Wards list` });
++      return;
++    }
++    let shiftId: number | null = null;
++    if (shiftName) {
++      shiftId = shiftByName.get(shiftName.toLowerCase()) ?? null;
++      if (shiftId === null) {
++        errors.push({ row: rowNum, message: `Shift "${shiftName}" not found - check spelling` });
++        return;
++      }
++    }
++
++    rows.push({
++      name,
++      vehicleNumber: (r.VehicleNumber || r.vehicleNumber || "").trim() || null,
++      chassisNumber: (r.ChassisNumber || r.chassisNumber || "").trim() || null,
++      dlNumber: (r.DLNumber || r.dlNumber || "").trim() || null,
++      wardNo: (r.WardNo || r.wardNo || "").trim() || null,
++      wardId,
++      shiftId,
++    });
++  });
++
++  return { rows, errors };
++}
++
++/** Same full-list sync semantics as syncStaffRosterFromCsv - see that function's comment. */
++export async function syncDriverRosterFromCsv(csvContent: string): Promise<RosterSyncResult> {
++  const { rows, errors: parseErrors } = await parseDriverCsv(csvContent);
++  const result: RosterSyncResult = { created: 0, updated: 0, deactivated: 0, errors: parseErrors };
++
++  const touchedIds = new Set<number>();
++
++  for (const row of rows) {
++    try {
++      const existing = await fieldDriverRepository.findByNameAndWard(row.name, row.wardId);
++      if (existing) {
++        await fieldDriverRepository.update(existing.id, {
++          vehicleNumber: row.vehicleNumber,
++          chassisNumber: row.chassisNumber,
++          dlNumber: row.dlNumber,
++          wardNo: row.wardNo,
++          shiftId: row.shiftId,
++          active: true,
++        });
++        touchedIds.add(existing.id);
++        result.updated++;
++      } else {
++        const created: FieldDriverRow = await fieldDriverRepository.create({
++          name: row.name,
++          vehicleNumber: row.vehicleNumber,
++          chassisNumber: row.chassisNumber,
++          dlNumber: row.dlNumber,
++          wardNo: row.wardNo,
++          wardId: row.wardId,
++          shiftId: row.shiftId,
++        });
++        touchedIds.add(created.id);
++        result.created++;
++      }
++    } catch (err) {
++      result.errors.push({ row: 0, message: `${row.name} (ward ${row.wardId}): ${err instanceof Error ? err.message : String(err)}` });
++    }
++  }
++
++  const activeIds = await fieldDriverRepository.listActiveIds();
++  const toDeactivate = activeIds.filter((id) => !touchedIds.has(id));
++  await fieldDriverRepository.setActiveMany(toDeactivate, false);
++  result.deactivated = toDeactivate.length;
++
++  return result;
++}
++
++export async function createOneDriver(input: {
++  name: string;
++  vehicleNumber: string | null;
++  chassisNumber: string | null;
++  dlNumber: string | null;
++  wardNo: string | null;
++  wardId: number;
++  shiftId: number | null;
++}): Promise<FieldDriverRow> {
++  const ward = await attendanceWardRepository.findById(input.wardId);
++  if (!ward) throw ApiError.badRequest("Ward not found.");
++  return fieldDriverRepository.create(input);
++}
+diff --git a/nnm-property-tax-api/src/services/fieldStaffRoster.service.ts b/nnm-property-tax-api/src/services/fieldStaffRoster.service.ts
+new file mode 100644
+index 0000000..0b5038c
+--- /dev/null
++++ b/nnm-property-tax-api/src/services/fieldStaffRoster.service.ts
+@@ -0,0 +1,113 @@
++import { parse } from "csv-parse/sync";
++import { fieldStaffRepository } from "../repositories/fieldStaff.repository";
++import { attendanceWardRepository, attendanceShiftRepository } from "../repositories/attendanceWard.repository";
++import { ApiError } from "../utils/ApiError";
++import type { FieldStaffRow } from "../types/attendance.types";
++
++export interface RosterSyncResult {
++  created: number;
++  updated: number;
++  deactivated: number;
++  errors: { row: number; message: string }[];
++}
++
++interface ParsedStaffRow {
++  name: string;
++  wardId: number;
++  shiftId: number | null;
++}
++
++/**
++ * Expected CSV columns: Name, Ward, Shift (Ward/Shift by their display
++ * name, not internal id - an admin filling this out shouldn't need to
++ * know database ids). Shift is optional; Name and Ward are required.
++ */
++async function parseStaffCsv(csvContent: string): Promise<{ rows: ParsedStaffRow[]; errors: { row: number; message: string }[] }> {
++  const records: Record<string, string>[] = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
++
++  const wards = await attendanceWardRepository.listAll();
++  const wardByName = new Map(wards.map((w) => [w.ward_name.toLowerCase(), w.id]));
++  const shifts = await attendanceShiftRepository.listAll();
++  const shiftByName = new Map(shifts.map((s) => [s.shift_name.toLowerCase(), s.id]));
++
++  const rows: ParsedStaffRow[] = [];
++  const errors: { row: number; message: string }[] = [];
++
++  records.forEach((r, i) => {
++    const rowNum = i + 2; // +1 for 0-index, +1 for header row
++    const name = (r.Name || r.name || "").trim();
++    const wardName = (r.Ward || r.ward || "").trim();
++    const shiftName = (r.Shift || r.shift || "").trim();
++
++    if (!name) {
++      errors.push({ row: rowNum, message: "Missing Name" });
++      return;
++    }
++    if (!wardName) {
++      errors.push({ row: rowNum, message: "Missing Ward" });
++      return;
++    }
++    const wardId = wardByName.get(wardName.toLowerCase());
++    if (!wardId) {
++      errors.push({ row: rowNum, message: `Ward "${wardName}" not found - check spelling against the Wards list` });
++      return;
++    }
++    let shiftId: number | null = null;
++    if (shiftName) {
++      shiftId = shiftByName.get(shiftName.toLowerCase()) ?? null;
++      if (shiftId === null) {
++        errors.push({ row: rowNum, message: `Shift "${shiftName}" not found - check spelling` });
++        return;
++      }
++    }
++
++    rows.push({ name, wardId, shiftId });
++  });
++
++  return { rows, errors };
++}
++
++/**
++ * Full-list sync: the uploaded CSV becomes the new active roster.
++ * Matches existing staff by (name, ward) - anyone matched gets
++ * updated (shift, reactivated if they'd been deactivated); anyone
++ * created is new; anyone currently active but NOT present in this
++ * upload gets deactivated (not deleted - their attendance/feedback/
++ * photo history references this row and must be preserved).
++ */
++export async function syncStaffRosterFromCsv(csvContent: string): Promise<RosterSyncResult> {
++  const { rows, errors: parseErrors } = await parseStaffCsv(csvContent);
++  const result: RosterSyncResult = { created: 0, updated: 0, deactivated: 0, errors: parseErrors };
++
++  const touchedIds = new Set<number>();
++
++  for (const row of rows) {
++    try {
++      const existing = await fieldStaffRepository.findByNameAndWard(row.name, row.wardId);
++      if (existing) {
++        await fieldStaffRepository.update(existing.id, { shiftId: row.shiftId, active: true });
++        touchedIds.add(existing.id);
++        result.updated++;
++      } else {
++        const created: FieldStaffRow = await fieldStaffRepository.create({ name: row.name, wardId: row.wardId, shiftId: row.shiftId });
++        touchedIds.add(created.id);
++        result.created++;
++      }
++    } catch (err) {
++      result.errors.push({ row: 0, message: `${row.name} (ward ${row.wardId}): ${err instanceof Error ? err.message : String(err)}` });
++    }
++  }
++
++  const activeIds = await fieldStaffRepository.listActiveIds();
++  const toDeactivate = activeIds.filter((id) => !touchedIds.has(id));
++  await fieldStaffRepository.setActiveMany(toDeactivate, false);
++  result.deactivated = toDeactivate.length;
++
++  return result;
++}
++
++export async function createOneStaff(name: string, wardId: number, shiftId: number | null): Promise<FieldStaffRow> {
++  const ward = await attendanceWardRepository.findById(wardId);
++  if (!ward) throw ApiError.badRequest("Ward not found.");
++  return fieldStaffRepository.create({ name, wardId, shiftId });
++}

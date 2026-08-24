@@ -1,3 +1,4 @@
+import { pool } from "../config/db";
 import { propertyRepository } from "../repositories/property.repository";
 import { paymentRepository } from "../repositories/payment.repository";
 import { taxCollectorRepository } from "../repositories/taxCollector.repository";
@@ -170,33 +171,58 @@ export async function submitPayment(
   const receiptNoNum = await paymentRepository.getNextReceiptNo();
   const receiptNo = String(receiptNoNum);
 
-  // Atomic — only succeeds if the notice is STILL unsettled at this
-  // instant. Guards against two operators paying the same notice at once.
-  const settled = await demandNoticeRepository.markSettled(input.demandNo, receiptNo);
-  if (!settled) {
-    throw ApiError.badRequest(`Demand notice ${input.demandNo} was just paid by someone else — please refresh.`);
+  // Wrapped in a real DB transaction (not just the "atomic single UPDATE"
+  // markSettled relies on for its own concurrency guard) - previously,
+  // if insertTransaction failed for ANY reason after markSettled had
+  // already succeeded, the demand notice was left stuck marked
+  // "settled" with no transaction ever actually recorded, permanently
+  // blocking payment on that notice. Discovered via holding MUNG-19249
+  // (Aug 2026): a too-long counter value crashed insertTransaction
+  // after markSettled had already committed. BEGIN/COMMIT/ROLLBACK here
+  // means any future failure between these steps, whatever the cause,
+  // rolls back cleanly and leaves the notice payable again instead of stuck.
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // Atomic — only succeeds if the notice is STILL unsettled at this
+    // instant. Guards against two operators paying the same notice at once.
+    const settled = await demandNoticeRepository.markSettled(input.demandNo, receiptNo, client);
+    if (!settled) {
+      throw ApiError.badRequest(`Demand notice ${input.demandNo} was just paid by someone else — please refresh.`);
+    }
+
+    await paymentRepository.insertTransaction(
+      {
+        receiptNo,
+        holdingNo,
+        paymentMode: input.paymentMode,
+        amountReceived,
+        collectedBy,
+        counter: input.counter ?? null,
+        demandNo: input.demandNo,
+        arrearPeriodsPaid: clearance.stages.length > 0 ? `Cleared through ${notice.assessment_year} (via demand notice ${input.demandNo})` : null,
+        taxCollectorCode: taxCollector?.code ?? null,
+        taxCollectorName: taxCollector?.name ?? null,
+      },
+      client,
+    );
+
+    // The core fix: unconditionally advance paid-through status to what
+    // this notice covered — this is what was missing before.
+    await paymentRepository.updateTaxPaidTillYear(holdingNo, notice.assessment_year, client);
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 
   const now = new Date();
   const dateStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
   const formattedReceiptNo = formatDocNumber(receiptNo, "Payment", now);
-
-  await paymentRepository.insertTransaction({
-    receiptNo,
-    holdingNo,
-    paymentMode: input.paymentMode,
-    amountReceived,
-    collectedBy,
-    counter: input.counter ?? null,
-    demandNo: input.demandNo,
-    arrearPeriodsPaid: clearance.stages.length > 0 ? `Cleared through ${notice.assessment_year} (via demand notice ${input.demandNo})` : null,
-    taxCollectorCode: taxCollector?.code ?? null,
-    taxCollectorName: taxCollector?.name ?? null,
-  });
-
-  // The core fix: unconditionally advance paid-through status to what
-  // this notice covered — this is what was missing before.
-  await paymentRepository.updateTaxPaidTillYear(holdingNo, notice.assessment_year);
 
   // Recompute tax fresh for the receipt body (never trusted from stored columns).
   const calc = calculateTax(property, floors);

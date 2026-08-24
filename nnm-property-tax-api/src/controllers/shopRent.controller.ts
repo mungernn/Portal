@@ -51,7 +51,7 @@ export const getPrintableDemandNotice = asyncHandler(async (req: Request, res: R
 const paymentSchema = z.object({
   demandNo: z.string().min(1, "Select a rent demand to pay against"),
   paymentMode: z.string().min(1),
-  counter: z.string().nullish(),
+  counter: z.string().trim().max(50).nullish(),
 });
 
 /** POST /api/v1/shops/:shopNo/rent-payments — operator only. */

@@ -1,4 +1,5 @@
 import { pool } from "../config/db";
+import type { Pool, PoolClient } from "pg";
 import { DEMAND_NOTICE_START_NO } from "../constants/taxRates";
 
 export interface DemandNoticeRow {
@@ -124,8 +125,8 @@ export const demandNoticeRepository = {
   },
 
   /** Atomic: only succeeds if still unsettled — guards against paying the same notice twice. */
-  async markSettled(demandNo: string, receiptNo: string): Promise<DemandNoticeRow | null> {
-    const { rows } = await pool.query<DemandNoticeRow>(
+  async markSettled(demandNo: string, receiptNo: string, client: Pool | PoolClient = pool): Promise<DemandNoticeRow | null> {
+    const { rows } = await client.query<DemandNoticeRow>(
       `UPDATE demand_notices
        SET settled = TRUE, settled_receipt_no = $2, settled_at = now()
        WHERE demand_no = $1 AND settled = FALSE

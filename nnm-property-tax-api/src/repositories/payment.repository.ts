@@ -1,4 +1,5 @@
 import { pool } from "../config/db";
+import type { Pool, PoolClient } from "pg";
 import { RECEIPT_START_NO } from "../constants/taxRates";
 
 export interface TransactionRow {
@@ -34,19 +35,22 @@ export const paymentRepository = {
     return Math.max(nextFromExisting, RECEIPT_START_NO);
   },
 
-  async insertTransaction(row: {
-    receiptNo: string;
-    holdingNo: string;
-    paymentMode: string;
-    amountReceived: number;
-    collectedBy: string;
-    counter: string | null;
-    demandNo: string | null;
-    arrearPeriodsPaid: string | null;
-    taxCollectorCode: string | null;
-    taxCollectorName: string | null;
-  }): Promise<void> {
-    await pool.query(
+  async insertTransaction(
+    row: {
+      receiptNo: string;
+      holdingNo: string;
+      paymentMode: string;
+      amountReceived: number;
+      collectedBy: string;
+      counter: string | null;
+      demandNo: string | null;
+      arrearPeriodsPaid: string | null;
+      taxCollectorCode: string | null;
+      taxCollectorName: string | null;
+    },
+    client: Pool | PoolClient = pool,
+  ): Promise<void> {
+    await client.query(
       `INSERT INTO transactions (
         receipt_no, holding_no, txn_date, payment_mode, amount_received,
         collected_by, counter, demand_no, arrear_periods_paid,
@@ -67,8 +71,8 @@ export const paymentRepository = {
     );
   },
 
-  async updateTaxPaidTillYear(holdingNo: string, newYear: string): Promise<void> {
-    await pool.query(`UPDATE properties SET tax_paid_till_year = $2 WHERE holding_no = $1`, [holdingNo, newYear]);
+  async updateTaxPaidTillYear(holdingNo: string, newYear: string, client: Pool | PoolClient = pool): Promise<void> {
+    await client.query(`UPDATE properties SET tax_paid_till_year = $2 WHERE holding_no = $1`, [holdingNo, newYear]);
   },
 
   async findByReceiptNo(receiptNo: string): Promise<TransactionRow | null> {

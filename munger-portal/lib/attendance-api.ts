@@ -453,3 +453,132 @@ export async function fetchAttendanceDashboardSummary(): Promise<AttendanceDashb
   if (!res.ok) throw new Error("Could not load the dashboard summary.");
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Field staff roster management (attendance_admin only)
+// ---------------------------------------------------------------------------
+
+export interface FieldStaffSummary {
+  id: number;
+  name: string;
+  wardId: number;
+  shiftId: number | null;
+  active: boolean;
+}
+
+export async function fetchAllFieldStaff(): Promise<FieldStaffSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff/all`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load staff list.");
+  const data: { staff: FieldStaffSummary[] } = await res.json();
+  return data.staff;
+}
+
+export async function createFieldStaff(input: { name: string; wardId: number; shiftId: number | null }): Promise<FieldStaffSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not add staff member.");
+  }
+  const data: { staff: FieldStaffSummary } = await res.json();
+  return data.staff;
+}
+
+export async function setFieldStaffActive(id: number, active: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff/${id}/active`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update staff status.");
+}
+
+export interface RosterSyncResult {
+  created: number;
+  updated: number;
+  deactivated: number;
+  errors: { row: number; message: string }[];
+}
+
+export async function uploadFieldStaffRosterCsv(csvContent: string): Promise<RosterSyncResult> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ csvContent }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Upload failed.");
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Field driver roster management (attendance_admin only)
+// ---------------------------------------------------------------------------
+
+export interface FieldDriverSummary {
+  id: number;
+  name: string;
+  vehicleNumber: string | null;
+  chassisNumber: string | null;
+  dlNumber: string | null;
+  wardNo: string | null;
+  wardId: number;
+  shiftId: number | null;
+  active: boolean;
+}
+
+export async function fetchAllFieldDrivers(): Promise<FieldDriverSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers/all`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load driver list.");
+  const data: { drivers: FieldDriverSummary[] } = await res.json();
+  return data.drivers;
+}
+
+export async function createFieldDriver(input: {
+  name: string;
+  vehicleNumber: string | null;
+  chassisNumber: string | null;
+  dlNumber: string | null;
+  wardNo: string | null;
+  wardId: number;
+  shiftId: number | null;
+}): Promise<FieldDriverSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not add driver.");
+  }
+  const data: { driver: FieldDriverSummary } = await res.json();
+  return data.driver;
+}
+
+export async function setFieldDriverActive(id: number, active: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers/${id}/active`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update driver status.");
+}
+
+export async function uploadFieldDriverRosterCsv(csvContent: string): Promise<RosterSyncResult> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ csvContent }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Upload failed.");
+  }
+  return res.json();
+}

@@ -31,6 +31,16 @@ import {
   setAttendanceUserActiveHandler,
 } from "../controllers/attendanceUserManagement.controller";
 import { getAttendanceDashboardSummaryHandler } from "../controllers/attendanceDashboardSummary.controller";
+import {
+  listAllStaffHandler,
+  createStaffHandler,
+  setStaffActiveHandler,
+  uploadStaffRosterHandler,
+  listAllDriversHandler,
+  createDriverHandler,
+  setDriverActiveHandler,
+  uploadDriverRosterHandler,
+} from "../controllers/fieldRoster.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 import { loginRateLimiter } from "../middleware/loginRateLimiter";
 
@@ -117,6 +127,18 @@ attendanceRouter.get("/reports/monthly/drivers.csv", requireAttendanceReportAcce
 attendanceRouter.get("/users", requireAttendanceRole(["attendance_admin"]), listAttendanceUsersHandler);
 attendanceRouter.post("/users", requireAttendanceRole(["attendance_admin"]), createAttendanceUserHandler);
 attendanceRouter.patch("/users/:id/active", requireAttendanceRole(["attendance_admin"]), setAttendanceUserActiveHandler);
+
+// --- Field staff roster management (attendance_admin only) - separate from the day-to-day mark-in/out routes above ---
+attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin"]), listAllStaffHandler);
+attendanceRouter.post("/staff", requireAttendanceRole(["attendance_admin"]), createStaffHandler);
+attendanceRouter.patch("/staff/:id/active", requireAttendanceRole(["attendance_admin"]), setStaffActiveHandler);
+attendanceRouter.post("/staff/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadStaffRosterHandler);
+
+// --- Field driver roster management (attendance_admin only) ---
+attendanceRouter.get("/drivers/all", requireAttendanceRole(["attendance_admin"]), listAllDriversHandler);
+attendanceRouter.post("/drivers", requireAttendanceRole(["attendance_admin"]), createDriverHandler);
+attendanceRouter.patch("/drivers/:id/active", requireAttendanceRole(["attendance_admin"]), setDriverActiveHandler);
+attendanceRouter.post("/drivers/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadDriverRosterHandler);
 
 // --- Officer dashboard ---
 attendanceRouter.get(
