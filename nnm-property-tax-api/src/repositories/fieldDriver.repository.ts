@@ -22,6 +22,7 @@ export const fieldDriverRepository = {
 
   async create(input: {
     name: string;
+    externalId: string | null;
     vehicleNumber: string | null;
     chassisNumber: string | null;
     dlNumber: string | null;
@@ -30,12 +31,18 @@ export const fieldDriverRepository = {
     shiftId: number | null;
   }): Promise<FieldDriverRow> {
     const { rows } = await pool.query<FieldDriverRow>(
-      `INSERT INTO field_drivers (name, vehicle_number, chassis_number, dl_number, ward_no, ward_id, shift_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `INSERT INTO field_drivers (name, external_id, vehicle_number, chassis_number, dl_number, ward_no, ward_id, shift_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
        RETURNING *`,
-      [input.name, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.wardId, input.shiftId],
+      [input.name, input.externalId, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.wardId, input.shiftId],
     );
     return rows[0]!;
+  },
+
+  /** Preferred match for the bulk-upload sync when a source system id is available - see migration 020. */
+  async findByExternalId(externalId: string): Promise<FieldDriverRow | null> {
+    const { rows } = await pool.query<FieldDriverRow>(`SELECT * FROM field_drivers WHERE external_id = $1 LIMIT 1`, [externalId]);
+    return rows[0] ?? null;
   },
 
   async findByNameAndWard(name: string, wardId: number): Promise<FieldDriverRow | null> {
@@ -54,19 +61,22 @@ export const fieldDriverRepository = {
   async update(
     id: number,
     input: {
+      name?: string;
       vehicleNumber: string | null;
       chassisNumber: string | null;
       dlNumber: string | null;
       wardNo: string | null;
+      wardId?: number;
       shiftId: number | null;
       active: boolean;
     },
   ): Promise<FieldDriverRow | null> {
     const { rows } = await pool.query<FieldDriverRow>(
       `UPDATE field_drivers
-       SET vehicle_number = $2, chassis_number = $3, dl_number = $4, ward_no = $5, shift_id = $6, active = $7
+       SET name = COALESCE($2, name), vehicle_number = $3, chassis_number = $4, dl_number = $5,
+           ward_no = $6, ward_id = COALESCE($7, ward_id), shift_id = $8, active = $9
        WHERE id = $1 RETURNING *`,
-      [id, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.shiftId, input.active],
+      [id, input.name ?? null, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.wardId ?? null, input.shiftId, input.active],
     );
     return rows[0] ?? null;
   },

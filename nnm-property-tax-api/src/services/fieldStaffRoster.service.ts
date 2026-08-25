@@ -12,15 +12,18 @@ export interface RosterSyncResult {
 }
 
 interface ParsedStaffRow {
+  externalId: string | null;
   name: string;
   wardId: number;
   shiftId: number | null;
 }
 
 /**
- * Expected CSV columns: Name, Ward, Shift (Ward/Shift by their display
- * name, not internal id - an admin filling this out shouldn't need to
- * know database ids). Shift is optional; Name and Ward are required.
+ * Expected CSV columns: ID, Name, Ward, Shift (Ward/Shift by their
+ * display name, not internal id - an admin filling this out shouldn't
+ * need to know database ids). ID is optional but strongly recommended
+ * - see migration 020's comment for why matching by name+ward alone
+ * is fragile. Shift is optional; Name and Ward are required.
  */
 async function parseStaffCsv(csvContent: string): Promise<{ rows: ParsedStaffRow[]; errors: { row: number; message: string }[] }> {
   const records: Record<string, string>[] = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
@@ -35,6 +38,7 @@ async function parseStaffCsv(csvContent: string): Promise<{ rows: ParsedStaffRow
 
   records.forEach((r, i) => {
     const rowNum = i + 2; // +1 for 0-index, +1 for header row
+    const externalId = (r.ID || r.id || r.StaffID || "").trim() || null;
     const name = (r.Name || r.name || "").trim();
     const wardName = (r.Ward || r.ward || "").trim();
     const shiftName = (r.Shift || r.shift || "").trim();
@@ -61,7 +65,7 @@ async function parseStaffCsv(csvContent: string): Promise<{ rows: ParsedStaffRow
       }
     }
 
-    rows.push({ name, wardId, shiftId });
+    rows.push({ externalId, name, wardId, shiftId });
   });
 
   return { rows, errors };
@@ -69,11 +73,14 @@ async function parseStaffCsv(csvContent: string): Promise<{ rows: ParsedStaffRow
 
 /**
  * Full-list sync: the uploaded CSV becomes the new active roster.
- * Matches existing staff by (name, ward) - anyone matched gets
- * updated (shift, reactivated if they'd been deactivated); anyone
- * created is new; anyone currently active but NOT present in this
- * upload gets deactivated (not deleted - their attendance/feedback/
- * photo history references this row and must be preserved).
+ * Matches existing staff by external id first (stable across name/ward
+ * corrections), falling back to (name, ward) only when a row has no
+ * id - see migration 020's comment for why id-based matching exists.
+ * Anyone matched gets updated (name, ward, shift, reactivated if
+ * they'd been deactivated); anyone unmatched is created; anyone
+ * currently active but NOT present in this upload gets deactivated
+ * (not deleted - their attendance/feedback/photo history references
+ * this row and must be preserved).
  */
 export async function syncStaffRosterFromCsv(csvContent: string): Promise<RosterSyncResult> {
   const { rows, errors: parseErrors } = await parseStaffCsv(csvContent);
@@ -83,13 +90,21 @@ export async function syncStaffRosterFromCsv(csvContent: string): Promise<Roster
 
   for (const row of rows) {
     try {
-      const existing = await fieldStaffRepository.findByNameAndWard(row.name, row.wardId);
+      const existing = row.externalId
+        ? await fieldStaffRepository.findByExternalId(row.externalId)
+        : await fieldStaffRepository.findByNameAndWard(row.name, row.wardId);
+
       if (existing) {
-        await fieldStaffRepository.update(existing.id, { shiftId: row.shiftId, active: true });
+        await fieldStaffRepository.update(existing.id, { name: row.name, wardId: row.wardId, shiftId: row.shiftId, active: true });
         touchedIds.add(existing.id);
         result.updated++;
       } else {
-        const created: FieldStaffRow = await fieldStaffRepository.create({ name: row.name, wardId: row.wardId, shiftId: row.shiftId });
+        const created: FieldStaffRow = await fieldStaffRepository.create({
+          name: row.name,
+          externalId: row.externalId,
+          wardId: row.wardId,
+          shiftId: row.shiftId,
+        });
         touchedIds.add(created.id);
         result.created++;
       }
@@ -106,8 +121,8 @@ export async function syncStaffRosterFromCsv(csvContent: string): Promise<Roster
   return result;
 }
 
-export async function createOneStaff(name: string, wardId: number, shiftId: number | null): Promise<FieldStaffRow> {
+export async function createOneStaff(name: string, externalId: string | null, wardId: number, shiftId: number | null): Promise<FieldStaffRow> {
   const ward = await attendanceWardRepository.findById(wardId);
   if (!ward) throw ApiError.badRequest("Ward not found.");
-  return fieldStaffRepository.create({ name, wardId, shiftId });
+  return fieldStaffRepository.create({ name, externalId, wardId, shiftId });
 }

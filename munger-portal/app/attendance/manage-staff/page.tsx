@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload, ArrowRightLeft } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import {
@@ -10,6 +10,7 @@ import {
   fetchAllFieldStaff,
   createFieldStaff,
   setFieldStaffActive,
+  transferFieldStaff,
   uploadFieldStaffRosterCsv,
   type AttendanceWard,
   type AttendanceShift,
@@ -22,7 +23,11 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 export default function ManageStaffPage() {
-  const user = useAttendanceGuard(["attendance_admin"]);
+  // Sanitation officers can view the roster and transfer workers
+  // between wards; only attendance_admin can create, rename, or
+  // deactivate - the page below hides those sections for officers.
+  const user = useAttendanceGuard(["attendance_admin", "sanitation_officer"]);
+  const isAdmin = user?.role === "attendance_admin";
   const [wards, setWards] = useState<AttendanceWard[]>([]);
   const [shifts, setShifts] = useState<AttendanceShift[]>([]);
   const [staff, setStaff] = useState<FieldStaffSummary[] | null>(null);
@@ -39,6 +44,12 @@ export default function ManageStaffPage() {
   const [uploadResult, setUploadResult] = useState<RosterSyncResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [transferringId, setTransferringId] = useState<number | null>(null);
+  const [transferWardId, setTransferWardId] = useState("");
+  const [transferShiftId, setTransferShiftId] = useState("");
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
   const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
@@ -95,6 +106,33 @@ export default function ManageStaffPage() {
     }
   }
 
+  function openTransfer(s: FieldStaffSummary) {
+    setTransferringId(s.id);
+    setTransferWardId(String(s.wardId));
+    setTransferShiftId(s.shiftId ? String(s.shiftId) : "");
+    setTransferError(null);
+  }
+
+  async function handleTransferSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (transferringId === null) return;
+    setTransferError(null);
+    if (!transferWardId) {
+      setTransferError("Select a ward.");
+      return;
+    }
+    setTransferSubmitting(true);
+    try {
+      await transferFieldStaff(transferringId, Number(transferWardId), transferShiftId ? Number(transferShiftId) : null);
+      setTransferringId(null);
+      await loadStaff();
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : "Could not transfer staff member.");
+    } finally {
+      setTransferSubmitting(false);
+    }
+  }
+
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -133,7 +171,8 @@ export default function ManageStaffPage() {
           </div>
         )}
 
-        {/* One-by-one entry */}
+        {/* One-by-one entry - attendance_admin only */}
+        {isAdmin && (
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <UserPlus className="h-4 w-4" />
@@ -191,8 +230,10 @@ export default function ManageStaffPage() {
             </div>
           </form>
         </section>
+        )}
 
-        {/* Bulk upload */}
+        {/* Bulk upload - attendance_admin only */}
+        {isAdmin && (
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Upload className="h-4 w-4" />
@@ -247,6 +288,7 @@ export default function ManageStaffPage() {
             </div>
           )}
         </section>
+        )}
 
         {/* Roster table */}
         <section className="rounded-xl border border-slate-200 bg-white p-6">
@@ -282,9 +324,16 @@ export default function ManageStaffPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <button onClick={() => handleToggleActive(s.id, !s.active)} className="text-xs font-medium text-nnm-blue hover:underline">
-                          {s.active ? "Deactivate" : "Activate"}
-                        </button>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => openTransfer(s)} className="text-xs font-medium text-nnm-blue hover:underline">
+                            Transfer
+                          </button>
+                          {isAdmin && (
+                            <button onClick={() => handleToggleActive(s.id, !s.active)} className="text-xs font-medium text-slate-500 hover:underline">
+                              {s.active ? "Deactivate" : "Activate"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -294,6 +343,65 @@ export default function ManageStaffPage() {
           )}
         </section>
       </main>
+
+      {transferringId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <ArrowRightLeft className="h-4 w-4" />
+              Transfer {staff?.find((s) => s.id === transferringId)?.name}
+            </h2>
+
+            {transferError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {transferError}
+              </div>
+            )}
+
+            <form onSubmit={handleTransferSubmit} className="space-y-4">
+              <div>
+                <label className={labelClass}>New Ward</label>
+                <select required value={transferWardId} onChange={(e) => setTransferWardId(e.target.value)} className={inputClass}>
+                  <option value="">Select...</option>
+                  {wards.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.wardName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>New Shift (optional)</label>
+                <select value={transferShiftId} onChange={(e) => setTransferShiftId(e.target.value)} className={inputClass}>
+                  <option value="">Keep current</option>
+                  {shifts.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.shiftName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTransferringId(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={transferSubmitting}
+                  className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                >
+                  {transferSubmitting ? "Transferring..." : "Confirm Transfer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

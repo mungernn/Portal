@@ -35,10 +35,12 @@ import {
   listAllStaffHandler,
   createStaffHandler,
   setStaffActiveHandler,
+  transferStaffHandler,
   uploadStaffRosterHandler,
   listAllDriversHandler,
   createDriverHandler,
   setDriverActiveHandler,
+  transferDriverHandler,
   uploadDriverRosterHandler,
 } from "../controllers/fieldRoster.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
@@ -128,16 +130,22 @@ attendanceRouter.get("/users", requireAttendanceRole(["attendance_admin"]), list
 attendanceRouter.post("/users", requireAttendanceRole(["attendance_admin"]), createAttendanceUserHandler);
 attendanceRouter.patch("/users/:id/active", requireAttendanceRole(["attendance_admin"]), setAttendanceUserActiveHandler);
 
-// --- Field staff roster management (attendance_admin only) - separate from the day-to-day mark-in/out routes above ---
-attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin"]), listAllStaffHandler);
+// --- Field staff roster management ---
+// GET/transfer: attendance_admin OR sanitation_officer (an officer
+// needs to see the roster to transfer anyone, and can move workers
+// between wards, but cannot create/rename/deactivate). Everything
+// else here stays attendance_admin-only.
+attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), listAllStaffHandler);
 attendanceRouter.post("/staff", requireAttendanceRole(["attendance_admin"]), createStaffHandler);
 attendanceRouter.patch("/staff/:id/active", requireAttendanceRole(["attendance_admin"]), setStaffActiveHandler);
+attendanceRouter.patch("/staff/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferStaffHandler);
 attendanceRouter.post("/staff/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadStaffRosterHandler);
 
-// --- Field driver roster management (attendance_admin only) ---
-attendanceRouter.get("/drivers/all", requireAttendanceRole(["attendance_admin"]), listAllDriversHandler);
+// --- Field driver roster management (same admin/officer split as staff above) ---
+attendanceRouter.get("/drivers/all", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), listAllDriversHandler);
 attendanceRouter.post("/drivers", requireAttendanceRole(["attendance_admin"]), createDriverHandler);
 attendanceRouter.patch("/drivers/:id/active", requireAttendanceRole(["attendance_admin"]), setDriverActiveHandler);
+attendanceRouter.patch("/drivers/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferDriverHandler);
 attendanceRouter.post("/drivers/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadDriverRosterHandler);
 
 // --- Officer dashboard ---

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, UserPlus, Upload, ArrowRightLeft } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import {
@@ -10,6 +10,7 @@ import {
   fetchAllFieldDrivers,
   createFieldDriver,
   setFieldDriverActive,
+  transferFieldDriver,
   uploadFieldDriverRosterCsv,
   type AttendanceWard,
   type AttendanceShift,
@@ -22,7 +23,11 @@ const inputClass =
 const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 export default function ManageDriversPage() {
-  const user = useAttendanceGuard(["attendance_admin"]);
+  // Sanitation officers can view the roster and transfer drivers
+  // between wards; only attendance_admin can create, rename, or
+  // deactivate - the page below hides those sections for officers.
+  const user = useAttendanceGuard(["attendance_admin", "sanitation_officer"]);
+  const isAdmin = user?.role === "attendance_admin";
   const [wards, setWards] = useState<AttendanceWard[]>([]);
   const [shifts, setShifts] = useState<AttendanceShift[]>([]);
   const [drivers, setDrivers] = useState<FieldDriverSummary[] | null>(null);
@@ -43,6 +48,12 @@ export default function ManageDriversPage() {
   const [uploadResult, setUploadResult] = useState<RosterSyncResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [transferringId, setTransferringId] = useState<number | null>(null);
+  const [transferWardId, setTransferWardId] = useState("");
+  const [transferShiftId, setTransferShiftId] = useState("");
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
 
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
   const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
@@ -111,6 +122,33 @@ export default function ManageDriversPage() {
     }
   }
 
+  function openTransfer(d: FieldDriverSummary) {
+    setTransferringId(d.id);
+    setTransferWardId(String(d.wardId));
+    setTransferShiftId(d.shiftId ? String(d.shiftId) : "");
+    setTransferError(null);
+  }
+
+  async function handleTransferSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (transferringId === null) return;
+    setTransferError(null);
+    if (!transferWardId) {
+      setTransferError("Select a ward.");
+      return;
+    }
+    setTransferSubmitting(true);
+    try {
+      await transferFieldDriver(transferringId, Number(transferWardId), transferShiftId ? Number(transferShiftId) : null);
+      setTransferringId(null);
+      await loadDrivers();
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : "Could not transfer driver.");
+    } finally {
+      setTransferSubmitting(false);
+    }
+  }
+
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -149,7 +187,8 @@ export default function ManageDriversPage() {
           </div>
         )}
 
-        {/* One-by-one entry */}
+        {/* One-by-one entry - attendance_admin only */}
+        {isAdmin && (
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <UserPlus className="h-4 w-4" />
@@ -223,8 +262,10 @@ export default function ManageDriversPage() {
             </div>
           </form>
         </section>
+        )}
 
-        {/* Bulk upload */}
+        {/* Bulk upload - attendance_admin only */}
+        {isAdmin && (
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Upload className="h-4 w-4" />
@@ -280,6 +321,7 @@ export default function ManageDriversPage() {
             </div>
           )}
         </section>
+        )}
 
         {/* Roster table */}
         <section className="rounded-xl border border-slate-200 bg-white p-6">
@@ -317,9 +359,16 @@ export default function ManageDriversPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 text-right">
-                        <button onClick={() => handleToggleActive(d.id, !d.active)} className="text-xs font-medium text-nnm-blue hover:underline">
-                          {d.active ? "Deactivate" : "Activate"}
-                        </button>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => openTransfer(d)} className="text-xs font-medium text-nnm-blue hover:underline">
+                            Transfer
+                          </button>
+                          {isAdmin && (
+                            <button onClick={() => handleToggleActive(d.id, !d.active)} className="text-xs font-medium text-slate-500 hover:underline">
+                              {d.active ? "Deactivate" : "Activate"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -329,6 +378,65 @@ export default function ManageDriversPage() {
           )}
         </section>
       </main>
+
+      {transferringId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <ArrowRightLeft className="h-4 w-4" />
+              Transfer {drivers?.find((d) => d.id === transferringId)?.name}
+            </h2>
+
+            {transferError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {transferError}
+              </div>
+            )}
+
+            <form onSubmit={handleTransferSubmit} className="space-y-4">
+              <div>
+                <label className={labelClass}>New Ward</label>
+                <select required value={transferWardId} onChange={(e) => setTransferWardId(e.target.value)} className={inputClass}>
+                  <option value="">Select...</option>
+                  {wards.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.wardName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>New Shift (optional)</label>
+                <select value={transferShiftId} onChange={(e) => setTransferShiftId(e.target.value)} className={inputClass}>
+                  <option value="">Keep current</option>
+                  {shifts.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.shiftName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setTransferringId(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={transferSubmitting}
+                  className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                >
+                  {transferSubmitting ? "Transferring..." : "Confirm Transfer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

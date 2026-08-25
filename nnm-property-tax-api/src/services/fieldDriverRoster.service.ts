@@ -6,6 +6,7 @@ import type { FieldDriverRow } from "../types/attendance.types";
 import type { RosterSyncResult } from "./fieldStaffRoster.service";
 
 interface ParsedDriverRow {
+  externalId: string | null;
   name: string;
   vehicleNumber: string | null;
   chassisNumber: string | null;
@@ -15,7 +16,12 @@ interface ParsedDriverRow {
   shiftId: number | null;
 }
 
-/** Expected CSV columns: Name, VehicleNumber, ChassisNumber, DLNumber, WardNo, Ward, Shift. Only Name and Ward are required. */
+/**
+ * Expected CSV columns: ID, Name, VehicleNumber, ChassisNumber,
+ * DLNumber, WardNo, Ward, Shift. ID is optional but strongly
+ * recommended - see migration 020's comment for why matching by
+ * name+ward alone is fragile. Only Name and Ward are required.
+ */
 async function parseDriverCsv(csvContent: string): Promise<{ rows: ParsedDriverRow[]; errors: { row: number; message: string }[] }> {
   const records: Record<string, string>[] = parse(csvContent, { columns: true, skip_empty_lines: true, trim: true });
 
@@ -29,6 +35,7 @@ async function parseDriverCsv(csvContent: string): Promise<{ rows: ParsedDriverR
 
   records.forEach((r, i) => {
     const rowNum = i + 2;
+    const externalId = (r.ID || r.id || r.StaffID || "").trim() || null;
     const name = (r.Name || r.name || "").trim();
     const wardName = (r.Ward || r.ward || "").trim();
     const shiftName = (r.Shift || r.shift || "").trim();
@@ -56,6 +63,7 @@ async function parseDriverCsv(csvContent: string): Promise<{ rows: ParsedDriverR
     }
 
     rows.push({
+      externalId,
       name,
       vehicleNumber: (r.VehicleNumber || r.vehicleNumber || "").trim() || null,
       chassisNumber: (r.ChassisNumber || r.chassisNumber || "").trim() || null,
@@ -69,7 +77,11 @@ async function parseDriverCsv(csvContent: string): Promise<{ rows: ParsedDriverR
   return { rows, errors };
 }
 
-/** Same full-list sync semantics as syncStaffRosterFromCsv - see that function's comment. */
+/**
+ * Same full-list sync semantics as syncStaffRosterFromCsv - matches by
+ * external id first when present, falling back to (name, ward). See
+ * that function's comment and migration 020 for the full reasoning.
+ */
 export async function syncDriverRosterFromCsv(csvContent: string): Promise<RosterSyncResult> {
   const { rows, errors: parseErrors } = await parseDriverCsv(csvContent);
   const result: RosterSyncResult = { created: 0, updated: 0, deactivated: 0, errors: parseErrors };
@@ -78,13 +90,18 @@ export async function syncDriverRosterFromCsv(csvContent: string): Promise<Roste
 
   for (const row of rows) {
     try {
-      const existing = await fieldDriverRepository.findByNameAndWard(row.name, row.wardId);
+      const existing = row.externalId
+        ? await fieldDriverRepository.findByExternalId(row.externalId)
+        : await fieldDriverRepository.findByNameAndWard(row.name, row.wardId);
+
       if (existing) {
         await fieldDriverRepository.update(existing.id, {
+          name: row.name,
           vehicleNumber: row.vehicleNumber,
           chassisNumber: row.chassisNumber,
           dlNumber: row.dlNumber,
           wardNo: row.wardNo,
+          wardId: row.wardId,
           shiftId: row.shiftId,
           active: true,
         });
@@ -93,6 +110,7 @@ export async function syncDriverRosterFromCsv(csvContent: string): Promise<Roste
       } else {
         const created: FieldDriverRow = await fieldDriverRepository.create({
           name: row.name,
+          externalId: row.externalId,
           vehicleNumber: row.vehicleNumber,
           chassisNumber: row.chassisNumber,
           dlNumber: row.dlNumber,
@@ -118,6 +136,7 @@ export async function syncDriverRosterFromCsv(csvContent: string): Promise<Roste
 
 export async function createOneDriver(input: {
   name: string;
+  externalId: string | null;
   vehicleNumber: string | null;
   chassisNumber: string | null;
   dlNumber: string | null;

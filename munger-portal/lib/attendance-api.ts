@@ -496,6 +496,21 @@ export async function setFieldStaffActive(id: number, active: boolean): Promise<
   if (!res.ok) throw new Error("Could not update staff status.");
 }
 
+/** attendance_admin OR sanitation_officer - moves a worker to a different ward (and optionally shift). */
+export async function transferFieldStaff(id: number, wardId: number, shiftId: number | null): Promise<FieldStaffSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff/${id}/transfer`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ wardId, shiftId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not transfer staff member.");
+  }
+  const data: { staff: FieldStaffSummary } = await res.json();
+  return data.staff;
+}
+
 export interface RosterSyncResult {
   created: number;
   updated: number;
@@ -568,6 +583,21 @@ export async function setFieldDriverActive(id: number, active: boolean): Promise
     body: JSON.stringify({ active }),
   });
   if (!res.ok) throw new Error("Could not update driver status.");
+}
+
+/** attendance_admin OR sanitation_officer - moves a driver to a different ward (and optionally shift). */
+export async function transferFieldDriver(id: number, wardId: number, shiftId: number | null): Promise<FieldDriverSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers/${id}/transfer`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ wardId, shiftId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not transfer driver.");
+  }
+  const data: { driver: FieldDriverSummary } = await res.json();
+  return data.driver;
 }
 
 export async function uploadFieldDriverRosterCsv(csvContent: string): Promise<RosterSyncResult> {

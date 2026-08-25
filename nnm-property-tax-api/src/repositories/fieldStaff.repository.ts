@@ -20,12 +20,18 @@ export const fieldStaffRepository = {
     return rows;
   },
 
-  async create(input: { name: string; wardId: number; shiftId: number | null }): Promise<FieldStaffRow> {
+  async create(input: { name: string; externalId: string | null; wardId: number; shiftId: number | null }): Promise<FieldStaffRow> {
     const { rows } = await pool.query<FieldStaffRow>(
-      `INSERT INTO field_staff (name, ward_id, shift_id) VALUES ($1,$2,$3) RETURNING *`,
-      [input.name, input.wardId, input.shiftId],
+      `INSERT INTO field_staff (name, external_id, ward_id, shift_id) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [input.name, input.externalId, input.wardId, input.shiftId],
     );
     return rows[0]!;
+  },
+
+  /** Preferred match for the bulk-upload sync when a source system id is available - see migration 020 for why this exists alongside name+ward matching. */
+  async findByExternalId(externalId: string): Promise<FieldStaffRow | null> {
+    const { rows } = await pool.query<FieldStaffRow>(`SELECT * FROM field_staff WHERE external_id = $1 LIMIT 1`, [externalId]);
+    return rows[0] ?? null;
   },
 
   async findByNameAndWard(name: string, wardId: number): Promise<FieldStaffRow | null> {
@@ -44,10 +50,18 @@ export const fieldStaffRepository = {
     return rows[0] ?? null;
   },
 
-  async update(id: number, input: { shiftId: number | null; active: boolean }): Promise<FieldStaffRow | null> {
+  async update(
+    id: number,
+    input: { name?: string; wardId?: number; shiftId: number | null; active: boolean },
+  ): Promise<FieldStaffRow | null> {
     const { rows } = await pool.query<FieldStaffRow>(
-      `UPDATE field_staff SET shift_id = $2, active = $3 WHERE id = $1 RETURNING *`,
-      [id, input.shiftId, input.active],
+      `UPDATE field_staff SET
+         name = COALESCE($2, name),
+         ward_id = COALESCE($3, ward_id),
+         shift_id = $4,
+         active = $5
+       WHERE id = $1 RETURNING *`,
+      [id, input.name ?? null, input.wardId ?? null, input.shiftId, input.active],
     );
     return rows[0] ?? null;
   },
