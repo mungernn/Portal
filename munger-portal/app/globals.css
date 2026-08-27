@@ -89,6 +89,16 @@ body {
  * wrapped in .printable-area.
  */
 @media print {
+  /* Collapses the hidden content's contribution to total page height -
+     visibility:hidden (below) keeps elements invisible but NOT out of
+     layout flow, so without this, all the hidden surrounding page
+     content (header, other sections) still occupies its full height,
+     and the browser prints that empty space as extra blank pages
+     before ever reaching .printable-area. */
+  html,
+  body {
+    height: 0;
+  }
   body * {
     visibility: hidden;
   }
@@ -97,7 +107,11 @@ body {
     visibility: visible;
   }
   .printable-area {
-    position: absolute;
+    /* position: fixed (not absolute) ties this to the viewport/page
+       directly, independent of any ancestor's now-collapsed height -
+       this is what actually makes the html/body height:0 above safe
+       to use without risking the receipt being clipped or mispositioned. */
+    position: fixed;
     left: 0;
     top: 0;
     width: 100%;
