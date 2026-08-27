@@ -245,6 +245,8 @@ export interface PrintableDemandNoticeHistory {
   reminderLabel: string | null;
   previousUnsettledDemandNos: string | null;
   superseded: boolean;
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 export async function fetchDemandNoticeReprintAdmin(demandNo: string): Promise<PrintableDemandNoticeHistory> {
@@ -291,6 +293,9 @@ export interface PrintableReceiptHistory {
     totalFineAmount: string;
     otherCharges: string;
   } | null;
+  arrearStagesPaid: { period: string; years: number; annualCharge: string; amount: string }[];
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 export async function fetchReceiptReprintAdmin(receiptNo: string): Promise<PrintableReceiptHistory> {
@@ -509,4 +514,59 @@ export async function setTaxCollectorWardsAdmin(id: number, wards: string[]): Pr
   }
   const data: { wards: string[] } = await res.json();
   return data.wards;
+}
+// ---------------------------------------------------------------------------
+// Cancellation requests - demand notices / receipts
+// ---------------------------------------------------------------------------
+
+export type CancellationRequestStatus = "pending" | "approved" | "rejected";
+
+export interface CancellationRequestSummary {
+  id: number;
+  request_type: "demand_notice" | "receipt";
+  target_id: string;
+  holding_no: string;
+  reason: string;
+  requested_by: string;
+  requested_at: string;
+  status: CancellationRequestStatus;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+}
+
+export async function fetchCancellationRequests(status?: CancellationRequestStatus): Promise<CancellationRequestSummary[]> {
+  const params = status ? `?status=${status}` : "";
+  const res = await fetch(`${API_BASE_URL}/admin/cancellation-requests${params}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load cancellation requests.");
+  const data: { requests: CancellationRequestSummary[] } = await res.json();
+  return data.requests;
+}
+
+export async function approveCancellationRequest(id: number, notes?: string): Promise<CancellationRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/cancellation-requests/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not approve this cancellation request.");
+  }
+  const data: { request: CancellationRequestSummary } = await res.json();
+  return data.request;
+}
+
+export async function rejectCancellationRequest(id: number, notes: string): Promise<CancellationRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/cancellation-requests/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not reject this cancellation request.");
+  }
+  const data: { request: CancellationRequestSummary } = await res.json();
+  return data.request;
 }

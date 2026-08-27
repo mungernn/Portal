@@ -14,6 +14,11 @@ import {
   postApproveChangeRequest,
   postRejectChangeRequest,
 } from "../controllers/changeRequest.controller";
+import {
+  getCancellationRequests,
+  postApproveCancellation,
+  postRejectCancellation,
+} from "../controllers/cancellationRequest.controller";
 import { postBulkGenerateDemandNotices } from "../controllers/demandNotice.controller";
 import { postBulkRegenerateTaxHistory } from "../controllers/adminTaxHistory.controller";
 import { getDataExport } from "../controllers/export.controller";
@@ -62,6 +67,15 @@ adminRouter.get("/change-requests", getChangeRequests);
 adminRouter.get("/change-requests/:id", getChangeRequestById);
 adminRouter.post("/change-requests/:id/approve", postApproveChangeRequest);
 adminRouter.post("/change-requests/:id/reject", postRejectChangeRequest);
+
+// Demand notice / receipt cancellation approval queue - viewable by
+// any admin role, but approve/reject is tax_daroga-only (unlike the
+// property mutation chain above, this doesn't escalate through
+// multiple roles).
+const requireTaxDaroga = requireAdminRole("tax_daroga");
+adminRouter.get("/cancellation-requests", getCancellationRequests);
+adminRouter.post("/cancellation-requests/:id/approve", requireTaxDaroga, postApproveCancellation);
+adminRouter.post("/cancellation-requests/:id/reject", requireTaxDaroga, postRejectCancellation);
 
 // Shop agreement approval queue (5-stage: Stall Prabhari -> Tax Daroga NOC -> City Manager -> Deputy Commissioner -> Commissioner)
 adminRouter.get("/shop-agreement-requests", getShopAgreementRequests);

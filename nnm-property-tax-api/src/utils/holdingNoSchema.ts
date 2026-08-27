@@ -2,11 +2,13 @@ import { z } from "zod";
 
 /**
  * Shared validator for holding numbers everywhere they're accepted as
- * input (route params, request bodies, query strings) - alphanumeric
- * and hyphen only, no spaces or other punctuation. Matches the actual
- * format in use (e.g. "MUNG-00022", "MUNGMC-000123") while rejecting
- * anything a citizen or operator might paste in with stray whitespace
- * or typos using the wrong separator character.
+ * input (route params, request bodies, query strings) - letters,
+ * numbers, and a specific set of punctuation used in real holding
+ * number formats (hyphen, slash, backslash, parentheses, square
+ * brackets, comma, period). Spaces are still deliberately disallowed
+ * - that's what originally caused duplicate holdings (e.g. "MUNG-
+ * 08938" vs "MUNG-08938" being treated as different properties), and
+ * remains the actual problem this validator exists to prevent.
  *
  * .trim() runs first so incidental leading/trailing whitespace from
  * copy-paste doesn't itself trigger the regex failure - only spaces
@@ -17,4 +19,7 @@ export const holdingNoSchema = z
   .trim()
   .min(1, "Holding number is required")
   .max(32)
-  .regex(/^[A-Za-z0-9-]+$/, "Holding number can only contain letters, numbers, and hyphens (-) - no spaces or other characters");
+  .regex(
+    /^[A-Za-z0-9\-/\\()[\],.]+$/,
+    "Holding number can only contain letters, numbers, and these characters: - / \\ ( ) [ ] , . - no spaces",
+  );

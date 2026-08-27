@@ -11,6 +11,7 @@ import {
   getDemandNoticeReprint,
 } from "../controllers/demandNotice.controller";
 import { postPreviewTax } from "../controllers/taxPreview.controller";
+import { postRequestCancellation } from "../controllers/cancellationRequest.controller";
 import { requireOperator } from "../middleware/requireOperator";
 import { requireOperatorOrAdmin } from "../middleware/requireOperatorOrAdmin";
 
@@ -24,6 +25,11 @@ propertyRouter.get("/next-holding-no", requireOperator, previewNextHoldingNo);
 // POST /api/v1/properties/preview-tax — MUST come before POST /:holdingNo
 // below, for the same reason. Live calc only, never touches the DB.
 propertyRouter.post("/preview-tax", requireOperator, postPreviewTax);
+
+// POST /api/v1/properties/cancellation-requests - any operator may
+// request cancellation of any demand notice or receipt; nothing
+// actually changes until tax_daroga approves (see admin.routes.ts).
+propertyRouter.post("/cancellation-requests", requireOperator, postRequestCancellation);
 
 // POST /api/v1/properties/lookup — public, two-factor citizen search
 // (holding number + mobile number). MUST come before POST /:holdingNo

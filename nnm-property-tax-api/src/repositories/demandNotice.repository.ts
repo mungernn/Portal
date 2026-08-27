@@ -20,6 +20,9 @@ export interface DemandNoticeRow {
   reminder_number: number;
   superseded: boolean;
   previous_unsettled_demand_nos: string | null;
+  cancelled: boolean;
+  cancelled_reason: string | null;
+  cancelled_at: Date | null;
 }
 
 export const demandNoticeRepository = {
@@ -132,6 +135,30 @@ export const demandNoticeRepository = {
        WHERE demand_no = $1 AND settled = FALSE
        RETURNING *`,
       [demandNo, receiptNo],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Atomic: only cancels an UNSETTLED notice - a settled one must be cancelled via its receipt instead (revertToUnsettled below), not directly. */
+  async cancel(demandNo: string, reason: string, client: Pool | PoolClient = pool): Promise<DemandNoticeRow | null> {
+    const { rows } = await client.query<DemandNoticeRow>(
+      `UPDATE demand_notices
+       SET cancelled = TRUE, cancelled_reason = $2, cancelled_at = now()
+       WHERE demand_no = $1 AND settled = FALSE AND cancelled = FALSE
+       RETURNING *`,
+      [demandNo, reason],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Reverts a settled notice back to unsettled and payable again - used when its receipt gets cancelled (see cancellationRequest.service.ts). */
+  async revertToUnsettled(demandNo: string, client: Pool | PoolClient = pool): Promise<DemandNoticeRow | null> {
+    const { rows } = await client.query<DemandNoticeRow>(
+      `UPDATE demand_notices
+       SET settled = FALSE, settled_receipt_no = NULL, settled_at = NULL
+       WHERE demand_no = $1 AND settled = TRUE
+       RETURNING *`,
+      [demandNo],
     );
     return rows[0] ?? null;
   },

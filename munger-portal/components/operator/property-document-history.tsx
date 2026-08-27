@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, FileText, Loader2, Printer, Receipt } from "lucide-react";
+import { AlertCircle, CheckCircle2, FileText, Loader2, Printer, Receipt, XCircle } from "lucide-react";
 import {
   fetchDemandNoticeHistory,
   fetchDemandNoticeReprint,
   fetchPaymentHistory,
   fetchReceiptReprint,
+  requestCancellation,
   type DemandNoticeHistoryEntry,
   type PaymentHistoryEntry,
   type PrintableDemandNoticeHistory,
@@ -22,6 +23,12 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
   const [loadingItem, setLoadingItem] = useState<string | null>(null);
   const [noticeReprint, setNoticeReprint] = useState<PrintableDemandNoticeHistory | null>(null);
   const [receiptReprint, setReceiptReprint] = useState<PrintableReceiptHistory | null>(null);
+
+  const [cancelling, setCancelling] = useState<{ type: "demand_notice" | "receipt"; id: string } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     setNoticeHistory(null);
@@ -56,6 +63,32 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
     }
   }
 
+  function openCancel(type: "demand_notice" | "receipt", id: string) {
+    setCancelling({ type, id });
+    setCancelReason("");
+    setCancelError(null);
+  }
+
+  async function handleCancelSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cancelling) return;
+    if (!cancelReason.trim()) {
+      setCancelError("A reason is required.");
+      return;
+    }
+    setCancelSubmitting(true);
+    setCancelError(null);
+    try {
+      await requestCancellation(cancelling.type, cancelling.id, cancelReason);
+      setCancelSuccess(`Cancellation request submitted for ${cancelling.type === "demand_notice" ? "demand notice" : "receipt"} #${cancelling.id} - it will take effect once Tax Daroga approves it.`);
+      setCancelling(null);
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : "Could not submit cancellation request.");
+    } finally {
+      setCancelSubmitting(false);
+    }
+  }
+
   if (noticeReprint) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-6">
@@ -72,9 +105,17 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
   }
 
   return (
+    <>
     <section className="rounded-xl border border-slate-200 bg-white p-6">
       <h2 className="mb-4 text-base font-semibold text-slate-900">Document History</h2>
-      <p className="mb-4 text-xs text-slate-500">Past demand notices and payment receipts — view only, nothing here can be edited.</p>
+      <p className="mb-4 text-xs text-slate-500">Past demand notices and payment receipts. Cancellation requires Tax Daroga approval and a stated reason.</p>
+
+      {cancelSuccess && (
+        <div role="status" className="mb-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {cancelSuccess}
+        </div>
+      )}
 
       {error && (
         <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -106,14 +147,25 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
                       ₹{Number(n.totalAmountDemanded).toLocaleString("en-IN")} — {n.settled ? "settled" : "unsettled"}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleOpenNotice(n.demandNo)}
-                    disabled={loadingItem === `notice-${n.demandNo}`}
-                    className="inline-flex items-center gap-1 rounded border border-nnm-blue px-2 py-1 font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
-                  >
-                    {loadingItem === `notice-${n.demandNo}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />}
-                    View
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenNotice(n.demandNo)}
+                      disabled={loadingItem === `notice-${n.demandNo}`}
+                      className="inline-flex items-center gap-1 rounded border border-nnm-blue px-2 py-1 font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
+                    >
+                      {loadingItem === `notice-${n.demandNo}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />}
+                      View
+                    </button>
+                    {!n.settled && (
+                      <button
+                        onClick={() => openCancel("demand_notice", n.demandNo)}
+                        className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-1 font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        <XCircle className="h-3 w-3" />
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -142,14 +194,23 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
                       ₹{Number(p.amountReceived).toLocaleString("en-IN")} — {p.paymentMode}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleOpenReceipt(p.receiptNo)}
-                    disabled={loadingItem === `receipt-${p.receiptNo}`}
-                    className="inline-flex items-center gap-1 rounded border border-nnm-blue px-2 py-1 font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
-                  >
-                    {loadingItem === `receipt-${p.receiptNo}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />}
-                    View
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenReceipt(p.receiptNo)}
+                      disabled={loadingItem === `receipt-${p.receiptNo}`}
+                      className="inline-flex items-center gap-1 rounded border border-nnm-blue px-2 py-1 font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
+                    >
+                      {loadingItem === `receipt-${p.receiptNo}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Printer className="h-3 w-3" />}
+                      View
+                    </button>
+                    <button
+                      onClick={() => openCancel("receipt", p.receiptNo)}
+                      className="inline-flex items-center gap-1 rounded border border-red-300 px-2 py-1 font-semibold text-red-600 hover:bg-red-50"
+                    >
+                      <XCircle className="h-3 w-3" />
+                      Cancel
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -157,5 +218,56 @@ export function PropertyDocumentHistory({ holdingNo }: { holdingNo: string }) {
         </div>
       </div>
     </section>
+
+    {cancelling && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-lg">
+          <h2 className="mb-1 text-sm font-semibold text-slate-800">
+            Request Cancellation - {cancelling.type === "demand_notice" ? "Demand Notice" : "Receipt"} #{cancelling.id}
+          </h2>
+          <p className="mb-4 text-xs text-slate-500">
+            This won&apos;t take effect immediately - it needs Tax Daroga&apos;s approval first.
+            {cancelling.type === "receipt" && " If approved, the linked demand notice will reopen for payment."}
+          </p>
+
+          {cancelError && (
+            <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {cancelError}
+            </div>
+          )}
+
+          <form onSubmit={handleCancelSubmit} className="space-y-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Reason for cancellation</label>
+              <textarea
+                required
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelling(null)}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={cancelSubmitting}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {cancelSubmitting ? "Submitting…" : "Submit Request"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

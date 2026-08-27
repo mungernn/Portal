@@ -14,6 +14,15 @@ export interface TransactionRow {
   arrear_periods_paid: string | null;
   tax_collector_code: string | null;
   tax_collector_name: string | null;
+  arv: string | null;
+  current_year_tax_net: string | null;
+  previous_years_tax_base: string | null;
+  total_fine_amount: string | null;
+  other_charges: string | null;
+  arrear_stages_paid: { period: string; years: number; annualCharge: string; amount: string }[] | null;
+  cancelled: boolean;
+  cancelled_reason: string | null;
+  cancelled_at: Date | null;
 }
 
 export const paymentRepository = {
@@ -47,6 +56,17 @@ export const paymentRepository = {
       arrearPeriodsPaid: string | null;
       taxCollectorCode: string | null;
       taxCollectorName: string | null;
+      // Frozen breakdown snapshot - see migration 024's comment for why
+      // this is stored here rather than reconstructed later via a join.
+      arv: string | null;
+      currentYearTaxNet: string | null;
+      previousYearsTaxBase: string | null;
+      totalFineAmount: string | null;
+      otherCharges: string | null;
+      // Full per-period breakdown (see migration 025's comment) - lets
+      // a reprint show exactly which years were cleared, not just a
+      // lump sum.
+      arrearStagesPaid: { period: string; years: number; annualCharge: string; amount: string }[];
     },
     client: Pool | PoolClient = pool,
   ): Promise<void> {
@@ -54,8 +74,10 @@ export const paymentRepository = {
       `INSERT INTO transactions (
         receipt_no, holding_no, txn_date, payment_mode, amount_received,
         collected_by, counter, demand_no, arrear_periods_paid,
-        tax_collector_code, tax_collector_name
-      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8,$9,$10)`,
+        tax_collector_code, tax_collector_name,
+        arv, current_year_tax_net, previous_years_tax_base, total_fine_amount, other_charges,
+        arrear_stages_paid
+      ) VALUES ($1,$2, now(), $3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
       [
         row.receiptNo,
         row.holdingNo,
@@ -67,6 +89,12 @@ export const paymentRepository = {
         row.arrearPeriodsPaid,
         row.taxCollectorCode,
         row.taxCollectorName,
+        row.arv,
+        row.currentYearTaxNet,
+        row.previousYearsTaxBase,
+        row.totalFineAmount,
+        row.otherCharges,
+        JSON.stringify(row.arrearStagesPaid),
       ],
     );
   },
@@ -79,6 +107,18 @@ export const paymentRepository = {
     const { rows } = await pool.query<TransactionRow>(`SELECT * FROM transactions WHERE receipt_no = $1 LIMIT 1`, [
       receiptNo,
     ]);
+    return rows[0] ?? null;
+  },
+
+  /** Atomic: only cancels a not-already-cancelled receipt - the linked demand notice is reverted separately in the same DB transaction (see cancellationRequest.service.ts), not by a trigger or cascade. */
+  async cancel(receiptNo: string, reason: string, client: Pool | PoolClient = pool): Promise<TransactionRow | null> {
+    const { rows } = await client.query<TransactionRow>(
+      `UPDATE transactions
+       SET cancelled = TRUE, cancelled_reason = $2, cancelled_at = now()
+       WHERE receipt_no = $1 AND cancelled = FALSE
+       RETURNING *`,
+      [receiptNo, reason],
+    );
     return rows[0] ?? null;
   },
 

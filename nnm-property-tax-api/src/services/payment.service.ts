@@ -36,11 +36,10 @@ export interface PrintableReceiptHistory {
   verificationUrl: string;
   taxCollectorCode: string | null;
   taxCollectorName: string | null;
-  // The breakdown of what this payment settled — reconstructed from the
-  // linked demand notice's OWN frozen totals (a payment always settles
-  // one demand notice's exact total), not recalculated from current
-  // property state. Null if this transaction predates demand-notice
-  // linkage or the notice can no longer be found.
+  // Frozen at the moment of payment (migration 024) - not
+  // reconstructed later by joining to the demand notice, which was
+  // fragile (see that migration's comment). Null only for
+  // transactions that predate this migration.
   breakdown: {
     arv: string;
     currentYearTaxNet: string;
@@ -48,6 +47,13 @@ export interface PrintableReceiptHistory {
     totalFineAmount: string;
     otherCharges: string;
   } | null;
+  // Which specific arrear years this payment cleared, e.g. a stage
+  // with period "2018-2019 to 2020-2021" - frozen at payment time
+  // (migration 025), same reasoning as breakdown above. Empty array
+  // if this payment cleared no arrears (current year only).
+  arrearStagesPaid: { period: string; years: number; annualCharge: string; amount: string }[];
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 /**
@@ -61,7 +67,6 @@ export async function getReceiptForReprint(receiptNo: string): Promise<Printable
   if (!txn) throw ApiError.notFound(`Receipt ${receiptNo} not found.`);
 
   const property = await propertyRepository.findByHoldingNo(txn.holding_no);
-  const notice = txn.demand_no ? await demandNoticeRepository.findByDemandNo(txn.demand_no) : null;
 
   return {
     receiptNo: txn.receipt_no,
@@ -79,15 +84,25 @@ export async function getReceiptForReprint(receiptNo: string): Promise<Printable
     verificationUrl: buildVerificationUrl("receipt", txn.receipt_no),
     taxCollectorCode: txn.tax_collector_code,
     taxCollectorName: txn.tax_collector_name,
-    breakdown: notice
-      ? {
-          arv: notice.arv,
-          currentYearTaxNet: notice.current_year_tax_net,
-          previousYearsTaxBase: notice.previous_years_tax_base,
-          totalFineAmount: notice.total_fine_amount,
-          otherCharges: notice.other_charges,
-        }
-      : null,
+    // Read directly from the frozen snapshot stored at payment time
+    // (migration 024) - no longer reconstructed by joining to the
+    // demand notice, which was fragile: any issue with that lookup
+    // silently dropped the whole breakdown instead of just this one
+    // detail. Transactions from before this migration will still show
+    // null here (nothing to backfill from), same as before.
+    breakdown:
+      txn.arv !== null
+        ? {
+            arv: txn.arv,
+            currentYearTaxNet: txn.current_year_tax_net!,
+            previousYearsTaxBase: txn.previous_years_tax_base!,
+            totalFineAmount: txn.total_fine_amount!,
+            otherCharges: txn.other_charges!,
+          }
+        : null,
+    arrearStagesPaid: txn.arrear_stages_paid ?? [],
+    cancelled: txn.cancelled,
+    cancelledReason: txn.cancelled_reason,
   };
 }
 
@@ -201,9 +216,19 @@ export async function submitPayment(
         collectedBy,
         counter: input.counter ?? null,
         demandNo: input.demandNo,
-        arrearPeriodsPaid: clearance.stages.length > 0 ? `Cleared through ${notice.assessment_year} (via demand notice ${input.demandNo})` : null,
+        arrearPeriodsPaid:
+          clearance.stages.length > 0
+            ? `${clearance.stages[0]!.period.split(" to ")[0]} to ${clearance.stages[clearance.stages.length - 1]!.period.split(" to ").pop()}`
+            : null,
         taxCollectorCode: taxCollector?.code ?? null,
         taxCollectorName: taxCollector?.name ?? null,
+        // Frozen at the moment of payment - see migrations 024 and 025's comments.
+        arv: notice.arv,
+        currentYearTaxNet: notice.current_year_tax_net,
+        previousYearsTaxBase: notice.previous_years_tax_base,
+        totalFineAmount: notice.total_fine_amount,
+        otherCharges: notice.other_charges,
+        arrearStagesPaid: clearance.stages,
       },
       client,
     );

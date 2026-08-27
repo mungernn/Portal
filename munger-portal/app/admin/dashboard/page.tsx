@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
 import { useAdminGuard } from "@/lib/use-admin-guard";
@@ -79,6 +79,17 @@ export default function AdminDashboardPage() {
                 ? "Review property change requests waiting on your desk."
                 : `${myStagePendingCount} request${myStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
             </p>
+          </Link>
+
+          <Link
+            href="/admin/cancellation-requests"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+          >
+            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+              <XCircle className="h-6 w-6" strokeWidth={1.8} />
+            </span>
+            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Cancellation Requests</h3>
+            <p className="text-sm text-slate-500">Requests to cancel a demand notice or payment receipt.</p>
           </Link>
 
           <Link

@@ -12,13 +12,6 @@ function money(v: string | number | undefined | null): string {
 export function ShopNoticeView({ notice, onClose }: { notice: PrintableShopDemand; onClose: () => void }) {
   return (
     <div>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; }
-        }
-      `}</style>
-
       <div className="no-print mb-4 flex items-center justify-between">
         <button
           onClick={() => window.print()}
@@ -33,7 +26,7 @@ export function ShopNoticeView({ notice, onClose }: { notice: PrintableShopDeman
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
         <div className="flex items-start justify-between gap-3 border-b-2 border-nnm-blue pb-2">
           <DocumentVerificationQR url={notice.verificationUrl} />
           <div className="flex-1 text-center">

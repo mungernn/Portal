@@ -3,6 +3,7 @@
 import { Printer, X } from "lucide-react";
 import type { PrintableReceiptHistory } from "@/lib/operator-api";
 import { DocumentVerificationQR } from "./document-verification-qr";
+import { CancelledWatermark, CancelledBanner } from "./cancelled-document-notice";
 
 function money(v: string | number | undefined | null): string {
   const n = Number(v ?? 0);
@@ -12,13 +13,6 @@ function money(v: string | number | undefined | null): string {
 export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableReceiptHistory; onClose: () => void }) {
   return (
     <div>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; }
-        }
-      `}</style>
-
       <div className="no-print mb-4 flex items-center justify-between">
         <button
           onClick={() => window.print()}
@@ -33,7 +27,11 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div
+        className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]"
+        style={{ fontFamily: "Arial, sans-serif", position: "relative" }}
+      >
+        {receipt.cancelled && <CancelledWatermark />}
         <div className="flex items-start justify-between gap-3 border-b-2 border-nnm-blue pb-2">
           <DocumentVerificationQR url={receipt.verificationUrl} />
           <div className="flex-1 text-center">
@@ -54,6 +52,8 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
             )}
           </div>
         </div>
+
+        {receipt.cancelled && <CancelledBanner reason={receipt.cancelledReason} />}
 
         <div className="mt-3.5 flex gap-5">
           <div className="flex-1 space-y-0.5">
@@ -116,9 +116,43 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
           </table>
         )}
 
-        <div className="mt-3.5 flex items-center justify-between rounded-md bg-slate-50 p-3">
-          <span className="text-[11px] font-semibold">Total Received</span>
-          <span className="font-mono text-lg font-semibold text-nnm-blue">₹{money(receipt.amountReceived)}</span>
+        {receipt.arrearStagesPaid.length > 0 && (
+          <>
+            <div className="mt-3 text-[11px] font-bold">Arrear Period(s) Cleared by This Payment</div>
+            <table className="mt-1 w-full border-collapse text-[11px]">
+              <thead>
+                <tr className="bg-slate-100">
+                  <th className="border border-slate-400 p-1.5 text-left">Period</th>
+                  <th className="border border-slate-400 p-1.5 text-left">Years</th>
+                  <th className="border border-slate-400 p-1.5 text-right">Annual (avg)</th>
+                  <th className="border border-slate-400 p-1.5 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receipt.arrearStagesPaid.map((s, i) => (
+                  <tr key={i}>
+                    <td className="border border-slate-400 p-1.5">{s.period}</td>
+                    <td className="border border-slate-400 p-1.5">{s.years}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{s.annualCharge}</td>
+                    <td className="border border-slate-400 p-1.5 text-right">{s.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
+        <div
+          className={`relative z-20 mt-3.5 flex items-center justify-between rounded-md p-3 ${
+            receipt.cancelled ? "border-2 border-red-600 bg-red-50" : "bg-slate-50"
+          }`}
+        >
+          <span className="text-[11px] font-semibold">
+            Total Received {receipt.cancelled && <span className="font-extrabold text-red-700">(CANCELLED - NOT VALID)</span>}
+          </span>
+          <span className={`font-mono text-lg font-semibold ${receipt.cancelled ? "text-red-700 line-through" : "text-nnm-blue"}`}>
+            ₹{money(receipt.amountReceived)}
+          </span>
         </div>
         <p className="mt-1.5 text-[10.5px] italic text-slate-600">{receipt.amountInWords}</p>
 

@@ -167,6 +167,8 @@ export interface PrintableDemandNoticeHistory {
   reminderLabel: string | null;
   previousUnsettledDemandNos: string | null;
   superseded: boolean;
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 /**
@@ -207,6 +209,8 @@ export async function getDemandNoticeForReprint(demandNo: string): Promise<Print
     reminderLabel: notice.reminder_number > 0 ? `${ordinal(notice.reminder_number)} Reminder` : null,
     previousUnsettledDemandNos: notice.previous_unsettled_demand_nos,
     superseded: notice.superseded,
+    cancelled: notice.cancelled,
+    cancelledReason: notice.cancelled_reason,
   };
 }
 

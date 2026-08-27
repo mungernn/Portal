@@ -3,6 +3,7 @@
 import { Printer, X } from "lucide-react";
 import type { PrintableDemandNoticeHistory } from "@/lib/operator-api";
 import { DocumentVerificationQR } from "./document-verification-qr";
+import { CancelledWatermark, CancelledBanner } from "./cancelled-document-notice";
 
 function money(v: string | number | undefined | null): string {
   const n = Number(v ?? 0);
@@ -12,13 +13,6 @@ function money(v: string | number | undefined | null): string {
 export function DemandNoticeReprintView({ notice, onClose }: { notice: PrintableDemandNoticeHistory; onClose: () => void }) {
   return (
     <div>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; }
-        }
-      `}</style>
-
       <div className="no-print mb-4 flex items-center justify-between">
         <button
           onClick={() => window.print()}
@@ -33,7 +27,11 @@ export function DemandNoticeReprintView({ notice, onClose }: { notice: Printable
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div
+        className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]"
+        style={{ fontFamily: "Arial, sans-serif", position: "relative" }}
+      >
+        {notice.cancelled && <CancelledWatermark />}
         <div className="flex items-start justify-between gap-3 border-b-2 border-nnm-blue pb-2">
           <DocumentVerificationQR url={notice.verificationUrl} />
           <div className="flex-1 text-center">
@@ -54,6 +52,8 @@ export function DemandNoticeReprintView({ notice, onClose }: { notice: Printable
             </div>
           </div>
         </div>
+
+        {notice.cancelled && <CancelledBanner reason={notice.cancelledReason} />}
 
         <div className="mt-3.5 flex gap-5">
           <div className="flex-1 space-y-0.5">
@@ -103,9 +103,13 @@ export function DemandNoticeReprintView({ notice, onClose }: { notice: Printable
                 <td className="border border-slate-400 p-1.5 text-right">{money(notice.otherCharges)}</td>
               </tr>
             )}
-            <tr className="bg-slate-50 font-bold">
-              <td className="border border-slate-400 p-1.5">Total Amount Demanded</td>
-              <td className="border border-slate-400 p-1.5 text-right">{money(notice.totalAmountDemanded)}</td>
+            <tr className={notice.cancelled ? "relative z-20 border-2 border-red-600 bg-red-50 font-bold" : "bg-slate-50 font-bold"}>
+              <td className="border border-slate-400 p-1.5">
+                Total Amount Demanded {notice.cancelled && <span className="font-extrabold text-red-700">(CANCELLED - NOT VALID)</span>}
+              </td>
+              <td className={`border border-slate-400 p-1.5 text-right ${notice.cancelled ? "text-red-700 line-through" : ""}`}>
+                {money(notice.totalAmountDemanded)}
+              </td>
             </tr>
           </tbody>
         </table>

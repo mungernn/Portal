@@ -241,6 +241,8 @@ export interface PrintableDemandNoticeHistory {
   reminderLabel: string | null;
   previousUnsettledDemandNos: string | null;
   superseded: boolean;
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 export async function fetchDemandNoticeReprint(demandNo: string): Promise<PrintableDemandNoticeHistory> {
@@ -295,6 +297,9 @@ export interface PrintableReceiptHistory {
     totalFineAmount: string;
     otherCharges: string;
   } | null;
+  arrearStagesPaid: { period: string; years: number; annualCharge: string; amount: string }[];
+  cancelled: boolean;
+  cancelledReason: string | null;
 }
 
 export async function fetchReceiptReprint(receiptNo: string): Promise<PrintableReceiptHistory> {
@@ -447,4 +452,30 @@ export async function downloadReceiptsExport(range: ReceiptExportRange, date?: s
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+// ---------------------------------------------------------------------------
+// Cancellation requests - demand notices / receipts
+// ---------------------------------------------------------------------------
+
+/** Any operator may request cancellation of any demand notice or receipt. Nothing changes until tax_daroga approves it. */
+export async function requestCancellation(
+  requestType: "demand_notice" | "receipt",
+  targetId: string,
+  reason: string,
+): Promise<void> {
+  const token = getOperatorToken();
+  if (!token) throw new Error("Not logged in - please log in again.");
+
+  const res = await fetch(`${API_BASE_URL}/properties/cancellation-requests`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ requestType, targetId, reason }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not submit cancellation request.");
+  }
 }

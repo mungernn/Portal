@@ -75,3 +75,36 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * Robust "print only this element" pattern for receipts/notices.
+ * Replaces the old approach of individually marking every OTHER
+ * piece of page chrome (headers, forms, other sections) as
+ * .no-print - that only works if every single surrounding element
+ * remembers to opt out, which is fragile: a receipt embedded in a
+ * more complex page (e.g. the operator's document history view)
+ * printed the entire page, header and all, because the surrounding
+ * elements weren't marked. This inverts it: hide everything by
+ * default when printing, then explicitly reveal only whatever is
+ * wrapped in .printable-area.
+ */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-area,
+  .printable-area * {
+    visibility: visible;
+  }
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

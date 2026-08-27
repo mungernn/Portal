@@ -19,13 +19,6 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
 
   return (
     <div>
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          body { margin: 0; }
-        }
-      `}</style>
-
       <div className="no-print mb-4 flex items-center justify-between">
         <button
           onClick={() => window.print()}
@@ -39,7 +32,7 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
         </button>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b-2 border-nnm-blue pb-2">
           <DocumentVerificationQR url={receipt.verificationUrl} />
