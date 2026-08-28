@@ -277,6 +277,8 @@ export interface PrintableReceiptHistory {
   holdingNo: string;
   ownerName: string;
   address: string;
+  oldHoldingNo: string | null;
+  oldPid: string | null;
   paymentMode: string;
   counter: string | null;
   amountReceived: string;

@@ -66,11 +66,29 @@ export async function applyPropertySave(
     floorTax: Number(calc.breakdown[i]?.floorTax ?? 0),
   }));
 
+  // Flag duplicates before applying - old_pid is a legacy-system
+  // reference that should map to exactly one property here. Checked
+  // here (at apply/approval time), not just when the change was
+  // originally requested, so a duplicate that arose from something
+  // else being created/edited in the meantime is still caught.
+  // excludeHoldingNo (this property's own holding number) means
+  // editing a property doesn't falsely conflict with its own existing
+  // value. old_holding_no is deliberately NOT checked yet - see
+  // migration 027's comment for why.
+  const trimmedOldHoldingNo = input.oldHoldingNo ? String(input.oldHoldingNo).trim() : null;
+  const trimmedOldPid = input.oldPid ? String(input.oldPid).trim() : null;
+  if (trimmedOldPid) {
+    const existing = await propertyRepository.findByOldPid(trimmedOldPid, holdingNo);
+    if (existing) {
+      throw ApiError.badRequest(`Old PID "${trimmedOldPid}" is already used by holding ${existing.holding_no} - each old PID must be unique.`);
+    }
+  }
+
   await propertySaveRepository.upsertProperty(
     holdingNo,
     {
-      oldHoldingNo: input.oldHoldingNo ?? null,
-      oldPid: input.oldPid ?? null,
+      oldHoldingNo: trimmedOldHoldingNo,
+      oldPid: trimmedOldPid,
       ownerName: input.ownerName,
       relationType: input.relationType ?? null,
       relationName: input.relationName ?? null,

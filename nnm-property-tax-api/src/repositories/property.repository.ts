@@ -28,6 +28,31 @@ export const propertyRepository = {
     return rows[0] ?? null;
   },
 
+  /**
+   * Any OTHER property already using this old_holding_no -
+   * excludeHoldingNo lets an edit check against everyone else without
+   * conflicting with its own existing value. Used to flag duplicates
+   * at creation/edit time (see propertySave.service.ts and
+   * newEntry.service.ts) - old_holding_no/old_pid are legacy-system
+   * references that should each map to exactly one property here.
+   */
+  async findByOldHoldingNo(oldHoldingNo: string, excludeHoldingNo?: string): Promise<PropertyRow | null> {
+    const { rows } = await pool.query<PropertyRow>(
+      `SELECT * FROM properties WHERE old_holding_no = $1 AND holding_no != COALESCE($2, '') LIMIT 1`,
+      [oldHoldingNo, excludeHoldingNo ?? null],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Same as findByOldHoldingNo but for old_pid - see that method's comment. */
+  async findByOldPid(oldPid: string, excludeHoldingNo?: string): Promise<PropertyRow | null> {
+    const { rows } = await pool.query<PropertyRow>(
+      `SELECT * FROM properties WHERE old_pid = $1 AND holding_no != COALESCE($2, '') LIMIT 1`,
+      [oldPid, excludeHoldingNo ?? null],
+    );
+    return rows[0] ?? null;
+  },
+
   async findFloorsByHoldingNo(holdingNo: string): Promise<FloorRow[]> {
     const { rows } = await pool.query<FloorRow>(
       `SELECT * FROM floors WHERE holding_no = $1 ORDER BY id ASC`,

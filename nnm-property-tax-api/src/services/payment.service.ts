@@ -3,6 +3,7 @@ import { propertyRepository } from "../repositories/property.repository";
 import { paymentRepository } from "../repositories/payment.repository";
 import { taxCollectorRepository } from "../repositories/taxCollector.repository";
 import { demandNoticeRepository } from "../repositories/demandNotice.repository";
+import { cancellationRequestRepository } from "../repositories/cancellationRequest.repository";
 import { calculateTax } from "./taxCalculation.service";
 import { calculateRebateOrLateFee, calculateSolidWasteCharge } from "./charges.service";
 import { summarizeArrears, computeArrearsClearance } from "./arrears.service";
@@ -27,6 +28,8 @@ export interface PrintableReceiptHistory {
   holdingNo: string;
   ownerName: string;
   address: string;
+  oldHoldingNo: string | null;
+  oldPid: string | null;
   paymentMode: string;
   counter: string | null;
   amountReceived: string;
@@ -75,6 +78,8 @@ export async function getReceiptForReprint(receiptNo: string): Promise<Printable
     holdingNo: txn.holding_no,
     ownerName: property ? String((property as unknown as Record<string, unknown>).owner_name ?? "") : "",
     address: property ? String((property as unknown as Record<string, unknown>).address ?? "") : "",
+    oldHoldingNo: property ? ((property as unknown as Record<string, unknown>).old_holding_no as string | null) : null,
+    oldPid: property ? ((property as unknown as Record<string, unknown>).old_pid as string | null) : null,
     paymentMode: txn.payment_mode,
     counter: txn.counter,
     amountReceived: txn.amount_received,
@@ -143,6 +148,25 @@ export async function submitPayment(
   if (notice.settled) {
     throw ApiError.badRequest(`Demand notice ${input.demandNo} has already been paid.`);
   }
+  if (notice.cancelled) {
+    throw ApiError.badRequest(`Demand notice ${input.demandNo} has been cancelled and can no longer be paid.`);
+  }
+  if (notice.superseded) {
+    throw ApiError.badRequest(
+      `Demand notice ${input.demandNo} has been superseded by a newer notice for this holding - please use the current demand notice instead.`,
+    );
+  }
+  // A pending cancellation request means tax_daroga hasn't yet decided
+  // whether this notice should be voided - collecting payment while
+  // that's unresolved would let the two outcomes race each other
+  // (e.g. approval reverting a notice that was just paid seconds
+  // earlier). Blocked until the request is approved or rejected.
+  const pendingCancellation = await cancellationRequestRepository.findPendingForTarget("demand_notice", input.demandNo);
+  if (pendingCancellation) {
+    throw ApiError.badRequest(
+      `Demand notice ${input.demandNo} has a pending cancellation request awaiting Tax Daroga's decision - payment cannot be collected until that is resolved.`,
+    );
+  }
   if (!notice.assessment_year) {
     // Only possible for notices generated before this feature existed —
     // they predate assessment_year being recorded, so there's no safe
@@ -200,11 +224,18 @@ export async function submitPayment(
   try {
     await client.query("BEGIN");
 
-    // Atomic — only succeeds if the notice is STILL unsettled at this
-    // instant. Guards against two operators paying the same notice at once.
+    // Atomic - only succeeds if the notice is STILL unsettled, not
+    // cancelled, and not superseded at this instant. Guards against
+    // two operators paying the same notice at once, or a cancellation/
+    // supersession happening in the brief window between the checks
+    // above and this update - the checks above give a specific,
+    // accurate error in the normal case; this is the last-resort
+    // safety net for that race window.
     const settled = await demandNoticeRepository.markSettled(input.demandNo, receiptNo, client);
     if (!settled) {
-      throw ApiError.badRequest(`Demand notice ${input.demandNo} was just paid by someone else — please refresh.`);
+      throw ApiError.badRequest(
+        `Demand notice ${input.demandNo} can no longer be paid - it may have just been paid, cancelled, or superseded. Please refresh and try again.`,
+      );
     }
 
     await paymentRepository.insertTransaction(

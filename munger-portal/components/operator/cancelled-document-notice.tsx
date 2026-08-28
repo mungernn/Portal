@@ -30,3 +30,19 @@ export function CancelledBanner({ reason }: { reason: string | null }) {
     </div>
   );
 }
+
+/**
+ * Same prominent placement as CancelledBanner (right after the
+ * header, "in front of" the rest of the details) but amber rather
+ * than red - superseded is expected, routine lifecycle (a newer
+ * reminder notice replaced this one), not a voided/cancelled
+ * document, so it shouldn't read as equally alarming.
+ */
+export function SupersededBanner() {
+  return (
+    <div className="relative z-20 my-3 rounded-md border-2 border-amber-500 bg-amber-50 p-3 text-center">
+      <div className="text-[15px] font-extrabold uppercase tracking-wide text-amber-800">⚠ This demand notice has been superseded</div>
+      <div className="mt-0.5 text-[11px] text-amber-800">A later reminder notice replaced this one. It is no longer separately payable.</div>
+    </div>
+  );
+}

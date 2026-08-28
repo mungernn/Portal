@@ -89,18 +89,22 @@ body {
  * wrapped in .printable-area.
  */
 @media print {
-  /* Collapses the hidden content's contribution to total page height -
+  /* Collapses the hidden content's contribution to total page height.
      visibility:hidden (below) keeps elements invisible but NOT out of
      layout flow, so without this, all the hidden surrounding page
-     content (header, other sections) still occupies its full height,
-     and the browser prints that empty space as extra blank pages
-     before ever reaching .printable-area. */
+     content still occupies its full height and prints as blank pages
+     before ever reaching .printable-area. html/body alone isn't
+     enough - most pages in this app wrap their content in a
+     min-h-screen div (min-height: 100vh), which doesn't shrink just
+     because html/body did; overriding min-height everywhere during
+     print is what actually fixes it. */
   html,
   body {
     height: 0;
   }
   body * {
     visibility: hidden;
+    min-height: 0 !important;
   }
   .printable-area,
   .printable-area * {
@@ -108,15 +112,14 @@ body {
   }
   .printable-area {
     /* position: fixed (not absolute) ties this to the viewport/page
-       directly, independent of any ancestor's now-collapsed height -
-       this is what actually makes the html/body height:0 above safe
-       to use without risking the receipt being clipped or mispositioned. */
+       directly, independent of any ancestor's now-collapsed height. */
     position: fixed;
     left: 0;
     top: 0;
     width: 100%;
     margin: 0;
     padding: 0;
+    min-height: 0;
   }
   .no-print {
     display: none !important;

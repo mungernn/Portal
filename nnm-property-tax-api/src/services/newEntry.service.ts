@@ -1,4 +1,5 @@
 import { propertySaveRepository } from "../repositories/propertySave.repository";
+import { propertyRepository } from "../repositories/property.repository";
 import { calculateTax } from "./taxCalculation.service";
 import { calculateSolidWasteCharge } from "./charges.service";
 import { getNextNewHoldingNo, getNextPartiallyKnownHoldingNo } from "./holdingNumberSeries.service";
@@ -108,11 +109,28 @@ export async function saveNewEntryProperty(input: NewEntryPropertyInput, operato
     floorTax: Number(calc.breakdown[i]?.floorTax ?? 0),
   }));
 
+  // Flag duplicates before creating - old_pid is a legacy-system
+  // reference that should map to exactly one property here.
+  // holding_no itself doesn't need a check in this flow: it's
+  // system-generated (getNextNewHoldingNo / getNextPartiallyKnownHoldingNo
+  // above), never operator-typed. old_holding_no is deliberately NOT
+  // checked yet - see migration 027's comment for why (it appears to
+  // have been ward/locality-scoped in the legacy system, not globally
+  // unique - pending confirmation before adding a check here).
+  const trimmedOldHoldingNo = input.oldHoldingNo ? String(input.oldHoldingNo).trim() : null;
+  const trimmedOldPid = input.oldPid ? String(input.oldPid).trim() : null;
+  if (trimmedOldPid) {
+    const existing = await propertyRepository.findByOldPid(trimmedOldPid);
+    if (existing) {
+      throw ApiError.badRequest(`Old PID "${trimmedOldPid}" is already used by holding ${existing.holding_no} - each old PID must be unique.`);
+    }
+  }
+
   await propertySaveRepository.upsertProperty(
     holdingNo,
     {
-      oldHoldingNo: input.oldHoldingNo ?? null,
-      oldPid: input.oldPid ?? null,
+      oldHoldingNo: trimmedOldHoldingNo,
+      oldPid: trimmedOldPid,
       ownerName: input.ownerName,
       relationType: input.relationType ?? null,
       relationName: input.relationName ?? null,

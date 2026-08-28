@@ -87,9 +87,10 @@ export const demandNoticeRepository = {
   },
 
   /** Every demand notice for this holding that hasn't been paid AND hasn't been superseded by a later reminder — what the counter payment flow picks from. */
+  /** "Unsettled" here specifically means still payable - excludes settled, superseded, AND cancelled notices, so a cancelled notice never gets redundantly marked superseded too, and never shows up as something a new notice needs to "remind" about. */
   async findUnsettledForHolding(holdingNo: string): Promise<DemandNoticeRow[]> {
     const { rows } = await pool.query<DemandNoticeRow>(
-      `SELECT * FROM demand_notices WHERE holding_no = $1 AND settled = FALSE AND superseded = FALSE ORDER BY notice_date DESC`,
+      `SELECT * FROM demand_notices WHERE holding_no = $1 AND settled = FALSE AND superseded = FALSE AND cancelled = FALSE ORDER BY notice_date DESC`,
       [holdingNo],
     );
     return rows;
@@ -128,11 +129,20 @@ export const demandNoticeRepository = {
   },
 
   /** Atomic: only succeeds if still unsettled — guards against paying the same notice twice. */
+  /**
+   * Atomic: only succeeds if the notice is still unsettled AND not
+   * cancelled AND not superseded. All three checks matter - a
+   * cancelled notice must never be paid regardless of its settled
+   * flag (cancellation happens independently of payment), and a
+   * superseded notice (replaced by a newer one for the same holding)
+   * is effectively settled by being superseded, not by payment - it
+   * must never be payable directly either.
+   */
   async markSettled(demandNo: string, receiptNo: string, client: Pool | PoolClient = pool): Promise<DemandNoticeRow | null> {
     const { rows } = await client.query<DemandNoticeRow>(
       `UPDATE demand_notices
        SET settled = TRUE, settled_receipt_no = $2, settled_at = now()
-       WHERE demand_no = $1 AND settled = FALSE
+       WHERE demand_no = $1 AND settled = FALSE AND cancelled = FALSE AND superseded = FALSE
        RETURNING *`,
       [demandNo, receiptNo],
     );
