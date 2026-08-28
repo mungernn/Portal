@@ -461,9 +461,11 @@ export async function fetchAttendanceDashboardSummary(): Promise<AttendanceDashb
 export interface FieldStaffSummary {
   id: number;
   name: string;
+  externalId: string | null;
   wardId: number;
   shiftId: number | null;
   active: boolean;
+  roleIds: number[];
 }
 
 export async function fetchAllFieldStaff(): Promise<FieldStaffSummary[]> {
@@ -473,7 +475,13 @@ export async function fetchAllFieldStaff(): Promise<FieldStaffSummary[]> {
   return data.staff;
 }
 
-export async function createFieldStaff(input: { name: string; wardId: number; shiftId: number | null }): Promise<FieldStaffSummary> {
+export async function createFieldStaff(input: {
+  name: string;
+  externalId?: string | null;
+  wardId: number;
+  shiftId: number | null;
+  roleIds?: number[];
+}): Promise<FieldStaffSummary> {
   const res = await fetch(`${API_BASE_URL}/attendance/staff`, {
     method: "POST",
     headers: authHeaders(),
@@ -538,13 +546,13 @@ export async function uploadFieldStaffRosterCsv(csvContent: string): Promise<Ros
 export interface FieldDriverSummary {
   id: number;
   name: string;
-  vehicleNumber: string | null;
-  chassisNumber: string | null;
+  externalId: string | null;
   dlNumber: string | null;
-  wardNo: string | null;
   wardId: number;
   shiftId: number | null;
   active: boolean;
+  assetId: number | null;
+  supervisorId: number | null;
 }
 
 export async function fetchAllFieldDrivers(): Promise<FieldDriverSummary[]> {
@@ -556,12 +564,11 @@ export async function fetchAllFieldDrivers(): Promise<FieldDriverSummary[]> {
 
 export async function createFieldDriver(input: {
   name: string;
-  vehicleNumber: string | null;
-  chassisNumber: string | null;
+  externalId?: string | null;
   dlNumber: string | null;
-  wardNo: string | null;
   wardId: number;
   shiftId: number | null;
+  assetId: number | null;
 }): Promise<FieldDriverSummary> {
   const res = await fetch(`${API_BASE_URL}/attendance/drivers`, {
     method: "POST",
@@ -583,6 +590,21 @@ export async function setFieldDriverActive(id: number, active: boolean): Promise
     body: JSON.stringify({ active }),
   });
   if (!res.ok) throw new Error("Could not update driver status.");
+}
+
+/** attendance_admin only - which asset this driver operates and/or which driver_supervisor oversees them. Cascades automatically to any assistants already tied to this driver. */
+export async function assignFieldDriver(id: number, assetId: number | null, supervisorId: number | null): Promise<FieldDriverSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/drivers/${id}/assign`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ assetId, supervisorId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not assign driver.");
+  }
+  const data: { driver: FieldDriverSummary } = await res.json();
+  return data.driver;
 }
 
 /** attendance_admin OR sanitation_officer - moves a driver to a different ward (and optionally shift). */
@@ -611,4 +633,232 @@ export async function uploadFieldDriverRosterCsv(csvContent: string): Promise<Ro
     throw new Error(body.error || "Upload failed.");
   }
   return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Assets (vehicles, tricycles, hand carts) - view: any attendance login; edit: attendance_admin + 3 fleet roles
+// ---------------------------------------------------------------------------
+
+export interface AssetSummary {
+  id: number;
+  assetType: "vehicle" | "tricycle" | "hand_cart";
+  label: string;
+  vehicleNumber: string | null;
+  chassisNumber: string | null;
+  currentStatus: "working" | "under_repair" | "not_working";
+  notWorkingSince: string | null;
+  soundSystemStatus: string | null;
+  batteryStatus: string | null;
+  active: boolean;
+  wardIds: number[];
+  lastServicedOn: string | null;
+  lastRepairedOn: string | null;
+}
+
+export async function fetchAllAssets(): Promise<AssetSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the asset list.");
+  const data: { assets: AssetSummary[] } = await res.json();
+  return data.assets;
+}
+
+export async function createAsset(input: {
+  assetType: "vehicle" | "tricycle" | "hand_cart";
+  label: string;
+  vehicleNumber: string | null;
+  chassisNumber: string | null;
+  wardIds?: number[];
+}): Promise<AssetSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not add asset.");
+  }
+  const data: { asset: AssetSummary } = await res.json();
+  return data.asset;
+}
+
+export async function setAssetWards(id: number, wardIds: number[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${id}/wards`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ wardIds }),
+  });
+  if (!res.ok) throw new Error("Could not update assigned wards.");
+}
+
+export async function setAssetActive(id: number, active: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${id}/active`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update asset status.");
+}
+
+export interface AssetMaintenanceLogEntry {
+  id: number;
+  logType: "service" | "repair" | "status_update" | "note";
+  logDate: string;
+  notes: string | null;
+  loggedBy: string;
+  createdAt: string;
+}
+
+export async function fetchAssetMaintenanceLog(assetId: number): Promise<AssetMaintenanceLogEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/maintenance-log`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load maintenance history.");
+  const data: { log: AssetMaintenanceLogEntry[] } = await res.json();
+  return data.log;
+}
+
+export async function logAssetMaintenance(
+  assetId: number,
+  input: {
+    logType: "service" | "repair" | "status_update" | "note";
+    logDate: string;
+    notes: string | null;
+    updateStatus?: {
+      currentStatus: "working" | "under_repair" | "not_working";
+      notWorkingSince: string | null;
+      soundSystemStatus: string | null;
+      batteryStatus: string | null;
+    } | null;
+  },
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/maintenance-log`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not log maintenance entry.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Field assistants
+// ---------------------------------------------------------------------------
+
+export interface FieldAssistantSummary {
+  id: number;
+  name: string;
+  externalId: string | null;
+  driverId: number;
+  wardId: number;
+  shiftId: number | null;
+  active: boolean;
+  supervisorId: number | null;
+}
+
+export async function fetchAllFieldAssistants(): Promise<FieldAssistantSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/all`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load assistant list.");
+  const data: { assistants: FieldAssistantSummary[] } = await res.json();
+  return data.assistants;
+}
+
+export async function createFieldAssistant(input: {
+  name: string;
+  externalId?: string | null;
+  driverId: number;
+  wardId: number;
+  shiftId: number | null;
+}): Promise<FieldAssistantSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not add assistant.");
+  }
+  const data: { assistant: FieldAssistantSummary } = await res.json();
+  return data.assistant;
+}
+
+export async function setFieldAssistantActive(id: number, active: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${id}/active`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update assistant status.");
+}
+
+/** attendance_admin OR sanitation_officer - moves an assistant to a different ward (and optionally shift). */
+export async function transferFieldAssistant(id: number, wardId: number, shiftId: number | null): Promise<FieldAssistantSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${id}/transfer`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ wardId, shiftId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not transfer assistant.");
+  }
+  const data: { assistant: FieldAssistantSummary } = await res.json();
+  return data.assistant;
+}
+
+/** attendance_admin only - changes which driver this assistant works under; supervisor is re-inherited from that driver automatically. */
+export async function reassignFieldAssistantDriver(id: number, driverId: number): Promise<FieldAssistantSummary> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${id}/reassign-driver`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ driverId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not reassign assistant.");
+  }
+  const data: { assistant: FieldAssistantSummary } = await res.json();
+  return data.assistant;
+}
+
+export async function uploadFieldAssistantRosterCsv(csvContent: string): Promise<RosterSyncResult> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ csvContent }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Upload failed.");
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Staff job roles
+// ---------------------------------------------------------------------------
+
+export interface StaffJobRoleSummary {
+  id: number;
+  roleName: string;
+}
+
+export async function fetchStaffJobRoles(): Promise<StaffJobRoleSummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff-job-roles`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load job roles.");
+  const data: { roles: StaffJobRoleSummary[] } = await res.json();
+  return data.roles;
+}
+
+export async function setStaffJobRoles(staffId: number, roleIds: number[]): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/staff/${staffId}/roles`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ roleIds }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not update roles.");
+  }
 }

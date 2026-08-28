@@ -7,14 +7,19 @@ import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import {
   fetchAttendanceWards,
   fetchAttendanceShifts,
+  fetchAttendanceUsers,
   fetchAllFieldDrivers,
   createFieldDriver,
   setFieldDriverActive,
+  assignFieldDriver,
   transferFieldDriver,
   uploadFieldDriverRosterCsv,
+  fetchAllAssets,
   type AttendanceWard,
   type AttendanceShift,
+  type AttendanceUserSummary,
   type FieldDriverSummary,
+  type AssetSummary,
   type RosterSyncResult,
 } from "@/lib/attendance-api";
 
@@ -30,14 +35,14 @@ export default function ManageDriversPage() {
   const isAdmin = user?.role === "attendance_admin";
   const [wards, setWards] = useState<AttendanceWard[]>([]);
   const [shifts, setShifts] = useState<AttendanceShift[]>([]);
+  const [assets, setAssets] = useState<AssetSummary[]>([]);
+  const [supervisors, setSupervisors] = useState<AttendanceUserSummary[]>([]);
   const [drivers, setDrivers] = useState<FieldDriverSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
-  const [vehicleNumber, setVehicleNumber] = useState("");
-  const [chassisNumber, setChassisNumber] = useState("");
   const [dlNumber, setDlNumber] = useState("");
-  const [wardNo, setWardNo] = useState("");
+  const [assetId, setAssetId] = useState("");
   const [wardId, setWardId] = useState("");
   const [shiftId, setShiftId] = useState("");
   const [creating, setCreating] = useState(false);
@@ -55,8 +60,15 @@ export default function ManageDriversPage() {
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
 
+  const [assigningId, setAssigningId] = useState<number | null>(null);
+  const [assignAssetId, setAssignAssetId] = useState("");
+  const [assignSupervisorId, setAssignSupervisorId] = useState("");
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
   const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
+  const assetLabel = (id: number | null) => (id ? assets.find((a) => a.id === id)?.label : null) ?? "-";
 
   async function loadDrivers() {
     try {
@@ -74,6 +86,12 @@ export default function ManageDriversPage() {
     fetchAttendanceShifts()
       .then(setShifts)
       .catch(() => setShifts([]));
+    fetchAllAssets()
+      .then(setAssets)
+      .catch(() => setAssets([]));
+    fetchAttendanceUsers()
+      .then((users) => setSupervisors(users.filter((u) => u.role === "driver_supervisor")))
+      .catch(() => setSupervisors([]));
     loadDrivers();
   }, [user]);
 
@@ -89,19 +107,15 @@ export default function ManageDriversPage() {
     try {
       await createFieldDriver({
         name,
-        vehicleNumber: vehicleNumber || null,
-        chassisNumber: chassisNumber || null,
         dlNumber: dlNumber || null,
-        wardNo: wardNo || null,
         wardId: Number(wardId),
         shiftId: shiftId ? Number(shiftId) : null,
+        assetId: assetId ? Number(assetId) : null,
       });
       setCreated(true);
       setName("");
-      setVehicleNumber("");
-      setChassisNumber("");
       setDlNumber("");
-      setWardNo("");
+      setAssetId("");
       setWardId("");
       setShiftId("");
       await loadDrivers();
@@ -146,6 +160,29 @@ export default function ManageDriversPage() {
       setTransferError(err instanceof Error ? err.message : "Could not transfer driver.");
     } finally {
       setTransferSubmitting(false);
+    }
+  }
+
+  function openAssign(d: FieldDriverSummary) {
+    setAssigningId(d.id);
+    setAssignAssetId(d.assetId ? String(d.assetId) : "");
+    setAssignSupervisorId(d.supervisorId ? String(d.supervisorId) : "");
+    setAssignError(null);
+  }
+
+  async function handleAssignSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (assigningId === null) return;
+    setAssignError(null);
+    setAssignSubmitting(true);
+    try {
+      await assignFieldDriver(assigningId, assignAssetId ? Number(assignAssetId) : null, assignSupervisorId ? Number(assignSupervisorId) : null);
+      setAssigningId(null);
+      await loadDrivers();
+    } catch (err) {
+      setAssignError(err instanceof Error ? err.message : "Could not assign driver.");
+    } finally {
+      setAssignSubmitting(false);
     }
   }
 
@@ -214,20 +251,19 @@ export default function ManageDriversPage() {
               <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Vehicle Number</label>
-              <input value={vehicleNumber} onChange={(e) => setVehicleNumber(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Chassis Number</label>
-              <input value={chassisNumber} onChange={(e) => setChassisNumber(e.target.value)} className={inputClass} />
-            </div>
-            <div>
               <label className={labelClass}>DL Number</label>
               <input value={dlNumber} onChange={(e) => setDlNumber(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Ward No (label)</label>
-              <input value={wardNo} onChange={(e) => setWardNo(e.target.value)} className={inputClass} />
+              <label className={labelClass}>Asset / Vehicle (optional)</label>
+              <select value={assetId} onChange={(e) => setAssetId(e.target.value)} className={inputClass}>
+                <option value="">None</option>
+                {assets.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label} {a.vehicleNumber ? `(${a.vehicleNumber})` : ""}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={labelClass}>Ward</label>
@@ -273,8 +309,9 @@ export default function ManageDriversPage() {
           </h2>
           <p className="mb-4 text-xs text-slate-500">
             Columns:{" "}
-            <code className="rounded bg-slate-100 px-1 py-0.5">Name, VehicleNumber, ChassisNumber, DLNumber, WardNo, Ward, Shift</code>.
-            Ward and Shift must match the names shown above exactly; the rest are optional. This replaces the entire active roster -
+            <code className="rounded bg-slate-100 px-1 py-0.5">Name, DLNumber, Ward, Shift, VehicleNumber</code>. VehicleNumber
+            (optional) links to an existing asset by its vehicle number - add the vehicle to the asset registry first if it isn&apos;t
+            there yet. Ward and Shift must match the names shown above exactly. This replaces the entire active roster -
             anyone not in the uploaded file will be marked inactive, not deleted.
           </p>
 
@@ -348,7 +385,7 @@ export default function ManageDriversPage() {
                   {drivers.map((d) => (
                     <tr key={d.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-3 py-2">{d.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{d.vehicleNumber ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{assetLabel(d.assetId)}</td>
                       <td className="px-3 py-2">{wardName(d.wardId)}</td>
                       <td className="px-3 py-2">{shiftName(d.shiftId)}</td>
                       <td className="px-3 py-2">
@@ -364,9 +401,14 @@ export default function ManageDriversPage() {
                             Transfer
                           </button>
                           {isAdmin && (
-                            <button onClick={() => handleToggleActive(d.id, !d.active)} className="text-xs font-medium text-slate-500 hover:underline">
-                              {d.active ? "Deactivate" : "Activate"}
-                            </button>
+                            <>
+                              <button onClick={() => openAssign(d)} className="text-xs font-medium text-nnm-blue hover:underline">
+                                Assign
+                              </button>
+                              <button onClick={() => handleToggleActive(d.id, !d.active)} className="text-xs font-medium text-slate-500 hover:underline">
+                                {d.active ? "Deactivate" : "Activate"}
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -431,6 +473,65 @@ export default function ManageDriversPage() {
                   className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
                 >
                   {transferSubmitting ? "Transferring..." : "Confirm Transfer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {assigningId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="mb-2 text-sm font-semibold text-slate-800">
+              Assign Asset & Supervisor - {drivers?.find((d) => d.id === assigningId)?.name}
+            </h2>
+            <p className="mb-4 text-xs text-slate-500">
+              Any assistants already tied to this driver will automatically inherit the same supervisor.
+            </p>
+            {assignError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {assignError}
+              </div>
+            )}
+            <form onSubmit={handleAssignSubmit} className="space-y-4">
+              <div>
+                <label className={labelClass}>Asset / Vehicle</label>
+                <select value={assignAssetId} onChange={(e) => setAssignAssetId(e.target.value)} className={inputClass}>
+                  <option value="">None</option>
+                  {assets.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label} {a.vehicleNumber ? `(${a.vehicleNumber})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Driver Supervisor</label>
+                <select value={assignSupervisorId} onChange={(e) => setAssignSupervisorId(e.target.value)} className={inputClass}>
+                  <option value="">None</option>
+                  {supervisors.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAssigningId(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assignSubmitting}
+                  className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                >
+                  {assignSubmitting ? "Saving..." : "Confirm"}
                 </button>
               </div>
             </form>

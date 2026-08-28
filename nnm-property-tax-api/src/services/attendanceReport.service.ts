@@ -3,6 +3,7 @@ import { fieldStaffFeedbackRepository } from "../repositories/fieldStaffFeedback
 import { fieldDriverAttendanceRepository } from "../repositories/fieldDriverAttendance.repository";
 import { fieldDriverRepository } from "../repositories/fieldDriver.repository";
 import { attendanceWardRepository } from "../repositories/attendanceWard.repository";
+import { assetRepository } from "../repositories/asset.repository";
 import { istTimeString } from "../utils/istDate";
 
 export interface ReportFilters {
@@ -125,7 +126,12 @@ export async function getDriverReport(filters: ReportFilters): Promise<DriverRep
     fieldDriverRepository.listAll(),
     filters.wardId ? attendanceWardRepository.findById(filters.wardId) : Promise.resolve(null),
   ]);
-  const vehicleByDriverId = new Map(drivers.map((d) => [d.id, d.vehicle_number || ""]));
+  const assetIds = drivers.map((d) => d.asset_id).filter((id): id is number => id !== null);
+  const assets = await Promise.all(assetIds.map((id) => assetRepository.findById(id)));
+  const vehicleNumberByAssetId = new Map(assets.filter((a) => a !== null).map((a) => [a!.id, a!.vehicle_number || ""]));
+  const vehicleByDriverId = new Map(
+    drivers.map((d) => [d.id, d.asset_id ? (vehicleNumberByAssetId.get(d.asset_id) ?? "") : ""]),
+  );
 
   const byDriver = new Map<number, DriverReportRow>();
   for (const a of attendance) {

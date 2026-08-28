@@ -20,21 +20,29 @@ export const fieldDriverRepository = {
     return rows;
   },
 
+  /** Every driver currently supervised by a given driver_supervisor - the individual assignment model (not ward-based), per how this was described. */
+  async listBySupervisor(supervisorId: number): Promise<FieldDriverRow[]> {
+    const { rows } = await pool.query<FieldDriverRow>(
+      `SELECT * FROM field_drivers WHERE supervisor_id = $1 AND active = TRUE ORDER BY name ASC`,
+      [supervisorId],
+    );
+    return rows;
+  },
+
   async create(input: {
     name: string;
     externalId: string | null;
-    vehicleNumber: string | null;
-    chassisNumber: string | null;
     dlNumber: string | null;
-    wardNo: string | null;
     wardId: number;
     shiftId: number | null;
+    assetId: number | null;
+    supervisorId: number | null;
   }): Promise<FieldDriverRow> {
     const { rows } = await pool.query<FieldDriverRow>(
-      `INSERT INTO field_drivers (name, external_id, vehicle_number, chassis_number, dl_number, ward_no, ward_id, shift_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      `INSERT INTO field_drivers (name, external_id, dl_number, ward_id, shift_id, asset_id, supervisor_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        RETURNING *`,
-      [input.name, input.externalId, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.wardId, input.shiftId],
+      [input.name, input.externalId, input.dlNumber, input.wardId, input.shiftId, input.assetId, input.supervisorId],
     );
     return rows[0]!;
   },
@@ -62,21 +70,38 @@ export const fieldDriverRepository = {
     id: number,
     input: {
       name?: string;
-      vehicleNumber: string | null;
-      chassisNumber: string | null;
       dlNumber: string | null;
-      wardNo: string | null;
       wardId?: number;
       shiftId: number | null;
+      assetId: number | null;
+      supervisorId: number | null;
       active: boolean;
     },
   ): Promise<FieldDriverRow | null> {
     const { rows } = await pool.query<FieldDriverRow>(
       `UPDATE field_drivers
-       SET name = COALESCE($2, name), vehicle_number = $3, chassis_number = $4, dl_number = $5,
-           ward_no = $6, ward_id = COALESCE($7, ward_id), shift_id = $8, active = $9
+       SET name = COALESCE($2, name), dl_number = $3, ward_id = COALESCE($4, ward_id),
+           shift_id = $5, asset_id = $6, supervisor_id = $7, active = $8
        WHERE id = $1 RETURNING *`,
-      [id, input.name ?? null, input.vehicleNumber, input.chassisNumber, input.dlNumber, input.wardNo, input.wardId ?? null, input.shiftId, input.active],
+      [id, input.name ?? null, input.dlNumber, input.wardId ?? null, input.shiftId, input.assetId, input.supervisorId, input.active],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Ward/shift transfer only - leaves asset/supervisor assignment untouched (a separate concern, set via a dedicated assignment action). */
+  async transferWard(id: number, wardId: number, shiftId: number | null): Promise<FieldDriverRow | null> {
+    const { rows } = await pool.query<FieldDriverRow>(
+      `UPDATE field_drivers SET ward_id = $2, shift_id = $3 WHERE id = $1 RETURNING *`,
+      [id, wardId, shiftId],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Assigns (or reassigns) which asset and which supervisor this driver belongs to - the two things that determine an asset's and its assistants' effective supervisor. */
+  async assign(id: number, input: { assetId: number | null; supervisorId: number | null }): Promise<FieldDriverRow | null> {
+    const { rows } = await pool.query<FieldDriverRow>(
+      `UPDATE field_drivers SET asset_id = $2, supervisor_id = $3 WHERE id = $1 RETURNING *`,
+      [id, input.assetId, input.supervisorId],
     );
     return rows[0] ?? null;
   },

@@ -1,6 +1,7 @@
 import { fieldDriverRepository } from "../repositories/fieldDriver.repository";
 import { fieldDriverAttendanceRepository } from "../repositories/fieldDriverAttendance.repository";
 import { attendanceShiftRepository } from "../repositories/attendanceWard.repository";
+import { assetRepository } from "../repositories/asset.repository";
 import { istDateString, istTimeString, istShiftStartToday } from "../utils/istDate";
 import { ApiError } from "../utils/ApiError";
 import type { AttendanceTokenPayload } from "../types/attendance.types";
@@ -24,13 +25,18 @@ export async function getWardDriversToday(wardId: number): Promise<WardDriverTod
   const shifts = await attendanceShiftRepository.listAll();
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
 
+  // vehicle_number now lives on the linked asset, not the driver row directly - see migration 028.
+  const assetIds = drivers.map((d) => d.asset_id).filter((id): id is number => id !== null);
+  const assets = await Promise.all(assetIds.map((id) => assetRepository.findById(id)));
+  const vehicleNumberByAssetId = new Map(assets.filter((a) => a !== null).map((a) => [a!.id, a!.vehicle_number]));
+
   return drivers.map((d) => {
     const rec = byDriverId.get(d.id);
     const shift = d.shift_id ? shiftById.get(d.shift_id) : undefined;
     return {
       driverId: d.id,
       name: d.name,
-      vehicleNumber: d.vehicle_number,
+      vehicleNumber: d.asset_id ? (vehicleNumberByAssetId.get(d.asset_id) ?? null) : null,
       shiftName: shift ? shift.shift_name : null,
       inTime: rec?.in_time ? istTimeString(rec.in_time) : null,
       outTime: rec?.out_time ? istTimeString(rec.out_time) : null,

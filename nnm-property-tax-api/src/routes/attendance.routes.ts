@@ -33,7 +33,9 @@ import {
 import { getAttendanceDashboardSummaryHandler } from "../controllers/attendanceDashboardSummary.controller";
 import {
   listAllStaffHandler,
+  listStaffJobRolesHandler,
   createStaffHandler,
+  setStaffRolesHandler,
   setStaffActiveHandler,
   transferStaffHandler,
   uploadStaffRosterHandler,
@@ -41,8 +43,29 @@ import {
   createDriverHandler,
   setDriverActiveHandler,
   transferDriverHandler,
+  assignDriverHandler,
   uploadDriverRosterHandler,
+  listAllAssistantsHandler,
+  createAssistantHandler,
+  setAssistantActiveHandler,
+  transferAssistantHandler,
+  reassignAssistantDriverHandler,
+  uploadAssistantRosterHandler,
 } from "../controllers/fieldRoster.controller";
+import {
+  getMyWardAssistantsToday,
+  postMarkAssistantIn,
+  postMarkAssistantAbsent,
+  postMarkAssistantOut,
+} from "../controllers/fieldAssistantAttendance.controller";
+import {
+  listAllAssetsHandler,
+  createAssetHandler,
+  setAssetWardsHandler,
+  setAssetActiveHandler,
+  listAssetMaintenanceLogHandler,
+  logAssetMaintenanceHandler,
+} from "../controllers/asset.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 import { loginRateLimiter } from "../middleware/loginRateLimiter";
 
@@ -98,6 +121,28 @@ attendanceRouter.post(
   postMarkDriverOut,
 );
 
+// --- Assistants (same access pattern as Drivers above) ---
+attendanceRouter.get(
+  "/assistants/ward/:wardId/today",
+  requireAttendanceRole(["driver_supervisor", ...OFFICER_ROLES]),
+  getMyWardAssistantsToday,
+);
+attendanceRouter.post(
+  "/assistants/:assistantId/mark-in",
+  requireAttendanceRole(["driver_supervisor", "attendance_admin"]),
+  postMarkAssistantIn,
+);
+attendanceRouter.post(
+  "/assistants/:assistantId/mark-absent",
+  requireAttendanceRole(["driver_supervisor", "attendance_admin"]),
+  postMarkAssistantAbsent,
+);
+attendanceRouter.post(
+  "/assistants/:assistantId/mark-out",
+  requireAttendanceRole(["driver_supervisor", "attendance_admin"]),
+  postMarkAssistantOut,
+);
+
 // --- Daily group photo ---
 attendanceRouter.post("/photos/upload", requireAttendanceRole(["jamadar"]), postUploadWardPhoto);
 attendanceRouter.get(
@@ -136,8 +181,10 @@ attendanceRouter.patch("/users/:id/active", requireAttendanceRole(["attendance_a
 // between wards, but cannot create/rename/deactivate). Everything
 // else here stays attendance_admin-only.
 attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), listAllStaffHandler);
+attendanceRouter.get("/staff-job-roles", requireAttendanceRole(), listStaffJobRolesHandler);
 attendanceRouter.post("/staff", requireAttendanceRole(["attendance_admin"]), createStaffHandler);
 attendanceRouter.patch("/staff/:id/active", requireAttendanceRole(["attendance_admin"]), setStaffActiveHandler);
+attendanceRouter.patch("/staff/:id/roles", requireAttendanceRole(["attendance_admin"]), setStaffRolesHandler);
 attendanceRouter.patch("/staff/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferStaffHandler);
 attendanceRouter.post("/staff/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadStaffRosterHandler);
 
@@ -146,7 +193,25 @@ attendanceRouter.get("/drivers/all", requireAttendanceRole(["attendance_admin", 
 attendanceRouter.post("/drivers", requireAttendanceRole(["attendance_admin"]), createDriverHandler);
 attendanceRouter.patch("/drivers/:id/active", requireAttendanceRole(["attendance_admin"]), setDriverActiveHandler);
 attendanceRouter.patch("/drivers/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferDriverHandler);
+attendanceRouter.patch("/drivers/:id/assign", requireAttendanceRole(["attendance_admin"]), assignDriverHandler);
 attendanceRouter.post("/drivers/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadDriverRosterHandler);
+
+// --- Field assistants (same admin/officer split as staff/drivers above) ---
+attendanceRouter.get("/assistants/all", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), listAllAssistantsHandler);
+attendanceRouter.post("/assistants", requireAttendanceRole(["attendance_admin"]), createAssistantHandler);
+attendanceRouter.patch("/assistants/:id/active", requireAttendanceRole(["attendance_admin"]), setAssistantActiveHandler);
+attendanceRouter.patch("/assistants/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferAssistantHandler);
+attendanceRouter.patch("/assistants/:id/reassign-driver", requireAttendanceRole(["attendance_admin"]), reassignAssistantDriverHandler);
+attendanceRouter.post("/assistants/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadAssistantRosterHandler);
+
+// --- Assets (vehicles/tricycles/hand carts) - view: any attendance login; edit: attendance_admin + the 3 fleet oversight roles ---
+const FLEET_EDIT_ROLES = ["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"] as const;
+attendanceRouter.get("/assets", requireAttendanceRole(), listAllAssetsHandler);
+attendanceRouter.post("/assets", requireAttendanceRole([...FLEET_EDIT_ROLES]), createAssetHandler);
+attendanceRouter.patch("/assets/:id/wards", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetWardsHandler);
+attendanceRouter.patch("/assets/:id/active", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetActiveHandler);
+attendanceRouter.get("/assets/:id/maintenance-log", requireAttendanceRole(), listAssetMaintenanceLogHandler);
+attendanceRouter.post("/assets/:id/maintenance-log", requireAttendanceRole([...FLEET_EDIT_ROLES]), logAssetMaintenanceHandler);
 
 // --- Officer dashboard ---
 attendanceRouter.get(

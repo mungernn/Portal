@@ -1,4 +1,12 @@
-export type AttendanceRole = "jamadar" | "driver_supervisor" | "sanitation_officer" | "sanitation_prabhari" | "attendance_admin";
+export type AttendanceRole =
+  | "jamadar"
+  | "driver_supervisor"
+  | "sanitation_officer"
+  | "sanitation_prabhari"
+  | "attendance_admin"
+  | "junior_engineer"
+  | "assistant_engineer_mechanical"
+  | "maintenance_nodal_clerk";
 
 export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "jamadar",
@@ -6,6 +14,9 @@ export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "sanitation_officer",
   "sanitation_prabhari",
   "attendance_admin",
+  "junior_engineer",
+  "assistant_engineer_mechanical",
+  "maintenance_nodal_clerk",
 ];
 
 export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
@@ -14,11 +25,21 @@ export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
   sanitation_officer: "Sanitation Officer",
   sanitation_prabhari: "Sanitation Prabhari",
   attendance_admin: "Attendance Admin",
+  junior_engineer: "Junior Engineer",
+  assistant_engineer_mechanical: "Assistant Engineer (Mechanical)",
+  maintenance_nodal_clerk: "Maintenance Nodal Clerk",
 };
 
-/** Ward-scoped roles must have a ward_id; cross-ward roles never do. */
+/** Ward-scoped roles must have a ward_id; cross-ward roles never do. The 3 fleet roles are cross-ward - they oversee the whole vehicle/asset registry, not one ward's workers. */
 export const WARD_SCOPED_ROLES: AttendanceRole[] = ["jamadar", "driver_supervisor"];
-export const CROSS_WARD_ROLES: AttendanceRole[] = ["sanitation_officer", "sanitation_prabhari", "attendance_admin"];
+export const CROSS_WARD_ROLES: AttendanceRole[] = [
+  "sanitation_officer",
+  "sanitation_prabhari",
+  "attendance_admin",
+  "junior_engineer",
+  "assistant_engineer_mechanical",
+  "maintenance_nodal_clerk",
+];
 
 export interface AttendanceUserRow {
   id: number;
@@ -114,13 +135,12 @@ export interface FieldDriverRow {
   id: number;
   name: string;
   external_id: string | null;
-  vehicle_number: string | null;
-  chassis_number: string | null;
   dl_number: string | null;
-  ward_no: string | null;
   ward_id: number;
   shift_id: number | null;
   active: boolean;
+  asset_id: number | null;
+  supervisor_id: number | null;
 }
 
 export interface FieldDriverAttendanceRow {
@@ -134,4 +154,22 @@ export interface FieldDriverAttendanceRow {
   status: AttendanceStatus;
   marked_by: string;
   remarks: string | null;
+}
+
+export interface FieldAssistantAttendanceRow {
+  id: number;
+  date: string;
+  assistant_id: number;
+  assistant_name: string;
+  ward_id: number;
+  in_time: Date | null;
+  out_time: Date | null;
+  status: AttendanceStatus;
+  marked_by: string;
+  remarks: string | null;
+}
+
+export interface StaffJobRoleRow {
+  id: number;
+  role_name: string;
 }

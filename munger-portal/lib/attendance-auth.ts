@@ -1,7 +1,15 @@
 const TOKEN_KEY = "nnm_attendance_token";
 const USER_KEY = "nnm_attendance_user";
 
-export type AttendanceRole = "jamadar" | "driver_supervisor" | "sanitation_officer" | "sanitation_prabhari" | "attendance_admin";
+export type AttendanceRole =
+  | "jamadar"
+  | "driver_supervisor"
+  | "sanitation_officer"
+  | "sanitation_prabhari"
+  | "attendance_admin"
+  | "junior_engineer"
+  | "assistant_engineer_mechanical"
+  | "maintenance_nodal_clerk";
 
 export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
   jamadar: "Jamadar",
@@ -9,6 +17,9 @@ export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
   sanitation_officer: "Sanitation Officer",
   sanitation_prabhari: "Sanitation Prabhari",
   attendance_admin: "Attendance Admin",
+  junior_engineer: "Junior Engineer",
+  assistant_engineer_mechanical: "Assistant Engineer (Mechanical)",
+  maintenance_nodal_clerk: "Maintenance Nodal Clerk",
 };
 
 export const WARD_SCOPED_ROLES: AttendanceRole[] = ["jamadar", "driver_supervisor"];
