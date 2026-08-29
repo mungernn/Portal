@@ -1,17 +1,20 @@
 /**
  * One-off CLI to create an attendance-module login (jamadar, driver
- * supervisor, sanitation officer/prabhari, or attendance admin). There's
- * no self-service signup by design - someone with database access has
- * to run this, same as create-admin.ts / create-operator.ts.
+ * supervisor, sanitation officer/prabhari, attendance admin, or one
+ * of the 3 fleet oversight roles). There's no self-service signup by
+ * design - someone with database access has to run this, same as
+ * create-admin.ts / create-operator.ts.
  *
  * Usage:
  *   npm run create-attendance-user -- <username> <password> "<Display Name>" <role> [wardId]
- *   role is one of: jamadar | driver_supervisor | sanitation_officer | sanitation_prabhari | attendance_admin
- *   wardId is REQUIRED for jamadar/driver_supervisor, and must be omitted for the other 3 roles.
+ *   role is one of: jamadar | driver_supervisor | sanitation_officer | sanitation_prabhari |
+ *     attendance_admin | junior_engineer | assistant_engineer_mechanical | maintenance_nodal_clerk
+ *   wardId is REQUIRED for jamadar/driver_supervisor, and must be omitted for every other role.
  *
  * Examples:
  *   npm run create-attendance-user -- jward3 "TempPass123!" "Ramesh (Jamadar, Ward 3)" jamadar 3
  *   npm run create-attendance-user -- sofficer1 "TempPass123!" "Suresh Kumar" sanitation_officer
+ *   npm run create-attendance-user -- jeng1 "TempPass123!" "Ajay Singh" junior_engineer
  */
 import "dotenv/config";
 import bcrypt from "bcrypt";
@@ -20,7 +23,14 @@ import { Pool } from "pg";
 const [username, password, displayName, role, wardIdArg] = process.argv.slice(2);
 
 const WARD_SCOPED_ROLES = ["jamadar", "driver_supervisor"];
-const CROSS_WARD_ROLES = ["sanitation_officer", "sanitation_prabhari", "attendance_admin"];
+const CROSS_WARD_ROLES = [
+  "sanitation_officer",
+  "sanitation_prabhari",
+  "attendance_admin",
+  "junior_engineer",
+  "assistant_engineer_mechanical",
+  "maintenance_nodal_clerk",
+];
 const VALID_ROLES = [...WARD_SCOPED_ROLES, ...CROSS_WARD_ROLES];
 
 async function main() {
