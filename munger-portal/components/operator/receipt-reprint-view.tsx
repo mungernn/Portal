@@ -1,9 +1,11 @@
 "use client";
 
+import { useRef } from "react";
 import { Printer, X } from "lucide-react";
 import type { PrintableReceiptHistory } from "@/lib/operator-api";
 import { DocumentVerificationQR } from "./document-verification-qr";
 import { CancelledWatermark, CancelledBanner } from "./cancelled-document-notice";
+import { printElementInNewWindow } from "@/lib/print-in-new-window";
 
 function money(v: string | number | undefined | null): string {
   const n = Number(v ?? 0);
@@ -11,11 +13,12 @@ function money(v: string | number | undefined | null): string {
 }
 
 export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableReceiptHistory; onClose: () => void }) {
+  const printRef = useRef<HTMLDivElement>(null);
   return (
     <div>
       <div className="no-print mb-4 flex items-center justify-between">
         <button
-          onClick={() => window.print()}
+          onClick={() => printRef.current && printElementInNewWindow(printRef.current)}
           className="inline-flex items-center gap-2 rounded-md bg-nnm-blue px-5 py-2.5 text-sm font-semibold text-white hover:bg-nnm-blue-dark"
         >
           <Printer className="h-4 w-4" />
@@ -28,6 +31,7 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
       </div>
 
       <div
+        ref={printRef}
         className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]"
         style={{ fontFamily: "Arial, sans-serif", position: "relative" }}
       >
@@ -60,16 +64,6 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
             <div>
               <b className="inline-block w-[140px]">Holding No</b> {receipt.holdingNo}
             </div>
-            {receipt.oldHoldingNo && (
-              <div>
-                <b className="inline-block w-[140px]">Old Holding No</b> {receipt.oldHoldingNo}
-              </div>
-            )}
-            {receipt.oldPid && (
-              <div>
-                <b className="inline-block w-[140px]">Old PID</b> {receipt.oldPid}
-              </div>
-            )}
             <div>
               <b className="inline-block w-[140px]">Owner Name</b> {receipt.ownerName}
             </div>

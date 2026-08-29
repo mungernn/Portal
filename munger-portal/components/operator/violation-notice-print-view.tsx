@@ -1,8 +1,10 @@
 "use client";
 
+import { useRef } from "react";
 import { Printer, X } from "lucide-react";
 import type { PrintableViolationNotice } from "@/lib/shop-api";
 import { DocumentVerificationQR } from "./document-verification-qr";
+import { printElementInNewWindow } from "@/lib/print-in-new-window";
 
 export function ViolationNoticePrintView({
   notice,
@@ -11,11 +13,12 @@ export function ViolationNoticePrintView({
   notice: PrintableViolationNotice;
   onClose: () => void;
 }) {
+  const printRef = useRef<HTMLDivElement>(null);
   return (
     <div>
       <div className="no-print mb-4 flex items-center justify-between">
         <button
-          onClick={() => window.print()}
+          onClick={() => printRef.current && printElementInNewWindow(printRef.current)}
           className="inline-flex items-center gap-2 rounded-md bg-nnm-blue px-5 py-2.5 text-sm font-semibold text-white hover:bg-nnm-blue-dark"
         >
           <Printer className="h-4 w-4" />
@@ -27,7 +30,8 @@ export function ViolationNoticePrintView({
         </button>
       </div>
 
-      <div className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
+      <div ref={printRef}
+        className="printable-area rounded-xl border border-slate-200 bg-white p-8 text-[12px] text-[#222]" style={{ fontFamily: "Arial, sans-serif" }}>
         <div className="flex items-start justify-between gap-3 border-b-2 border-nnm-blue pb-2">
           <DocumentVerificationQR url={notice.verificationUrl} />
           <div className="flex-1 text-center">
