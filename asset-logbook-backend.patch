@@ -1,0 +1,326 @@
+diff --git a/nnm-property-tax-api/src/controllers/asset.controller.ts b/nnm-property-tax-api/src/controllers/asset.controller.ts
+index 507d14b..e525dfe 100644
+--- a/nnm-property-tax-api/src/controllers/asset.controller.ts
++++ b/nnm-property-tax-api/src/controllers/asset.controller.ts
+@@ -2,21 +2,24 @@ import type { Request, Response } from "express";
+ import { z } from "zod";
+ import { assetRepository } from "../repositories/asset.repository";
+ import { assetMaintenanceLogRepository } from "../repositories/assetMaintenanceLog.repository";
++import { assetLogbookRepository } from "../repositories/assetLogbook.repository";
+ import { asyncHandler } from "../middleware/asyncHandler";
+ import { ApiError } from "../utils/ApiError";
+ 
+ const ASSET_TYPES = ["vehicle", "tricycle", "hand_cart"] as const;
+ const ASSET_STATUSES = ["working", "under_repair", "not_working"] as const;
+ const LOG_TYPES = ["service", "repair", "status_update", "note"] as const;
++const TRACKING_TYPES = ["km", "hours"] as const;
+ 
+ export const listAllAssetsHandler = asyncHandler(async (req: Request, res: Response) => {
+   const includeArchived = req.query.includeArchived === "true";
+   const assets = await assetRepository.listAll(includeArchived);
+   const assetIds = assets.map((a) => a.id);
+-  const [wardsByAsset, lastServiced, lastRepaired] = await Promise.all([
++  const [wardsByAsset, lastServiced, lastRepaired, latestReadingByAsset] = await Promise.all([
+     assetRepository.listWardIdsForAssetMany(assetIds),
+     assetMaintenanceLogRepository.lastDateByTypeMany(assetIds, "service"),
+     assetMaintenanceLogRepository.lastDateByTypeMany(assetIds, "repair"),
++    assetLogbookRepository.latestForAssetMany(assetIds),
+   ]);
+   res.status(200).json({
+     assets: assets.map((a) => ({
+@@ -30,9 +33,14 @@ export const listAllAssetsHandler = asyncHandler(async (req: Request, res: Respo
+       soundSystemStatus: a.sound_system_status,
+       batteryStatus: a.battery_status,
+       active: a.active,
++      trackingType: a.tracking_type,
+       wardIds: wardsByAsset.get(a.id) ?? [],
+       lastServicedOn: lastServiced.get(a.id) ?? null,
+       lastRepairedOn: lastRepaired.get(a.id) ?? null,
++      latestLogbookReading: (() => {
++        const entry = latestReadingByAsset.get(a.id);
++        return entry ? { logDate: entry.log_date, reading: entry.reading } : null;
++      })(),
+     })),
+   });
+ });
+@@ -42,6 +50,7 @@ const createAssetSchema = z.object({
+   label: z.string().trim().min(1),
+   vehicleNumber: z.string().trim().nullish(),
+   chassisNumber: z.string().trim().nullish(),
++  trackingType: z.enum(TRACKING_TYPES).nullish(),
+   wardIds: z.array(z.coerce.number().int().positive()).optional(),
+ });
+ 
+@@ -54,6 +63,7 @@ export const createAssetHandler = asyncHandler(async (req: Request, res: Respons
+     label: parsed.data.label,
+     vehicleNumber: parsed.data.vehicleNumber ?? null,
+     chassisNumber: parsed.data.chassisNumber ?? null,
++    trackingType: parsed.data.trackingType ?? null,
+   });
+   if (parsed.data.wardIds && parsed.data.wardIds.length > 0) {
+     await assetRepository.setWards(asset.id, parsed.data.wardIds);
+@@ -67,6 +77,7 @@ export const createAssetHandler = asyncHandler(async (req: Request, res: Respons
+       chassisNumber: asset.chassis_number,
+       currentStatus: asset.current_status,
+       active: asset.active,
++      trackingType: asset.tracking_type,
+       wardIds: parsed.data.wardIds ?? [],
+     },
+   });
+@@ -179,3 +190,96 @@ export const logAssetMaintenanceHandler = asyncHandler(async (req: Request, res:
+     asset: { id: updatedAsset.id, currentStatus: updatedAsset.current_status, notWorkingSince: updatedAsset.not_working_since },
+   });
+ });
++
++const setTrackingTypeSchema = z.object({ trackingType: z.enum(TRACKING_TYPES).nullable() });
++
++/** PATCH /api/v1/attendance/assets/:id/tracking-type - fleet roles + attendance_admin. km for odometer-based assets, hours for engine-hour-based equipment (e.g. JCB/Poclain). */
++export const setAssetTrackingTypeHandler = asyncHandler(async (req: Request, res: Response) => {
++  const paramsParsed = assetIdParamSchema.safeParse(req.params);
++  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
++  const bodyParsed = setTrackingTypeSchema.safeParse(req.body);
++  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
++
++  const updated = await assetRepository.setTrackingType(paramsParsed.data.id, bodyParsed.data.trackingType);
++  if (!updated) throw ApiError.notFound("Asset not found");
++  res.status(200).json({ asset: { id: updated.id, trackingType: updated.tracking_type } });
++});
++
++/** GET /api/v1/attendance/assets/:id/logbook - full daily-reading history for one asset, most recent first. */
++export const listAssetLogbookHandler = asyncHandler(async (req: Request, res: Response) => {
++  const paramsParsed = assetIdParamSchema.safeParse(req.params);
++  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
++
++  const asset = await assetRepository.findById(paramsParsed.data.id);
++  if (!asset) throw ApiError.notFound("Asset not found");
++
++  const entries = await assetLogbookRepository.listForAsset(paramsParsed.data.id);
++  // Each entry alongside the delta from the previous day's reading -
++  // the actual km driven / hours run that day, which is what a
++  // logbook is really for (the reading alone is just a snapshot).
++  const withDeltas = entries.map((e, i) => {
++    const previous = entries[i + 1]; // entries are DESC by date, so the next array item is the prior day
++    const delta = previous ? (Number(e.reading) - Number(previous.reading)).toFixed(2) : null;
++    return { id: e.id, logDate: e.log_date, reading: e.reading, delta, recordedBy: e.recorded_by, notes: e.notes };
++  });
++  res.status(200).json({ trackingType: asset.tracking_type, entries: withDeltas });
++});
++
++const logbookEntrySchema = z.object({
++  logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "logDate must be YYYY-MM-DD"),
++  reading: z.coerce.number().nonnegative(),
++  notes: z.string().trim().nullish(),
++});
++
++/**
++ * POST /api/v1/attendance/assets/:id/logbook - driver_supervisor +
++ * attendance_admin. One entry per asset per day - the reading is the
++ * absolute odometer/hour-meter value read directly off the gauge,
++ * not a delta (see migration 032's comment). Rejects a reading lower
++ * than the most recent prior one, since odometers/hour-meters only
++ * increase - a lower value means either the wrong asset or a typo.
++ */
++export const logAssetReadingHandler = asyncHandler(async (req: Request, res: Response) => {
++  const paramsParsed = assetIdParamSchema.safeParse(req.params);
++  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
++  const bodyParsed = logbookEntrySchema.safeParse(req.body);
++  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
++
++  const asset = await assetRepository.findById(paramsParsed.data.id);
++  if (!asset) throw ApiError.notFound("Asset not found");
++  if (!asset.tracking_type) {
++    throw ApiError.badRequest("This asset has no tracking type set (km or hours) - set that first before logging daily readings.");
++  }
++
++  const existing = await assetLogbookRepository.findForAssetOnDate(paramsParsed.data.id, bodyParsed.data.logDate);
++  if (existing) throw ApiError.badRequest(`A reading for ${bodyParsed.data.logDate} has already been recorded - edit that entry instead of adding a new one.`);
++
++  const previous = await assetLogbookRepository.findMostRecentBefore(paramsParsed.data.id, bodyParsed.data.logDate);
++  if (previous && bodyParsed.data.reading < Number(previous.reading)) {
++    const rawDate = previous.log_date as unknown;
++    const previousDateStr = rawDate instanceof Date ? rawDate.toISOString().slice(0, 10) : String(rawDate).slice(0, 10);
++    throw ApiError.badRequest(
++      `This reading (${bodyParsed.data.reading}) is lower than the last recorded reading (${previous.reading} on ${previousDateStr}) - ${asset.tracking_type === "km" ? "odometers" : "hour-meters"} only increase. Please check the value.`,
++    );
++  }
++
++  const user = req.attendanceUser!;
++  const entry = await assetLogbookRepository.create({
++    assetId: paramsParsed.data.id,
++    logDate: bodyParsed.data.logDate,
++    reading: String(bodyParsed.data.reading),
++    recordedBy: user.username,
++    notes: bodyParsed.data.notes ?? null,
++  });
++
++  res.status(200).json({
++    entry: {
++      id: entry.id,
++      logDate: entry.log_date,
++      reading: entry.reading,
++      recordedBy: entry.recorded_by,
++      notes: entry.notes,
++      delta: previous ? (Number(entry.reading) - Number(previous.reading)).toFixed(2) : null,
++    },
++  });
++});
+diff --git a/nnm-property-tax-api/src/db/migrations/032_asset_logbook.sql b/nnm-property-tax-api/src/db/migrations/032_asset_logbook.sql
+new file mode 100644
+index 0000000..0d5e4fb
+--- /dev/null
++++ b/nnm-property-tax-api/src/db/migrations/032_asset_logbook.sql
+@@ -0,0 +1,27 @@
++-- Daily operations logbook per asset - separate from
++-- asset_maintenance_log (which records service/repair EVENTS, not
++-- routine daily use). Some assets are tracked by odometer distance
++-- (km), others by engine hour-meter (e.g. JCB/Poclain earthmoving
++-- equipment, which doesn't travel road distance in the same sense) -
++-- tracking_type on the asset itself determines which applies, set
++-- once when the asset is registered.
++--
++-- reading is the absolute odometer/hour-meter value for that day (as
++-- read directly off the instrument), not a daily delta - the
++-- supervisor enters what they see on the gauge. Daily distance/hours
++-- covered is derived by comparing consecutive days' readings, so
++-- there's one source of truth and no risk of the delta and the
++-- reading disagreeing with each other.
++ALTER TABLE assets ADD COLUMN tracking_type VARCHAR(16) CHECK (tracking_type IN ('km', 'hours'));
++
++CREATE TABLE asset_logbook (
++  id            BIGSERIAL PRIMARY KEY,
++  asset_id      BIGINT NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
++  log_date      DATE NOT NULL,
++  reading       NUMERIC(12,2) NOT NULL,
++  recorded_by   VARCHAR(255) NOT NULL,
++  notes         TEXT,
++  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
++  UNIQUE (asset_id, log_date)
++);
++CREATE INDEX idx_asset_logbook_asset_date ON asset_logbook (asset_id, log_date DESC);
+diff --git a/nnm-property-tax-api/src/repositories/asset.repository.ts b/nnm-property-tax-api/src/repositories/asset.repository.ts
+index c4bf2a1..f4d43e1 100644
+--- a/nnm-property-tax-api/src/repositories/asset.repository.ts
++++ b/nnm-property-tax-api/src/repositories/asset.repository.ts
+@@ -12,6 +12,7 @@ export interface AssetRow {
+   battery_status: string | null;
+   active: boolean;
+   created_at: string;
++  tracking_type: "km" | "hours" | null;
+ }
+ 
+ export const assetRepository = {
+@@ -32,14 +33,20 @@ export const assetRepository = {
+     label: string;
+     vehicleNumber: string | null;
+     chassisNumber: string | null;
++    trackingType: "km" | "hours" | null;
+   }): Promise<AssetRow> {
+     const { rows } = await pool.query<AssetRow>(
+-      `INSERT INTO assets (asset_type, label, vehicle_number, chassis_number) VALUES ($1,$2,$3,$4) RETURNING *`,
+-      [input.assetType, input.label, input.vehicleNumber, input.chassisNumber],
++      `INSERT INTO assets (asset_type, label, vehicle_number, chassis_number, tracking_type) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
++      [input.assetType, input.label, input.vehicleNumber, input.chassisNumber, input.trackingType],
+     );
+     return rows[0]!;
+   },
+ 
++  async setTrackingType(id: number, trackingType: "km" | "hours" | null): Promise<AssetRow | null> {
++    const { rows } = await pool.query<AssetRow>(`UPDATE assets SET tracking_type = $2 WHERE id = $1 RETURNING *`, [id, trackingType]);
++    return rows[0] ?? null;
++  },
++
+   /** Finds an asset by its vehicle_number - used to link a driver/assistant to an existing asset by a human-readable reference rather than an internal id. */
+   async findByVehicleNumber(vehicleNumber: string): Promise<AssetRow | null> {
+     const { rows } = await pool.query<AssetRow>(`SELECT * FROM assets WHERE vehicle_number = $1 LIMIT 1`, [vehicleNumber]);
+diff --git a/nnm-property-tax-api/src/repositories/assetLogbook.repository.ts b/nnm-property-tax-api/src/repositories/assetLogbook.repository.ts
+new file mode 100644
+index 0000000..f77a97a
+--- /dev/null
++++ b/nnm-property-tax-api/src/repositories/assetLogbook.repository.ts
+@@ -0,0 +1,62 @@
++import { pool } from "../config/db";
++
++export interface AssetLogbookRow {
++  id: number;
++  asset_id: number;
++  log_date: string;
++  reading: string;
++  recorded_by: string;
++  notes: string | null;
++  created_at: string;
++}
++
++export const assetLogbookRepository = {
++  /** One entry per asset per day - the supervisor's odometer/hour-meter reading for that day. */
++  async create(input: { assetId: number; logDate: string; reading: string; recordedBy: string; notes: string | null }): Promise<AssetLogbookRow> {
++    const { rows } = await pool.query<AssetLogbookRow>(
++      `INSERT INTO asset_logbook (asset_id, log_date, reading, recorded_by, notes) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
++      [input.assetId, input.logDate, input.reading, input.recordedBy, input.notes],
++    );
++    return rows[0]!;
++  },
++
++  async findForAssetOnDate(assetId: number, logDate: string): Promise<AssetLogbookRow | null> {
++    const { rows } = await pool.query<AssetLogbookRow>(`SELECT * FROM asset_logbook WHERE asset_id = $1 AND log_date = $2`, [assetId, logDate]);
++    return rows[0] ?? null;
++  },
++
++  /** Full history for one asset, most recent first. */
++  async listForAsset(assetId: number): Promise<AssetLogbookRow[]> {
++    const { rows } = await pool.query<AssetLogbookRow>(`SELECT * FROM asset_logbook WHERE asset_id = $1 ORDER BY log_date DESC`, [assetId]);
++    return rows;
++  },
++
++  /** Most recent entry per asset, for many assets at once - avoids an N+1 query on the asset list page. */
++  async latestForAssetMany(assetIds: number[]): Promise<Map<number, AssetLogbookRow>> {
++    const map = new Map<number, AssetLogbookRow>();
++    if (assetIds.length === 0) return map;
++    const { rows } = await pool.query<AssetLogbookRow>(
++      `SELECT DISTINCT ON (asset_id) * FROM asset_logbook WHERE asset_id = ANY($1::bigint[]) ORDER BY asset_id, log_date DESC`,
++      [assetIds],
++    );
++    for (const row of rows) map.set(row.asset_id, row);
++    return map;
++  },
++
++  /** The single most recent entry before (or on) a given date - used to compute the daily distance/hours covered as a delta against the new reading. */
++  async findMostRecentBefore(assetId: number, beforeDate: string): Promise<AssetLogbookRow | null> {
++    const { rows } = await pool.query<AssetLogbookRow>(
++      `SELECT * FROM asset_logbook WHERE asset_id = $1 AND log_date < $2 ORDER BY log_date DESC LIMIT 1`,
++      [assetId, beforeDate],
++    );
++    return rows[0] ?? null;
++  },
++
++  async update(id: number, input: { reading: string; notes: string | null }): Promise<AssetLogbookRow | null> {
++    const { rows } = await pool.query<AssetLogbookRow>(
++      `UPDATE asset_logbook SET reading = $2, notes = $3 WHERE id = $1 RETURNING *`,
++      [id, input.reading, input.notes],
++    );
++    return rows[0] ?? null;
++  },
++};
+diff --git a/nnm-property-tax-api/src/routes/attendance.routes.ts b/nnm-property-tax-api/src/routes/attendance.routes.ts
+index 0397fe7..c1c746c 100644
+--- a/nnm-property-tax-api/src/routes/attendance.routes.ts
++++ b/nnm-property-tax-api/src/routes/attendance.routes.ts
+@@ -67,6 +67,9 @@ import {
+   setAssetActiveHandler,
+   listAssetMaintenanceLogHandler,
+   logAssetMaintenanceHandler,
++  setAssetTrackingTypeHandler,
++  listAssetLogbookHandler,
++  logAssetReadingHandler,
+ } from "../controllers/asset.controller";
+ import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
+ import { loginRateLimiter } from "../middleware/loginRateLimiter";
+@@ -216,6 +219,9 @@ attendanceRouter.patch("/assets/:id/wards", requireAttendanceRole([...FLEET_EDIT
+ attendanceRouter.patch("/assets/:id/active", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetActiveHandler);
+ attendanceRouter.get("/assets/:id/maintenance-log", requireAttendanceRole(), listAssetMaintenanceLogHandler);
+ attendanceRouter.post("/assets/:id/maintenance-log", requireAttendanceRole([...FLEET_EDIT_ROLES]), logAssetMaintenanceHandler);
++attendanceRouter.patch("/assets/:id/tracking-type", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetTrackingTypeHandler);
++attendanceRouter.get("/assets/:id/logbook", requireAttendanceRole(), listAssetLogbookHandler);
++attendanceRouter.post("/assets/:id/logbook", requireAttendanceRole(["driver_supervisor", "attendance_admin"]), logAssetReadingHandler);
+ 
+ // --- Officer dashboard ---
+ attendanceRouter.get(

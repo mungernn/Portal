@@ -12,6 +12,7 @@ export interface AssetRow {
   battery_status: string | null;
   active: boolean;
   created_at: string;
+  tracking_type: "km" | "hours" | null;
 }
 
 export const assetRepository = {
@@ -32,12 +33,18 @@ export const assetRepository = {
     label: string;
     vehicleNumber: string | null;
     chassisNumber: string | null;
+    trackingType: "km" | "hours" | null;
   }): Promise<AssetRow> {
     const { rows } = await pool.query<AssetRow>(
-      `INSERT INTO assets (asset_type, label, vehicle_number, chassis_number) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [input.assetType, input.label, input.vehicleNumber, input.chassisNumber],
+      `INSERT INTO assets (asset_type, label, vehicle_number, chassis_number, tracking_type) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [input.assetType, input.label, input.vehicleNumber, input.chassisNumber, input.trackingType],
     );
     return rows[0]!;
+  },
+
+  async setTrackingType(id: number, trackingType: "km" | "hours" | null): Promise<AssetRow | null> {
+    const { rows } = await pool.query<AssetRow>(`UPDATE assets SET tracking_type = $2 WHERE id = $1 RETURNING *`, [id, trackingType]);
+    return rows[0] ?? null;
   },
 
   /** Finds an asset by its vehicle_number - used to link a driver/assistant to an existing asset by a human-readable reference rather than an internal id. */

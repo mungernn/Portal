@@ -67,6 +67,9 @@ import {
   setAssetActiveHandler,
   listAssetMaintenanceLogHandler,
   logAssetMaintenanceHandler,
+  setAssetTrackingTypeHandler,
+  listAssetLogbookHandler,
+  logAssetReadingHandler,
 } from "../controllers/asset.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 import { loginRateLimiter } from "../middleware/loginRateLimiter";
@@ -216,6 +219,9 @@ attendanceRouter.patch("/assets/:id/wards", requireAttendanceRole([...FLEET_EDIT
 attendanceRouter.patch("/assets/:id/active", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetActiveHandler);
 attendanceRouter.get("/assets/:id/maintenance-log", requireAttendanceRole(), listAssetMaintenanceLogHandler);
 attendanceRouter.post("/assets/:id/maintenance-log", requireAttendanceRole([...FLEET_EDIT_ROLES]), logAssetMaintenanceHandler);
+attendanceRouter.patch("/assets/:id/tracking-type", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetTrackingTypeHandler);
+attendanceRouter.get("/assets/:id/logbook", requireAttendanceRole(), listAssetLogbookHandler);
+attendanceRouter.post("/assets/:id/logbook", requireAttendanceRole(["driver_supervisor", "attendance_admin"]), logAssetReadingHandler);
 
 // --- Officer dashboard ---
 attendanceRouter.get(

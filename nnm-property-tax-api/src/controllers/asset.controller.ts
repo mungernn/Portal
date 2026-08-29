@@ -2,21 +2,24 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { assetRepository } from "../repositories/asset.repository";
 import { assetMaintenanceLogRepository } from "../repositories/assetMaintenanceLog.repository";
+import { assetLogbookRepository } from "../repositories/assetLogbook.repository";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 
 const ASSET_TYPES = ["vehicle", "tricycle", "hand_cart"] as const;
 const ASSET_STATUSES = ["working", "under_repair", "not_working"] as const;
 const LOG_TYPES = ["service", "repair", "status_update", "note"] as const;
+const TRACKING_TYPES = ["km", "hours"] as const;
 
 export const listAllAssetsHandler = asyncHandler(async (req: Request, res: Response) => {
   const includeArchived = req.query.includeArchived === "true";
   const assets = await assetRepository.listAll(includeArchived);
   const assetIds = assets.map((a) => a.id);
-  const [wardsByAsset, lastServiced, lastRepaired] = await Promise.all([
+  const [wardsByAsset, lastServiced, lastRepaired, latestReadingByAsset] = await Promise.all([
     assetRepository.listWardIdsForAssetMany(assetIds),
     assetMaintenanceLogRepository.lastDateByTypeMany(assetIds, "service"),
     assetMaintenanceLogRepository.lastDateByTypeMany(assetIds, "repair"),
+    assetLogbookRepository.latestForAssetMany(assetIds),
   ]);
   res.status(200).json({
     assets: assets.map((a) => ({
@@ -30,9 +33,14 @@ export const listAllAssetsHandler = asyncHandler(async (req: Request, res: Respo
       soundSystemStatus: a.sound_system_status,
       batteryStatus: a.battery_status,
       active: a.active,
+      trackingType: a.tracking_type,
       wardIds: wardsByAsset.get(a.id) ?? [],
       lastServicedOn: lastServiced.get(a.id) ?? null,
       lastRepairedOn: lastRepaired.get(a.id) ?? null,
+      latestLogbookReading: (() => {
+        const entry = latestReadingByAsset.get(a.id);
+        return entry ? { logDate: entry.log_date, reading: entry.reading } : null;
+      })(),
     })),
   });
 });
@@ -42,6 +50,7 @@ const createAssetSchema = z.object({
   label: z.string().trim().min(1),
   vehicleNumber: z.string().trim().nullish(),
   chassisNumber: z.string().trim().nullish(),
+  trackingType: z.enum(TRACKING_TYPES).nullish(),
   wardIds: z.array(z.coerce.number().int().positive()).optional(),
 });
 
@@ -54,6 +63,7 @@ export const createAssetHandler = asyncHandler(async (req: Request, res: Respons
     label: parsed.data.label,
     vehicleNumber: parsed.data.vehicleNumber ?? null,
     chassisNumber: parsed.data.chassisNumber ?? null,
+    trackingType: parsed.data.trackingType ?? null,
   });
   if (parsed.data.wardIds && parsed.data.wardIds.length > 0) {
     await assetRepository.setWards(asset.id, parsed.data.wardIds);
@@ -67,6 +77,7 @@ export const createAssetHandler = asyncHandler(async (req: Request, res: Respons
       chassisNumber: asset.chassis_number,
       currentStatus: asset.current_status,
       active: asset.active,
+      trackingType: asset.tracking_type,
       wardIds: parsed.data.wardIds ?? [],
     },
   });
@@ -177,5 +188,98 @@ export const logAssetMaintenanceHandler = asyncHandler(async (req: Request, res:
       complaintReceivedDate: entry.complaint_received_date,
     },
     asset: { id: updatedAsset.id, currentStatus: updatedAsset.current_status, notWorkingSince: updatedAsset.not_working_since },
+  });
+});
+
+const setTrackingTypeSchema = z.object({ trackingType: z.enum(TRACKING_TYPES).nullable() });
+
+/** PATCH /api/v1/attendance/assets/:id/tracking-type - fleet roles + attendance_admin. km for odometer-based assets, hours for engine-hour-based equipment (e.g. JCB/Poclain). */
+export const setAssetTrackingTypeHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = assetIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
+  const bodyParsed = setTrackingTypeSchema.safeParse(req.body);
+  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
+
+  const updated = await assetRepository.setTrackingType(paramsParsed.data.id, bodyParsed.data.trackingType);
+  if (!updated) throw ApiError.notFound("Asset not found");
+  res.status(200).json({ asset: { id: updated.id, trackingType: updated.tracking_type } });
+});
+
+/** GET /api/v1/attendance/assets/:id/logbook - full daily-reading history for one asset, most recent first. */
+export const listAssetLogbookHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = assetIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
+
+  const asset = await assetRepository.findById(paramsParsed.data.id);
+  if (!asset) throw ApiError.notFound("Asset not found");
+
+  const entries = await assetLogbookRepository.listForAsset(paramsParsed.data.id);
+  // Each entry alongside the delta from the previous day's reading -
+  // the actual km driven / hours run that day, which is what a
+  // logbook is really for (the reading alone is just a snapshot).
+  const withDeltas = entries.map((e, i) => {
+    const previous = entries[i + 1]; // entries are DESC by date, so the next array item is the prior day
+    const delta = previous ? (Number(e.reading) - Number(previous.reading)).toFixed(2) : null;
+    return { id: e.id, logDate: e.log_date, reading: e.reading, delta, recordedBy: e.recorded_by, notes: e.notes };
+  });
+  res.status(200).json({ trackingType: asset.tracking_type, entries: withDeltas });
+});
+
+const logbookEntrySchema = z.object({
+  logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "logDate must be YYYY-MM-DD"),
+  reading: z.coerce.number().nonnegative(),
+  notes: z.string().trim().nullish(),
+});
+
+/**
+ * POST /api/v1/attendance/assets/:id/logbook - driver_supervisor +
+ * attendance_admin. One entry per asset per day - the reading is the
+ * absolute odometer/hour-meter value read directly off the gauge,
+ * not a delta (see migration 032's comment). Rejects a reading lower
+ * than the most recent prior one, since odometers/hour-meters only
+ * increase - a lower value means either the wrong asset or a typo.
+ */
+export const logAssetReadingHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = assetIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid asset id");
+  const bodyParsed = logbookEntrySchema.safeParse(req.body);
+  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
+
+  const asset = await assetRepository.findById(paramsParsed.data.id);
+  if (!asset) throw ApiError.notFound("Asset not found");
+  if (!asset.tracking_type) {
+    throw ApiError.badRequest("This asset has no tracking type set (km or hours) - set that first before logging daily readings.");
+  }
+
+  const existing = await assetLogbookRepository.findForAssetOnDate(paramsParsed.data.id, bodyParsed.data.logDate);
+  if (existing) throw ApiError.badRequest(`A reading for ${bodyParsed.data.logDate} has already been recorded - edit that entry instead of adding a new one.`);
+
+  const previous = await assetLogbookRepository.findMostRecentBefore(paramsParsed.data.id, bodyParsed.data.logDate);
+  if (previous && bodyParsed.data.reading < Number(previous.reading)) {
+    const rawDate = previous.log_date as unknown;
+    const previousDateStr = rawDate instanceof Date ? rawDate.toISOString().slice(0, 10) : String(rawDate).slice(0, 10);
+    throw ApiError.badRequest(
+      `This reading (${bodyParsed.data.reading}) is lower than the last recorded reading (${previous.reading} on ${previousDateStr}) - ${asset.tracking_type === "km" ? "odometers" : "hour-meters"} only increase. Please check the value.`,
+    );
+  }
+
+  const user = req.attendanceUser!;
+  const entry = await assetLogbookRepository.create({
+    assetId: paramsParsed.data.id,
+    logDate: bodyParsed.data.logDate,
+    reading: String(bodyParsed.data.reading),
+    recordedBy: user.username,
+    notes: bodyParsed.data.notes ?? null,
+  });
+
+  res.status(200).json({
+    entry: {
+      id: entry.id,
+      logDate: entry.log_date,
+      reading: entry.reading,
+      recordedBy: entry.recorded_by,
+      notes: entry.notes,
+      delta: previous ? (Number(entry.reading) - Number(previous.reading)).toFixed(2) : null,
+    },
   });
 });
