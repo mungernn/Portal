@@ -49,6 +49,7 @@ export async function markStaffIn(user: AttendanceTokenPayload, staffId: number)
   const staff = await fieldStaffRepository.findById(staffId);
   if (!staff) throw ApiError.notFound("Staff not found.");
   assertWardAccess(user, staff.ward_id);
+  if (staff.suspended) throw ApiError.badRequest(`This worker is suspended (${staff.suspended_reason ?? "no reason on file"}) - attendance cannot be marked until the suspension is lifted.`);
 
   if (!staff.shift_id) throw ApiError.badRequest("No shift configured for this worker.");
   const shift = await attendanceShiftRepository.findById(staff.shift_id);
@@ -86,6 +87,7 @@ export async function markStaffAbsent(
   const staff = await fieldStaffRepository.findById(staffId);
   if (!staff) throw ApiError.notFound("Staff not found.");
   assertWardAccess(user, staff.ward_id);
+  if (staff.suspended) throw ApiError.badRequest(`This worker is suspended (${staff.suspended_reason ?? "no reason on file"}) - attendance cannot be marked until the suspension is lifted.`);
 
   const today = istDateString();
   const existing = await fieldStaffAttendanceRepository.findForStaffOnDate(staffId, today);
@@ -133,6 +135,7 @@ export async function markStaffAbsentByOfficer(
 ): Promise<void> {
   const staff = await fieldStaffRepository.findById(staffId);
   if (!staff) throw ApiError.notFound("Staff not found.");
+  if (staff.suspended) throw ApiError.badRequest(`This worker is suspended (${staff.suspended_reason ?? "no reason on file"}) - attendance cannot be marked until the suspension is lifted.`);
 
   const dateKey = dateStr || istDateString();
   const existing = await fieldStaffAttendanceRepository.findForStaffOnDate(staffId, dateKey);

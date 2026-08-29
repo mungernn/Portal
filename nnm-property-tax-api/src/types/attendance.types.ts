@@ -95,6 +95,9 @@ export interface FieldStaffRow {
   ward_id: number;
   shift_id: number | null;
   active: boolean;
+  suspended: boolean;
+  suspended_reason: string | null;
+  suspended_at: string | null;
 }
 
 export interface FieldStaffAttendanceRow {

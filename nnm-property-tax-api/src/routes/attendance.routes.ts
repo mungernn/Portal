@@ -37,6 +37,8 @@ import {
   createStaffHandler,
   setStaffRolesHandler,
   setStaffActiveHandler,
+  suspendStaffHandler,
+  unsuspendStaffHandler,
   transferStaffHandler,
   uploadStaffRosterHandler,
   listAllDriversHandler,
@@ -184,6 +186,8 @@ attendanceRouter.get("/staff/all", requireAttendanceRole(["attendance_admin", "s
 attendanceRouter.get("/staff-job-roles", requireAttendanceRole(), listStaffJobRolesHandler);
 attendanceRouter.post("/staff", requireAttendanceRole(["attendance_admin"]), createStaffHandler);
 attendanceRouter.patch("/staff/:id/active", requireAttendanceRole(["attendance_admin"]), setStaffActiveHandler);
+attendanceRouter.patch("/staff/:id/suspend", requireAttendanceRole(["attendance_admin"]), suspendStaffHandler);
+attendanceRouter.patch("/staff/:id/unsuspend", requireAttendanceRole(["attendance_admin"]), unsuspendStaffHandler);
 attendanceRouter.patch("/staff/:id/roles", requireAttendanceRole(["attendance_admin"]), setStaffRolesHandler);
 attendanceRouter.patch("/staff/:id/transfer", requireAttendanceRole(["attendance_admin", "sanitation_officer"]), transferStaffHandler);
 attendanceRouter.post("/staff/bulk-upload", requireAttendanceRole(["attendance_admin"]), uploadStaffRosterHandler);

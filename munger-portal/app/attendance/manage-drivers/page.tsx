@@ -41,6 +41,7 @@ export default function ManageDriversPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
+  const [externalId, setExternalId] = useState("");
   const [dlNumber, setDlNumber] = useState("");
   const [assetId, setAssetId] = useState("");
   const [wardId, setWardId] = useState("");
@@ -68,7 +69,14 @@ export default function ManageDriversPage() {
 
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
   const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
-  const assetLabel = (id: number | null) => (id ? assets.find((a) => a.id === id)?.label : null) ?? "-";
+  const ASSET_TYPE_LABELS: Record<AssetSummary["assetType"], string> = { vehicle: "Vehicle", tricycle: "Tricycle", hand_cart: "Hand Cart" };
+  /** Type + vehicle number together, e.g. "Vehicle - BR06AB1234" - the label alone doesn't say what kind of asset it is or its registration number at a glance. */
+  const assetDisplay = (id: number | null) => {
+    const a = id ? assets.find((x) => x.id === id) : null;
+    if (!a) return "-";
+    const typeAndNumber = [ASSET_TYPE_LABELS[a.assetType], a.vehicleNumber].filter(Boolean).join(" - ");
+    return `${a.label} (${typeAndNumber})`;
+  };
 
   async function loadDrivers() {
     try {
@@ -107,6 +115,7 @@ export default function ManageDriversPage() {
     try {
       await createFieldDriver({
         name,
+        externalId: externalId || null,
         dlNumber: dlNumber || null,
         wardId: Number(wardId),
         shiftId: shiftId ? Number(shiftId) : null,
@@ -114,6 +123,7 @@ export default function ManageDriversPage() {
       });
       setCreated(true);
       setName("");
+      setExternalId("");
       setDlNumber("");
       setAssetId("");
       setWardId("");
@@ -251,6 +261,15 @@ export default function ManageDriversPage() {
               <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
             </div>
             <div>
+              <label className={labelClass}>Driver ID</label>
+              <input
+                value={externalId}
+                onChange={(e) => setExternalId(e.target.value)}
+                placeholder="e.g. D1"
+                className={inputClass}
+              />
+            </div>
+            <div>
               <label className={labelClass}>DL Number</label>
               <input value={dlNumber} onChange={(e) => setDlNumber(e.target.value)} className={inputClass} />
             </div>
@@ -260,7 +279,7 @@ export default function ManageDriversPage() {
                 <option value="">None</option>
                 {assets.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.label} {a.vehicleNumber ? `(${a.vehicleNumber})` : ""}
+                    {a.label} ({ASSET_TYPE_LABELS[a.assetType]}{a.vehicleNumber ? ` - ${a.vehicleNumber}` : ""})
                   </option>
                 ))}
               </select>
@@ -374,6 +393,7 @@ export default function ManageDriversPage() {
                 <thead className="sticky top-0 bg-slate-50">
                   <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2 font-medium">Name</th>
+                    <th className="px-3 py-2 font-medium">Driver ID</th>
                     <th className="px-3 py-2 font-medium">Vehicle</th>
                     <th className="px-3 py-2 font-medium">Ward</th>
                     <th className="px-3 py-2 font-medium">Shift</th>
@@ -385,7 +405,8 @@ export default function ManageDriversPage() {
                   {drivers.map((d) => (
                     <tr key={d.id} className="border-b border-slate-100 last:border-0">
                       <td className="px-3 py-2">{d.name}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{assetLabel(d.assetId)}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{d.externalId ?? "-"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{assetDisplay(d.assetId)}</td>
                       <td className="px-3 py-2">{wardName(d.wardId)}</td>
                       <td className="px-3 py-2">{shiftName(d.shiftId)}</td>
                       <td className="px-3 py-2">
@@ -502,7 +523,7 @@ export default function ManageDriversPage() {
                   <option value="">None</option>
                   {assets.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.label} {a.vehicleNumber ? `(${a.vehicleNumber})` : ""}
+                      {a.label} ({ASSET_TYPE_LABELS[a.assetType]}{a.vehicleNumber ? ` - ${a.vehicleNumber}` : ""})
                     </option>
                   ))}
                 </select>

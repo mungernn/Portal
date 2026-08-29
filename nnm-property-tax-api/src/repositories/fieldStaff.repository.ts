@@ -50,6 +50,30 @@ export const fieldStaffRepository = {
     return rows[0] ?? null;
   },
 
+  /**
+   * Suspension is deliberately separate from active/inactive -
+   * deactivation means someone has left; a suspension is temporary/
+   * disciplinary, keeps them visible on the roster so it can be
+   * lifted later, and records why. A suspended worker cannot have
+   * attendance marked while suspended - enforced in
+   * fieldStaffAttendance.service.ts, not here.
+   */
+  async suspend(id: number, reason: string): Promise<FieldStaffRow | null> {
+    const { rows } = await pool.query<FieldStaffRow>(
+      `UPDATE field_staff SET suspended = TRUE, suspended_reason = $2, suspended_at = now() WHERE id = $1 RETURNING *`,
+      [id, reason],
+    );
+    return rows[0] ?? null;
+  },
+
+  async unsuspend(id: number): Promise<FieldStaffRow | null> {
+    const { rows } = await pool.query<FieldStaffRow>(
+      `UPDATE field_staff SET suspended = FALSE, suspended_reason = NULL, suspended_at = NULL WHERE id = $1 RETURNING *`,
+      [id],
+    );
+    return rows[0] ?? null;
+  },
+
   async update(
     id: number,
     input: { name?: string; wardId?: number; shiftId: number | null; active: boolean },

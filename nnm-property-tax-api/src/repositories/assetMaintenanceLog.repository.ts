@@ -8,6 +8,9 @@ export interface AssetMaintenanceLogRow {
   notes: string | null;
   logged_by: string;
   created_at: string;
+  amount_spent: string | null;
+  work_order_letter_no: string | null;
+  complaint_received_date: string | null;
 }
 
 export const assetMaintenanceLogRepository = {
@@ -17,10 +20,24 @@ export const assetMaintenanceLogRepository = {
     logDate: string;
     notes: string | null;
     loggedBy: string;
+    amountSpent: string | null;
+    workOrderLetterNo: string | null;
+    complaintReceivedDate: string | null;
   }): Promise<AssetMaintenanceLogRow> {
     const { rows } = await pool.query<AssetMaintenanceLogRow>(
-      `INSERT INTO asset_maintenance_log (asset_id, log_type, log_date, notes, logged_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [input.assetId, input.logType, input.logDate, input.notes, input.loggedBy],
+      `INSERT INTO asset_maintenance_log
+         (asset_id, log_type, log_date, notes, logged_by, amount_spent, work_order_letter_no, complaint_received_date)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        input.assetId,
+        input.logType,
+        input.logDate,
+        input.notes,
+        input.loggedBy,
+        input.amountSpent,
+        input.workOrderLetterNo,
+        input.complaintReceivedDate,
+      ],
     );
     return rows[0]!;
   },

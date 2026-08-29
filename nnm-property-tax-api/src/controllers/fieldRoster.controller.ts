@@ -31,6 +31,9 @@ export const listAllStaffHandler = asyncHandler(async (_req: Request, res: Respo
       shiftId: s.shift_id,
       active: s.active,
       roleIds: rolesByStaff.get(s.id) ?? [],
+      suspended: s.suspended,
+      suspendedReason: s.suspended_reason,
+      suspendedAt: s.suspended_at,
     })),
   });
 });
@@ -97,6 +100,60 @@ export const setStaffActiveHandler = asyncHandler(async (req: Request, res: Resp
   if (!updated) throw ApiError.notFound("Staff member not found");
   res.status(200).json({
     staff: { id: updated.id, name: updated.name, externalId: updated.external_id, wardId: updated.ward_id, shiftId: updated.shift_id, active: updated.active },
+  });
+});
+
+const suspendStaffSchema = z.object({ reason: z.string().trim().min(1, "A reason is required to suspend a worker.").max(2000) });
+
+/**
+ * PATCH /api/v1/attendance/staff/:id/suspend - attendance_admin only.
+ * Distinct from active/inactive - suspension is temporary/disciplinary
+ * and always requires a reason, unlike deactivation (which implies
+ * someone left). A suspended worker cannot have attendance marked
+ * while suspended - enforced in fieldStaffAttendance.service.ts.
+ */
+export const suspendStaffHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = staffIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid staff id");
+  const bodyParsed = suspendStaffSchema.safeParse(req.body);
+  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
+
+  const updated = await fieldStaffRepository.suspend(paramsParsed.data.id, bodyParsed.data.reason);
+  if (!updated) throw ApiError.notFound("Staff member not found");
+  res.status(200).json({
+    staff: {
+      id: updated.id,
+      name: updated.name,
+      externalId: updated.external_id,
+      wardId: updated.ward_id,
+      shiftId: updated.shift_id,
+      active: updated.active,
+      suspended: updated.suspended,
+      suspendedReason: updated.suspended_reason,
+      suspendedAt: updated.suspended_at,
+    },
+  });
+});
+
+/** PATCH /api/v1/attendance/staff/:id/unsuspend - attendance_admin only. */
+export const unsuspendStaffHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = staffIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid staff id");
+
+  const updated = await fieldStaffRepository.unsuspend(paramsParsed.data.id);
+  if (!updated) throw ApiError.notFound("Staff member not found");
+  res.status(200).json({
+    staff: {
+      id: updated.id,
+      name: updated.name,
+      externalId: updated.external_id,
+      wardId: updated.ward_id,
+      shiftId: updated.shift_id,
+      active: updated.active,
+      suspended: updated.suspended,
+      suspendedReason: updated.suspended_reason,
+      suspendedAt: updated.suspended_at,
+    },
   });
 });
 

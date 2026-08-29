@@ -20,8 +20,10 @@ export const assetRepository = {
     return rows[0] ?? null;
   },
 
-  async listAll(): Promise<AssetRow[]> {
-    const { rows } = await pool.query<AssetRow>(`SELECT * FROM assets ORDER BY label ASC`);
+  /** includeArchived=false (default) hides active=false assets - archived is the everyday view; the toggle to see archived ones is explicit. */
+  async listAll(includeArchived = false): Promise<AssetRow[]> {
+    const where = includeArchived ? "" : "WHERE active = TRUE";
+    const { rows } = await pool.query<AssetRow>(`SELECT * FROM assets ${where} ORDER BY label ASC`);
     return rows;
   },
 

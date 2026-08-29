@@ -9,8 +9,9 @@ const ASSET_TYPES = ["vehicle", "tricycle", "hand_cart"] as const;
 const ASSET_STATUSES = ["working", "under_repair", "not_working"] as const;
 const LOG_TYPES = ["service", "repair", "status_update", "note"] as const;
 
-export const listAllAssetsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const assets = await assetRepository.listAll();
+export const listAllAssetsHandler = asyncHandler(async (req: Request, res: Response) => {
+  const includeArchived = req.query.includeArchived === "true";
+  const assets = await assetRepository.listAll(includeArchived);
   const assetIds = assets.map((a) => a.id);
   const [wardsByAsset, lastServiced, lastRepaired] = await Promise.all([
     assetRepository.listWardIdsForAssetMany(assetIds),
@@ -118,6 +119,9 @@ const logMaintenanceSchema = z.object({
   logType: z.enum(LOG_TYPES),
   logDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "logDate must be YYYY-MM-DD"),
   notes: z.string().trim().nullish(),
+  amountSpent: z.coerce.number().nonnegative().nullish(),
+  workOrderLetterNo: z.string().trim().max(64).nullish(),
+  complaintReceivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "complaintReceivedDate must be YYYY-MM-DD").nullish(),
   updateStatus: z
     .object({
       currentStatus: z.enum(ASSET_STATUSES),
@@ -144,6 +148,9 @@ export const logAssetMaintenanceHandler = asyncHandler(async (req: Request, res:
     logDate: bodyParsed.data.logDate,
     notes: bodyParsed.data.notes ?? null,
     loggedBy: user.username,
+    amountSpent: bodyParsed.data.amountSpent != null ? String(bodyParsed.data.amountSpent) : null,
+    workOrderLetterNo: bodyParsed.data.workOrderLetterNo ?? null,
+    complaintReceivedDate: bodyParsed.data.complaintReceivedDate ?? null,
   });
 
   let updatedAsset = asset;
@@ -159,7 +166,16 @@ export const logAssetMaintenanceHandler = asyncHandler(async (req: Request, res:
   }
 
   res.status(200).json({
-    logEntry: { id: entry.id, logType: entry.log_type, logDate: entry.log_date, notes: entry.notes, loggedBy: entry.logged_by },
+    logEntry: {
+      id: entry.id,
+      logType: entry.log_type,
+      logDate: entry.log_date,
+      notes: entry.notes,
+      loggedBy: entry.logged_by,
+      amountSpent: entry.amount_spent,
+      workOrderLetterNo: entry.work_order_letter_no,
+      complaintReceivedDate: entry.complaint_received_date,
+    },
     asset: { id: updatedAsset.id, currentStatus: updatedAsset.current_status, notWorkingSince: updatedAsset.not_working_since },
   });
 });
