@@ -12,10 +12,13 @@ import {
   setFieldStaffActive,
   transferFieldStaff,
   uploadFieldStaffRosterCsv,
+  fetchStaffJobRoles,
+  setStaffJobRoles,
   type AttendanceWard,
   type AttendanceShift,
   type FieldStaffSummary,
   type RosterSyncResult,
+  type StaffJobRoleSummary,
 } from "@/lib/attendance-api";
 
 const inputClass =
@@ -36,9 +39,12 @@ export default function ManageStaffPage() {
   const [name, setName] = useState("");
   const [wardId, setWardId] = useState("");
   const [shiftId, setShiftId] = useState("");
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [created, setCreated] = useState(false);
+
+  const [jobRoles, setJobRoles] = useState<StaffJobRoleSummary[]>([]);
 
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<RosterSyncResult | null>(null);
@@ -51,8 +57,15 @@ export default function ManageStaffPage() {
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
 
+  const [editingRolesId, setEditingRolesId] = useState<number | null>(null);
+  const [editingRoleIds, setEditingRoleIds] = useState<number[]>([]);
+  const [rolesSubmitting, setRolesSubmitting] = useState(false);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
   const shiftName = (id: number | null) => (id ? shifts.find((s) => s.id === id)?.shiftName : null) ?? "-";
+  const roleNames = (ids: number[]) =>
+    ids.map((id) => jobRoles.find((r) => r.id === id)?.roleName).filter(Boolean).join(", ") || "-";
 
   async function loadStaff() {
     try {
@@ -70,6 +83,9 @@ export default function ManageStaffPage() {
     fetchAttendanceShifts()
       .then(setShifts)
       .catch(() => setShifts([]));
+    fetchStaffJobRoles()
+      .then(setJobRoles)
+      .catch(() => setJobRoles([]));
     loadStaff();
   }, [user]);
 
@@ -83,17 +99,22 @@ export default function ManageStaffPage() {
     }
     setCreating(true);
     try {
-      await createFieldStaff({ name, wardId: Number(wardId), shiftId: shiftId ? Number(shiftId) : null });
+      await createFieldStaff({ name, wardId: Number(wardId), shiftId: shiftId ? Number(shiftId) : null, roleIds: selectedRoleIds });
       setCreated(true);
       setName("");
       setWardId("");
       setShiftId("");
+      setSelectedRoleIds([]);
       await loadStaff();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Could not add staff member.");
     } finally {
       setCreating(false);
     }
+  }
+
+  function toggleCreateRole(id: number) {
+    setSelectedRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
   }
 
   async function handleToggleActive(id: number, active: boolean) {
@@ -130,6 +151,32 @@ export default function ManageStaffPage() {
       setTransferError(err instanceof Error ? err.message : "Could not transfer staff member.");
     } finally {
       setTransferSubmitting(false);
+    }
+  }
+
+  function openRolesEdit(s: FieldStaffSummary) {
+    setEditingRolesId(s.id);
+    setEditingRoleIds(s.roleIds);
+    setRolesError(null);
+  }
+
+  function toggleEditingRole(id: number) {
+    setEditingRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
+  }
+
+  async function handleRolesSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editingRolesId === null) return;
+    setRolesError(null);
+    setRolesSubmitting(true);
+    try {
+      await setStaffJobRoles(editingRolesId, editingRoleIds);
+      setEditingRolesId(null);
+      await loadStaff();
+    } catch (err) {
+      setRolesError(err instanceof Error ? err.message : "Could not update roles.");
+    } finally {
+      setRolesSubmitting(false);
     }
   }
 
@@ -220,6 +267,17 @@ export default function ManageStaffPage() {
               </select>
             </div>
             <div className="sm:col-span-3">
+              <label className={labelClass}>Job Role(s) - a worker can hold more than one</label>
+              <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 p-3">
+                {jobRoles.map((r) => (
+                  <label key={r.id} className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs">
+                    <input type="checkbox" checked={selectedRoleIds.includes(r.id)} onChange={() => toggleCreateRole(r.id)} />
+                    {r.roleName}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="sm:col-span-3">
               <button
                 type="submit"
                 disabled={creating}
@@ -306,6 +364,7 @@ export default function ManageStaffPage() {
                     <th className="px-3 py-2 font-medium">Name</th>
                     <th className="px-3 py-2 font-medium">Ward</th>
                     <th className="px-3 py-2 font-medium">Shift</th>
+                    <th className="px-3 py-2 font-medium">Roles</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium"></th>
                   </tr>
@@ -316,6 +375,7 @@ export default function ManageStaffPage() {
                       <td className="px-3 py-2">{s.name}</td>
                       <td className="px-3 py-2">{wardName(s.wardId)}</td>
                       <td className="px-3 py-2">{shiftName(s.shiftId)}</td>
+                      <td className="max-w-[160px] px-3 py-2 text-xs text-slate-500">{roleNames(s.roleIds)}</td>
                       <td className="px-3 py-2">
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${s.active ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-500"}`}
@@ -329,9 +389,14 @@ export default function ManageStaffPage() {
                             Transfer
                           </button>
                           {isAdmin && (
-                            <button onClick={() => handleToggleActive(s.id, !s.active)} className="text-xs font-medium text-slate-500 hover:underline">
-                              {s.active ? "Deactivate" : "Activate"}
-                            </button>
+                            <>
+                              <button onClick={() => openRolesEdit(s)} className="text-xs font-medium text-nnm-blue hover:underline">
+                                Roles
+                              </button>
+                              <button onClick={() => handleToggleActive(s.id, !s.active)} className="text-xs font-medium text-slate-500 hover:underline">
+                                {s.active ? "Deactivate" : "Activate"}
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -396,6 +461,48 @@ export default function ManageStaffPage() {
                   className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
                 >
                   {transferSubmitting ? "Transferring..." : "Confirm Transfer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {editingRolesId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-lg">
+            <h2 className="mb-4 text-sm font-semibold text-slate-800">
+              Job Role(s) for {staff?.find((s) => s.id === editingRolesId)?.name}
+            </h2>
+            {rolesError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {rolesError}
+              </div>
+            )}
+            <form onSubmit={handleRolesSubmit} className="space-y-4">
+              <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 p-3">
+                {jobRoles.map((r) => (
+                  <label key={r.id} className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs">
+                    <input type="checkbox" checked={editingRoleIds.includes(r.id)} onChange={() => toggleEditingRole(r.id)} />
+                    {r.roleName}
+                  </label>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingRolesId(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={rolesSubmitting}
+                  className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                >
+                  {rolesSubmitting ? "Saving..." : "Save Roles"}
                 </button>
               </div>
             </form>

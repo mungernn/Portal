@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, LogIn, LogOut, UserX, Users } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, LogOut, UserX, Truck } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
-import { fetchWardDriversToday, markDriverIn, markDriverAbsent, markDriverOut, type WardDriverToday } from "@/lib/attendance-api";
+import { fetchWardAssistantsToday, markAssistantIn, markAssistantAbsent, markAssistantOut, type WardAssistantToday } from "@/lib/attendance-api";
 
 function statusBadge(status: string | null) {
   if (!status) return null;
@@ -25,35 +25,35 @@ function statusBadge(status: string | null) {
   );
 }
 
-export default function DriverSupervisorAttendancePage() {
+export default function DriverSupervisorAssistantAttendancePage() {
   const user = useAttendanceGuard(["driver_supervisor"]);
-  const [drivers, setDrivers] = useState<WardDriverToday[] | null>(null);
+  const [assistants, setAssistants] = useState<WardAssistantToday[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
 
-  async function loadDrivers() {
+  async function loadAssistants() {
     if (!user?.wardId) return;
     try {
-      const list = await fetchWardDriversToday(user.wardId);
-      setDrivers(list);
+      const list = await fetchWardAssistantsToday(user.wardId);
+      setAssistants(list);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load the driver list.");
+      setError(err instanceof Error ? err.message : "Could not load the assistant list.");
     }
   }
 
   useEffect(() => {
     if (!user) return;
-    loadDrivers();
+    loadAssistants();
     // user is stable after the guard resolves - intentionally not re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  async function handleMarkIn(driverId: number) {
-    setActingId(driverId);
+  async function handleMarkIn(assistantId: number) {
+    setActingId(assistantId);
     setError(null);
     try {
-      await markDriverIn(driverId);
-      await loadDrivers();
+      await markAssistantIn(assistantId);
+      await loadAssistants();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not mark in-time.");
     } finally {
@@ -61,12 +61,12 @@ export default function DriverSupervisorAttendancePage() {
     }
   }
 
-  async function handleMarkAbsent(driverId: number, informed: boolean) {
-    setActingId(driverId);
+  async function handleMarkAbsent(assistantId: number, informed: boolean) {
+    setActingId(assistantId);
     setError(null);
     try {
-      await markDriverAbsent(driverId, informed);
-      await loadDrivers();
+      await markAssistantAbsent(assistantId, informed);
+      await loadAssistants();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not mark absence.");
     } finally {
@@ -74,12 +74,12 @@ export default function DriverSupervisorAttendancePage() {
     }
   }
 
-  async function handleMarkOut(driverId: number) {
-    setActingId(driverId);
+  async function handleMarkOut(assistantId: number) {
+    setActingId(assistantId);
     setError(null);
     try {
-      await markDriverOut(driverId);
-      await loadDrivers();
+      await markAssistantOut(assistantId);
+      await loadAssistants();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not mark out-time.");
     } finally {
@@ -97,13 +97,13 @@ export default function DriverSupervisorAttendancePage() {
 
       <main className="mx-auto max-w-3xl px-6 py-10">
         <div className="mb-1 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-900">Today&apos;s Driver Attendance - {user.wardName}</h1>
-          <Link href="/attendance/assistants" className="inline-flex items-center gap-1.5 text-sm font-medium text-nnm-blue hover:underline">
-            <Users className="h-4 w-4" />
-            Assistant Attendance
+          <h1 className="text-2xl font-semibold text-slate-900">Today&apos;s Assistant Attendance - {user.wardName}</h1>
+          <Link href="/attendance/drivers" className="inline-flex items-center gap-1.5 text-sm font-medium text-nnm-blue hover:underline">
+            <Truck className="h-4 w-4" />
+            Driver Attendance
           </Link>
         </div>
-        <p className="mb-6 text-sm text-slate-500">Mark each driver in as they arrive, or mark them absent.</p>
+        <p className="mb-6 text-sm text-slate-500">Mark each assistant in as they arrive, or mark them absent.</p>
 
         {error && (
           <div role="alert" className="mb-5 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -112,53 +112,51 @@ export default function DriverSupervisorAttendancePage() {
           </div>
         )}
 
-        {!drivers ? (
+        {!assistants ? (
           <div className="flex items-center gap-2 text-sm text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading drivers...
+            Loading assistants...
           </div>
-        ) : drivers.length === 0 ? (
-          <p className="text-sm text-slate-400">No drivers on file for your ward yet.</p>
+        ) : assistants.length === 0 ? (
+          <p className="text-sm text-slate-400">No assistants on file for your ward yet.</p>
         ) : (
           <div className="space-y-3">
-            {drivers.map((d) => (
-              <div key={d.driverId} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
+            {assistants.map((a) => (
+              <div key={a.assistantId} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-900">{d.name}</span>
-                    {statusBadge(d.status)}
+                    <span className="font-semibold text-slate-900">{a.name}</span>
+                    {statusBadge(a.status)}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
-                    {d.vehicleNumber ?? "No vehicle on file"}
-                    {" - "}
-                    {d.shiftName ?? "No shift assigned"}
-                    {d.inTime && ` - In: ${d.inTime}`}
-                    {d.outTime && ` - Out: ${d.outTime}`}
+                    {a.shiftName ?? "No shift assigned"}
+                    {a.inTime && ` - In: ${a.inTime}`}
+                    {a.outTime && ` - Out: ${a.outTime}`}
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  {!d.status && (
+                  {!a.status && (
                     <>
                       <button
-                        onClick={() => handleMarkIn(d.driverId)}
-                        disabled={actingId === d.driverId}
+                        onClick={() => handleMarkIn(a.assistantId)}
+                        disabled={actingId === a.assistantId}
                         className="inline-flex items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
                       >
-                        {actingId === d.driverId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
+                        {actingId === a.assistantId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogIn className="h-3.5 w-3.5" />}
                         Mark In
                       </button>
                       <button
-                        onClick={() => handleMarkAbsent(d.driverId, true)}
-                        disabled={actingId === d.driverId}
+                        onClick={() => handleMarkAbsent(a.assistantId, true)}
+                        disabled={actingId === a.assistantId}
                         className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
                       >
                         <UserX className="h-3.5 w-3.5" />
                         Absent (Informed)
                       </button>
                       <button
-                        onClick={() => handleMarkAbsent(d.driverId, false)}
-                        disabled={actingId === d.driverId}
+                        onClick={() => handleMarkAbsent(a.assistantId, false)}
+                        disabled={actingId === a.assistantId}
                         className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-60"
                       >
                         <UserX className="h-3.5 w-3.5" />
@@ -166,13 +164,13 @@ export default function DriverSupervisorAttendancePage() {
                       </button>
                     </>
                   )}
-                  {d.status && (d.status === "present" || d.status === "half_day") && !d.outTime && (
+                  {a.status && (a.status === "present" || a.status === "half_day") && !a.outTime && (
                     <button
-                      onClick={() => handleMarkOut(d.driverId)}
-                      disabled={actingId === d.driverId}
+                      onClick={() => handleMarkOut(a.assistantId)}
+                      disabled={actingId === a.assistantId}
                       className="inline-flex items-center gap-1.5 rounded-md border border-nnm-blue px-3 py-1.5 text-xs font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
                     >
-                      {actingId === d.driverId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
+                      {actingId === a.assistantId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LogOut className="h-3.5 w-3.5" />}
                       Mark Out
                     </button>
                   )}

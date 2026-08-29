@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users, UserCog, Truck } from "lucide-react";
+import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users, UserCog, Truck, Wrench } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { fetchAttendanceDashboardSummary, type AttendanceDashboardSummary } from "@/lib/attendance-api";
@@ -17,12 +17,25 @@ function StatBlock({ label, value, className }: { label: string; value: number; 
 }
 
 export default function AttendanceDashboardPage() {
-  const user = useAttendanceGuard(["sanitation_officer", "sanitation_prabhari", "attendance_admin"]);
+  const user = useAttendanceGuard([
+    "sanitation_officer",
+    "sanitation_prabhari",
+    "attendance_admin",
+    "junior_engineer",
+    "assistant_engineer_mechanical",
+    "maintenance_nodal_clerk",
+  ]);
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    // The 3 fleet oversight roles don't need staff/driver/shop stats -
+    // they only care about the Fleet & Asset Registry card below, and
+    // the backend doesn't grant them this endpoint (it's unrelated to
+    // their job), so skip the fetch entirely rather than showing a
+    // confusing "could not load" error for something they don't need.
+    if (!["sanitation_officer", "sanitation_prabhari", "attendance_admin"].includes(user.role)) return;
     fetchAttendanceDashboardSummary()
       .then(setSummary)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load the dashboard."));
@@ -47,6 +60,7 @@ export default function AttendanceDashboardPage() {
           </div>
         )}
 
+        {["sanitation_officer", "sanitation_prabhari", "attendance_admin"].includes(user.role) && (
         <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">
           <h2 className="mb-4 text-base font-semibold text-slate-900">Today&apos;s Overview</h2>
           {!summary ? (
@@ -68,6 +82,7 @@ export default function AttendanceDashboardPage() {
             </div>
           )}
         </section>
+        )}
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Link href="/attendance/reports" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
@@ -114,7 +129,7 @@ export default function AttendanceDashboardPage() {
             </Link>
           )}
 
-          {user.role === "attendance_admin" && (
+          {(user.role === "attendance_admin" || user.role === "sanitation_officer") && (
             <Link href="/attendance/manage-staff" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
               <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
                 <UserCog className="h-6 w-6" strokeWidth={1.8} />
@@ -124,13 +139,40 @@ export default function AttendanceDashboardPage() {
             </Link>
           )}
 
-          {user.role === "attendance_admin" && (
+          {(user.role === "attendance_admin" || user.role === "sanitation_officer") && (
             <Link href="/attendance/manage-drivers" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
               <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
                 <Truck className="h-6 w-6" strokeWidth={1.8} />
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">Manage Drivers</h3>
               <p className="text-sm text-slate-500">Add drivers one at a time, or upload a full list.</p>
+            </Link>
+          )}
+
+          {(user.role === "attendance_admin" || user.role === "sanitation_officer") && (
+            <Link href="/attendance/manage-assistants" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Users className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Manage Assistants</h3>
+              <p className="text-sm text-slate-500">Each assistant is tied to a driver - supervisor inherited automatically.</p>
+            </Link>
+          )}
+
+          {[
+            "attendance_admin",
+            "junior_engineer",
+            "assistant_engineer_mechanical",
+            "maintenance_nodal_clerk",
+            "sanitation_officer",
+            "sanitation_prabhari",
+          ].includes(user.role) && (
+            <Link href="/attendance/manage-assets" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Wrench className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Fleet & Asset Registry</h3>
+              <p className="text-sm text-slate-500">Vehicles, tricycles, hand carts - status and maintenance history.</p>
             </Link>
           )}
         </div>

@@ -169,6 +169,64 @@ export async function markDriverOut(driverId: number): Promise<{ outTime: string
 }
 
 // ---------------------------------------------------------------------------
+// Assistant daily attendance - mirrors the driver attendance functions above exactly.
+// ---------------------------------------------------------------------------
+
+export interface WardAssistantToday {
+  assistantId: number;
+  name: string;
+  driverId: number;
+  shiftName: string | null;
+  inTime: string | null;
+  outTime: string | null;
+  status: string | null;
+}
+
+export async function fetchWardAssistantsToday(wardId: number): Promise<WardAssistantToday[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/ward/${wardId}/today`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load today's assistant list.");
+  const data: { assistants: WardAssistantToday[] } = await res.json();
+  return data.assistants;
+}
+
+export async function markAssistantIn(assistantId: number): Promise<{ inTime: string; status: string }> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${assistantId}/mark-in`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not mark in-time.");
+  }
+  return res.json();
+}
+
+export async function markAssistantAbsent(assistantId: number, informed: boolean): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${assistantId}/mark-absent`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ informed }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not mark absence.");
+  }
+  return res.json();
+}
+
+export async function markAssistantOut(assistantId: number): Promise<{ outTime: string }> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assistants/${assistantId}/mark-out`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not mark out-time.");
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
 // Daily group photo
 // ---------------------------------------------------------------------------
 
