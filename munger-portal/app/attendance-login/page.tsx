@@ -3,8 +3,8 @@ import { PortalBrandingHeader } from "@/components/portal-branding-header";
 import { AttendanceLoginClient } from "@/components/attendance/attendance-login-client";
 
 export const metadata: Metadata = {
-  title: "Field Staff Attendance Login - Munger Nagar Nigam",
-  description: "Sign in to mark or review field staff attendance.",
+  title: "Asset Management Login - Munger Nagar Nigam",
+  description: "Sign in to manage field staff attendance, fleet, street lights, or submersible pyau.",
 };
 
 export default function AttendanceLoginPage() {

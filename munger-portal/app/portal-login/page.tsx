@@ -36,8 +36,8 @@ export default function PortalLoginPage() {
             icon={Users}
           />
           <PortalRoleCard
-            title="Field Staff Attendance"
-            description="Jamadar, Driver Supervisor, Sanitation Officer/Prabhari, or Attendance Admin."
+            title="Asset Management"
+            description="Field staff attendance, fleet, street lights, submersible pyau, and related roles."
             href="/attendance-login"
             icon={ClipboardCheck}
           />

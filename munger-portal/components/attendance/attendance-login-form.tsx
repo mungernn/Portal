@@ -47,8 +47,8 @@ export function AttendanceLoginForm({
       onSubmit={handleSubmit}
       className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-7 shadow-sm sm:p-8"
     >
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Field Staff Attendance</h1>
-      <p className="mb-6 text-sm text-slate-500">Jamadar, Driver Supervisor, Sanitation Officer/Prabhari, or Admin.</p>
+      <h1 className="mb-1 text-xl font-semibold text-slate-900">Asset Management Login</h1>
+      <p className="mb-6 text-sm text-slate-500">Field staff attendance, fleet, street lights, submersible pyau, and related roles.</p>
 
       {error && (
         <div role="alert" className="mb-5 rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
