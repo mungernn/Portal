@@ -315,12 +315,29 @@ export default function ManageLightsPage() {
               <Upload className="h-4 w-4" />
               Bulk Upload (CSV)
             </h2>
-            <p className="mb-4 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-slate-500">
               Upload the ward-wise field inventory CSV (streetlights or high-mast). Wards and installation agencies not already on
               file are created automatically. Lights whose functional status is marked as not working in the file are logged with
               an open fault immediately. This adds to the registry - it does not replace or deactivate existing entries, and rows
               with a serial number that already exists are skipped.
             </p>
+            <details className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <summary className="cursor-pointer font-semibold text-slate-700">Expected CSV columns (matched by header name)</summary>
+              <ul className="mt-2 list-inside list-disc space-y-0.5">
+                <li>Ward no</li>
+                <li>Lane/ locality</li>
+                <li>Street light serial number - must be unique</li>
+                <li>functional status - &quot;Working&quot; or &quot;Not Working&quot;</li>
+                <li>type( high mast/ street light)</li>
+                <li>Established by ( EESL / Nagar nigam) - the installation agency</li>
+                <li>Switch status( working/ not working/automatic/joint )</li>
+                <li>Latitude / Longitude (or a single combined GPS/Location column with &quot;lat, lng&quot;)</li>
+              </ul>
+              <p className="mt-2 text-slate-500">
+                Header names are matched flexibly (a few common spelling/spacing variants are recognized), not by exact position.
+                GPS coordinates are required for every row - a row without valid coordinates is skipped.
+              </p>
+            </details>
             <input
               type="file"
               accept=".csv"

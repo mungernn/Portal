@@ -331,10 +331,30 @@ export default function ManagePyausPage() {
               <Upload className="h-4 w-4" />
               Bulk Upload (CSV)
             </h2>
-            <p className="mb-4 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-slate-500">
               Upload the ward-wise field inventory CSV. Wards not already on file are created automatically, and serial numbers are
               generated automatically per ward. This adds to the registry - it does not replace or deactivate existing entries.
             </p>
+            <details className="mb-4 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+              <summary className="cursor-pointer font-semibold text-slate-700">Expected CSV columns (in this exact order)</summary>
+              <ol className="mt-2 list-inside list-decimal space-y-0.5">
+                <li>Ward No</li>
+                <li>(Number of installed pyau - ward-level summary, ignored per-row)</li>
+                <li>Address/Location of Water Kiosk</li>
+                <li>Has water tank - a count (0, 1, 2, 3...)</li>
+                <li>Pyau status (Working)</li>
+                <li>Pyau status (Not working) - free-text reason if not working</li>
+                <li>Type of stand - &quot;PCC Structure&quot;, &quot;Iron stand&quot;, or &quot;Nothing&quot;</li>
+                <li>Tank Stand of Water Kiosk (Made of Concrete)</li>
+                <li>Number of Water Kiosks Without Stand (not imported)</li>
+                <li>How many houses get water via line or just stand</li>
+              </ol>
+              <p className="mt-2 text-slate-500">
+                Columns are matched by position, not header name, since the source file&apos;s headers mix Hindi and English text.
+                Scheme name, pump details, boring depth, casing, and installed date aren&apos;t in this file - add those per-pyau
+                afterward using &quot;Add One Pyau&quot; above.
+              </p>
+            </details>
             <input
               type="file"
               accept=".csv"
@@ -444,7 +464,10 @@ export default function ManagePyausPage() {
                     <th className="px-3 py-2 font-medium">Serial</th>
                     <th className="px-3 py-2 font-medium">Ward</th>
                     <th className="px-3 py-2 font-medium">Location</th>
+                    <th className="px-3 py-2 font-medium">Scheme</th>
                     <th className="px-3 py-2 font-medium">Structure</th>
+                    <th className="px-3 py-2 font-medium">Tanks</th>
+                    <th className="px-3 py-2 font-medium">Houses Served</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium"></th>
                   </tr>
@@ -457,7 +480,12 @@ export default function ManagePyausPage() {
                       <td className="px-3 py-2 max-w-[16rem] truncate text-xs text-slate-500" title={p.locationAddress ?? ""}>
                         {p.locationAddress ?? "-"}
                       </td>
+                      <td className="px-3 py-2 max-w-[10rem] truncate text-xs text-slate-500" title={p.schemeName ?? ""}>
+                        {p.schemeName ?? "-"}
+                      </td>
                       <td className="px-3 py-2 text-xs">{p.structureType ? STRUCTURE_LABELS[p.structureType] : "-"}</td>
+                      <td className="px-3 py-2 text-xs">{p.overheadTankCount}</td>
+                      <td className="px-3 py-2 text-xs">{p.housesServed ?? "-"}</td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">
                           <span
