@@ -6,7 +6,17 @@ export type AttendanceRole =
   | "attendance_admin"
   | "junior_engineer"
   | "assistant_engineer_mechanical"
-  | "maintenance_nodal_clerk";
+  | "maintenance_nodal_clerk"
+  | "streetlight_contractor"
+  | "streetlight_je"
+  | "streetlight_ae"
+  | "streetlight_nodal_clerk"
+  | "city_manager"
+  | "deputy_municipal_commissioner"
+  | "municipal_commissioner"
+  | "pyau_je"
+  | "pyau_ae"
+  | "pyau_contractor";
 
 export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "jamadar",
@@ -17,6 +27,16 @@ export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "junior_engineer",
   "assistant_engineer_mechanical",
   "maintenance_nodal_clerk",
+  "streetlight_contractor",
+  "streetlight_je",
+  "streetlight_ae",
+  "streetlight_nodal_clerk",
+  "city_manager",
+  "deputy_municipal_commissioner",
+  "municipal_commissioner",
+  "pyau_je",
+  "pyau_ae",
+  "pyau_contractor",
 ];
 
 export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
@@ -28,9 +48,20 @@ export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
   junior_engineer: "Junior Engineer",
   assistant_engineer_mechanical: "Assistant Engineer (Mechanical)",
   maintenance_nodal_clerk: "Maintenance Nodal Clerk",
+  streetlight_contractor: "Maintenance Contractor (Street Light)",
+  streetlight_je: "Junior Engineer (Street Light)",
+  streetlight_ae: "Assistant Engineer (Street Light)",
+  streetlight_nodal_clerk: "Street Light Nodal Clerk",
+  city_manager: "City Manager",
+  deputy_municipal_commissioner: "Deputy Municipal Commissioner",
+  municipal_commissioner: "Municipal Commissioner",
+  pyau_je: "Junior Engineer (Pyau)",
+  pyau_ae: "Assistant Engineer (Pyau)",
+  pyau_contractor: "Maintenance Contractor (Pyau)",
 };
 
-/** Ward-scoped roles must have a ward_id; cross-ward roles never do. The 3 fleet roles are cross-ward - they oversee the whole vehicle/asset registry, not one ward's workers. */
+/** Ward-scoped roles must have a ward_id; cross-ward roles never do. The 3 fleet roles are cross-ward - they oversee the whole vehicle/asset registry, not one ward's workers.
+ * The street light roles are all cross-ward too, including streetlight_contractor - a contractor covers a SET of wards, tracked separately via contractor_wards, not the single ward_id used by jamadar/driver_supervisor. */
 export const WARD_SCOPED_ROLES: AttendanceRole[] = ["jamadar", "driver_supervisor"];
 export const CROSS_WARD_ROLES: AttendanceRole[] = [
   "sanitation_officer",
@@ -39,6 +70,16 @@ export const CROSS_WARD_ROLES: AttendanceRole[] = [
   "junior_engineer",
   "assistant_engineer_mechanical",
   "maintenance_nodal_clerk",
+  "streetlight_contractor",
+  "streetlight_je",
+  "streetlight_ae",
+  "streetlight_nodal_clerk",
+  "city_manager",
+  "deputy_municipal_commissioner",
+  "municipal_commissioner",
+  "pyau_je",
+  "pyau_ae",
+  "pyau_contractor",
 ];
 
 export interface AttendanceUserRow {

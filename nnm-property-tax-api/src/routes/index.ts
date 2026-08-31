@@ -13,6 +13,9 @@ import { getFormOptions } from "../controllers/formOptions.controller";
 import { dashboardSummaryRouter } from "./dashboardSummary.routes";
 import { attendanceRouter } from "./attendance.routes";
 import { taxCollectorRouter } from "./taxCollector.routes";
+import { streetlightRouter } from "./streetlight.routes";
+import { streetlightPublicRouter } from "./streetlightPublic.routes";
+import { pyauRouter } from "./pyau.routes";
 
 export const apiRouter = Router();
 
@@ -34,6 +37,18 @@ apiRouter.use("/tax-collectors", taxCollectorRouter);
 apiRouter.use("/dashboard-summary", dashboardSummaryRouter);
 // Fully separate module - its own auth, its own tables, nothing shared with the property tax / shop / trade license system above.
 apiRouter.use("/attendance", attendanceRouter);
+
+// Street light monitoring module - reuses the attendance_users login
+// system (new roles added there) for staff-facing endpoints, plus a
+// genuinely public, unauthenticated endpoint for citizen grievances.
+apiRouter.use("/streetlight", streetlightRouter);
+apiRouter.use("/streetlight-grievance", streetlightPublicRouter);
+
+// Submersible pyau maintenance module - purely internal, no public
+// channel, no repair deadline/SLA - just an issue-to-repair log with
+// its own dedicated JE/AE/contractor roles (kept separate from the
+// street light module's, per what was asked for).
+apiRouter.use("/pyau", pyauRouter);
 
 // /admin/auth (public login) MUST be mounted before /admin (which
 // requires an admin session for everything under it) - Express tries

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, PlusCircle, Wrench, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, PlusCircle, Wrench, BookOpen, X } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import {
@@ -11,9 +11,13 @@ import {
   setAssetActive,
   fetchAssetMaintenanceLog,
   logAssetMaintenance,
+  setAssetTrackingType,
+  fetchAssetLogbook,
+  logAssetReading,
   type AttendanceWard,
   type AssetSummary,
   type AssetMaintenanceLogEntry,
+  type AssetLogbookEntry,
 } from "@/lib/attendance-api";
 
 const inputClass =
@@ -46,6 +50,7 @@ export default function ManageAssetsPage() {
   const [label, setLabel] = useState("");
   const [vehicleNumber, setVehicleNumber] = useState("");
   const [chassisNumber, setChassisNumber] = useState("");
+  const [trackingType, setTrackingType] = useState<"" | "km" | "hours">("");
   const [selectedWardIds, setSelectedWardIds] = useState<number[]>([]);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -60,6 +65,17 @@ export default function ManageAssetsPage() {
   const [newStatus, setNewStatus] = useState<AssetSummary["currentStatus"]>("working");
   const [logSubmitting, setLogSubmitting] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
+
+  const [logbookAssetId, setLogbookAssetId] = useState<number | null>(null);
+  const [logbookData, setLogbookData] = useState<{ trackingType: "km" | "hours" | null; entries: AssetLogbookEntry[] } | null>(null);
+  const [logbookError, setLogbookError] = useState<string | null>(null);
+  const [readingDate, setReadingDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [readingValue, setReadingValue] = useState("");
+  const [readingNotes, setReadingNotes] = useState("");
+  const [readingSubmitting, setReadingSubmitting] = useState(false);
+  const [readingError, setReadingError] = useState<string | null>(null);
+  const [pendingTrackingType, setPendingTrackingType] = useState<"km" | "hours">("km");
+  const [settingTrackingType, setSettingTrackingType] = useState(false);
 
   const wardName = (id: number) => wards.find((w) => w.id === id)?.wardName ?? "-";
 
@@ -94,12 +110,14 @@ export default function ManageAssetsPage() {
         label,
         vehicleNumber: vehicleNumber || null,
         chassisNumber: chassisNumber || null,
+        trackingType: trackingType || null,
         wardIds: selectedWardIds,
       });
       setCreated(true);
       setLabel("");
       setVehicleNumber("");
       setChassisNumber("");
+      setTrackingType("");
       setSelectedWardIds([]);
       await loadAssets();
     } catch (err) {
@@ -153,6 +171,58 @@ export default function ManageAssetsPage() {
       setLogError(err instanceof Error ? err.message : "Could not log entry.");
     } finally {
       setLogSubmitting(false);
+    }
+  }
+
+  async function openLogbook(assetId: number) {
+    setLogbookAssetId(assetId);
+    setLogbookData(null);
+    setLogbookError(null);
+    setReadingValue("");
+    setReadingNotes("");
+    setReadingError(null);
+    setPendingTrackingType("km");
+    try {
+      setLogbookData(await fetchAssetLogbook(assetId));
+    } catch (err) {
+      setLogbookError(err instanceof Error ? err.message : "Could not load the logbook.");
+    }
+  }
+
+  async function handleSetTrackingType() {
+    if (logbookAssetId === null) return;
+    setSettingTrackingType(true);
+    setLogbookError(null);
+    try {
+      await setAssetTrackingType(logbookAssetId, pendingTrackingType);
+      setLogbookData(await fetchAssetLogbook(logbookAssetId));
+      await loadAssets();
+    } catch (err) {
+      setLogbookError(err instanceof Error ? err.message : "Could not set tracking type.");
+    } finally {
+      setSettingTrackingType(false);
+    }
+  }
+
+  async function handleReadingSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (logbookAssetId === null) return;
+    setReadingError(null);
+    if (!readingValue) {
+      setReadingError("Enter a reading.");
+      return;
+    }
+    setReadingSubmitting(true);
+    try {
+      await logAssetReading(logbookAssetId, { logDate: readingDate, reading: Number(readingValue), notes: readingNotes || null });
+      setReadingValue("");
+      setReadingNotes("");
+      setLogbookData(await fetchAssetLogbook(logbookAssetId));
+      await loadAssets();
+    } catch (err) {
+      setReadingError(err instanceof Error ? err.message : "Could not log the reading.");
+    } finally {
+      setReadingSubmitting(false);
     }
   }
 
@@ -219,6 +289,14 @@ export default function ManageAssetsPage() {
                   <label className={labelClass}>Chassis Number</label>
                   <input value={chassisNumber} onChange={(e) => setChassisNumber(e.target.value)} className={inputClass} />
                 </div>
+                <div>
+                  <label className={labelClass}>Logbook Tracking (optional)</label>
+                  <select value={trackingType} onChange={(e) => setTrackingType(e.target.value as "" | "km" | "hours")} className={inputClass}>
+                    <option value="">None</option>
+                    <option value="km">Kilometers (odometer)</option>
+                    <option value="hours">Hours (hour-meter)</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Wards this asset regularly serves</label>
@@ -261,6 +339,7 @@ export default function ManageAssetsPage() {
                     <th className="px-3 py-2 font-medium">Wards</th>
                     <th className="px-3 py-2 font-medium">Last Serviced</th>
                     <th className="px-3 py-2 font-medium">Last Repaired</th>
+                    <th className="px-3 py-2 font-medium">Latest Reading</th>
                     <th className="px-3 py-2 font-medium"></th>
                   </tr>
                 </thead>
@@ -278,8 +357,17 @@ export default function ManageAssetsPage() {
                       <td className="px-3 py-2 text-xs text-slate-500">{a.wardIds.map(wardName).join(", ") || "-"}</td>
                       <td className="px-3 py-2 text-xs">{a.lastServicedOn ? a.lastServicedOn.slice(0, 10) : "-"}</td>
                       <td className="px-3 py-2 text-xs">{a.lastRepairedOn ? a.lastRepairedOn.slice(0, 10) : "-"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {a.latestLogbookReading
+                          ? `${a.latestLogbookReading.reading} ${a.trackingType} (${a.latestLogbookReading.logDate.slice(0, 10)})`
+                          : "-"}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         <div className="flex justify-end gap-3">
+                          <button onClick={() => openLogbook(a.id)} className="inline-flex items-center gap-1 text-xs font-medium text-nnm-blue hover:underline">
+                            <BookOpen className="h-3 w-3" />
+                            Logbook
+                          </button>
                           <button onClick={() => openMaintenanceLog(a.id)} className="inline-flex items-center gap-1 text-xs font-medium text-nnm-blue hover:underline">
                             <Wrench className="h-3 w-3" />
                             Log
@@ -378,6 +466,124 @@ export default function ManageAssetsPage() {
                   {logSubmitting ? "Saving..." : "Add Log Entry"}
                 </button>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {logbookAssetId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">
+                Daily Logbook - {assets?.find((a) => a.id === logbookAssetId)?.label}
+              </h2>
+              <button onClick={() => setLogbookAssetId(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {logbookError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {logbookError}
+              </div>
+            )}
+
+            {!logbookData ? (
+              <div className="py-4 text-center text-sm text-slate-400">Loading...</div>
+            ) : !logbookData.trackingType ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+                <p className="mb-3 text-sm text-amber-800">
+                  No tracking type set for this asset yet - choose whether it&apos;s tracked by odometer distance or engine hours
+                  before logging daily readings.
+                </p>
+                <div className="flex items-center gap-3">
+                  <select value={pendingTrackingType} onChange={(e) => setPendingTrackingType(e.target.value as "km" | "hours")} className={inputClass}>
+                    <option value="km">Kilometers (odometer)</option>
+                    <option value="hours">Hours (hour-meter)</option>
+                  </select>
+                  <button
+                    onClick={handleSetTrackingType}
+                    disabled={settingTrackingType}
+                    className="whitespace-nowrap rounded-md bg-nnm-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                  >
+                    {settingTrackingType ? "Saving..." : "Set"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="mb-5 max-h-56 overflow-y-auto rounded-md border border-slate-200">
+                  {logbookData.entries.length === 0 ? (
+                    <div className="p-4 text-center text-sm text-slate-400">No readings recorded yet.</div>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-slate-50">
+                        <tr className="text-left uppercase tracking-wide text-slate-500">
+                          <th className="px-2.5 py-1.5 font-medium">Date</th>
+                          <th className="px-2.5 py-1.5 font-medium">Reading</th>
+                          <th className="px-2.5 py-1.5 font-medium">{logbookData.trackingType === "km" ? "Distance Covered" : "Hours Run"}</th>
+                          <th className="px-2.5 py-1.5 font-medium">By</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {logbookData.entries.map((e) => (
+                          <tr key={e.id} className="border-t border-slate-100">
+                            <td className="px-2.5 py-1.5 whitespace-nowrap">{e.logDate.slice(0, 10)}</td>
+                            <td className="px-2.5 py-1.5">
+                              {e.reading} {logbookData.trackingType}
+                            </td>
+                            <td className="px-2.5 py-1.5">{e.delta !== null ? `${e.delta} ${logbookData.trackingType}` : "-"}</td>
+                            <td className="px-2.5 py-1.5 text-slate-400">{e.recordedBy}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <form onSubmit={handleReadingSubmit} className="space-y-3 border-t border-slate-200 pt-4">
+                  <p className="text-xs font-medium text-slate-600">
+                    Add today&apos;s reading ({logbookData.trackingType === "km" ? "odometer, in km" : "hour-meter, in hours"})
+                  </p>
+                  {readingError && (
+                    <div role="alert" className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      {readingError}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelClass}>Date</label>
+                      <input required type="date" value={readingDate} onChange={(e) => setReadingDate(e.target.value)} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Reading ({logbookData.trackingType})</label>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={readingValue}
+                        onChange={(e) => setReadingValue(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Notes (optional)</label>
+                    <input value={readingNotes} onChange={(e) => setReadingNotes(e.target.value)} className={inputClass} />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={readingSubmitting}
+                    className="w-full rounded-md bg-nnm-blue py-2.5 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                  >
+                    {readingSubmitting ? "Saving..." : "Add Reading"}
+                  </button>
+                </form>
+              </>
             )}
           </div>
         </div>

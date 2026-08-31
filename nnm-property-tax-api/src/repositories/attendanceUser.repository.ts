@@ -20,6 +20,15 @@ export const attendanceUserRepository = {
     return rows;
   },
 
+  /** Every active login holding a given role - used to find who currently holds a singular oversight role (e.g. city_manager, deputy_municipal_commissioner) for penalty attribution. If more than one person holds the role, all of them are returned - callers decide how to handle that. */
+  async listByRole(role: AttendanceRole): Promise<AttendanceUserRow[]> {
+    const { rows } = await pool.query<AttendanceUserRow>(
+      `SELECT * FROM attendance_users WHERE role = $1 AND active = TRUE ORDER BY id ASC`,
+      [role],
+    );
+    return rows;
+  },
+
   async create(input: {
     username: string;
     passwordHash: string;

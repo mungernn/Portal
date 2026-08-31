@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, LogIn, LogOut, UserX, Users } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, LogOut, UserX, Users, BookOpen } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { fetchWardDriversToday, markDriverIn, markDriverAbsent, markDriverOut, type WardDriverToday } from "@/lib/attendance-api";
@@ -98,10 +98,16 @@ export default function DriverSupervisorAttendancePage() {
       <main className="mx-auto max-w-3xl px-6 py-10">
         <div className="mb-1 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-slate-900">Today&apos;s Driver Attendance - {user.wardName}</h1>
-          <Link href="/attendance/assistants" className="inline-flex items-center gap-1.5 text-sm font-medium text-nnm-blue hover:underline">
-            <Users className="h-4 w-4" />
-            Assistant Attendance
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/attendance/assistants" className="inline-flex items-center gap-1.5 text-sm font-medium text-nnm-blue hover:underline">
+              <Users className="h-4 w-4" />
+              Assistant Attendance
+            </Link>
+            <Link href="/attendance/manage-assets" className="inline-flex items-center gap-1.5 text-sm font-medium text-nnm-blue hover:underline">
+              <BookOpen className="h-4 w-4" />
+              Vehicle Logbook
+            </Link>
+          </div>
         </div>
         <p className="mb-6 text-sm text-slate-500">Mark each driver in as they arrive, or mark them absent.</p>
 

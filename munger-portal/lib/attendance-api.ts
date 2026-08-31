@@ -711,6 +711,8 @@ export interface AssetSummary {
   wardIds: number[];
   lastServicedOn: string | null;
   lastRepairedOn: string | null;
+  trackingType: "km" | "hours" | null;
+  latestLogbookReading: { logDate: string; reading: string } | null;
 }
 
 export async function fetchAllAssets(): Promise<AssetSummary[]> {
@@ -725,6 +727,7 @@ export async function createAsset(input: {
   label: string;
   vehicleNumber: string | null;
   chassisNumber: string | null;
+  trackingType?: "km" | "hours" | null;
   wardIds?: number[];
 }): Promise<AssetSummary> {
   const res = await fetch(`${API_BASE_URL}/attendance/assets`, {
@@ -797,6 +800,52 @@ export async function logAssetMaintenance(
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Could not log maintenance entry.");
   }
+}
+
+// ---------------------------------------------------------------------------
+// Asset tracking type + daily logbook
+// ---------------------------------------------------------------------------
+
+export async function setAssetTrackingType(assetId: number, trackingType: "km" | "hours" | null): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/tracking-type`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ trackingType }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not update tracking type.");
+  }
+}
+
+export interface AssetLogbookEntry {
+  id: number;
+  logDate: string;
+  reading: string;
+  delta: string | null;
+  recordedBy: string;
+  notes: string | null;
+}
+
+export async function fetchAssetLogbook(assetId: number): Promise<{ trackingType: "km" | "hours" | null; entries: AssetLogbookEntry[] }> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/logbook`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the logbook.");
+  return res.json();
+}
+
+/** driver_supervisor + attendance_admin - one entry per asset per day, the absolute odometer/hour-meter reading (not a delta). */
+export async function logAssetReading(assetId: number, input: { logDate: string; reading: number; notes: string | null }): Promise<AssetLogbookEntry> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/logbook`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not log the reading.");
+  }
+  const data: { entry: AssetLogbookEntry } = await res.json();
+  return data.entry;
 }
 
 // ---------------------------------------------------------------------------

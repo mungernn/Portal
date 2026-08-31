@@ -19,19 +19,16 @@
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { Pool } from "pg";
+import { WARD_SCOPED_ROLES, CROSS_WARD_ROLES } from "../src/types/attendance.types";
 
 const [username, password, displayName, role, wardIdArg] = process.argv.slice(2);
 
-const WARD_SCOPED_ROLES = ["jamadar", "driver_supervisor"];
-const CROSS_WARD_ROLES = [
-  "sanitation_officer",
-  "sanitation_prabhari",
-  "attendance_admin",
-  "junior_engineer",
-  "assistant_engineer_mechanical",
-  "maintenance_nodal_clerk",
-];
-const VALID_ROLES = [...WARD_SCOPED_ROLES, ...CROSS_WARD_ROLES];
+// Imported from the shared attendance.types.ts (the single source of
+// truth for valid roles) rather than a separate hardcoded list here -
+// a duplicated list silently goes stale every time a new role is
+// added elsewhere (this has happened twice already), since nothing
+// forces the two to be updated together.
+const VALID_ROLES: string[] = [...WARD_SCOPED_ROLES, ...CROSS_WARD_ROLES];
 
 async function main() {
   if (!username || !password || !displayName || !role) {
@@ -43,17 +40,19 @@ async function main() {
     console.error(`Invalid role "${role}". Must be one of: ${VALID_ROLES.join(", ")}`);
     process.exit(1);
   }
+  // Safe cast - the check above already confirmed role is one of the valid AttendanceRole values.
+  const validatedRole = role as import("../src/types/attendance.types").AttendanceRole;
   if (password.length < 8) {
     console.error("Password should be at least 8 characters.");
     process.exit(1);
   }
 
   const wardId = wardIdArg ? parseInt(wardIdArg, 10) : null;
-  if (WARD_SCOPED_ROLES.includes(role) && !wardId) {
+  if (WARD_SCOPED_ROLES.includes(validatedRole) && !wardId) {
     console.error(`Role "${role}" requires a wardId - run "npm run list-attendance-wards" to see valid ward IDs.`);
     process.exit(1);
   }
-  if (CROSS_WARD_ROLES.includes(role) && wardId) {
+  if (CROSS_WARD_ROLES.includes(validatedRole) && wardId) {
     console.error(`Role "${role}" is cross-ward and should not have a wardId.`);
     process.exit(1);
   }
