@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users, UserCog, Truck, Wrench } from "lucide-react";
+import { AlertCircle, BarChart3, Camera, Download, Loader2, MessageSquare, Users, UserCog, Truck, Wrench, Droplet } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { fetchAttendanceDashboardSummary, type AttendanceDashboardSummary } from "@/lib/attendance-api";
@@ -24,6 +24,16 @@ export default function AttendanceDashboardPage() {
     "junior_engineer",
     "assistant_engineer_mechanical",
     "maintenance_nodal_clerk",
+    "streetlight_contractor",
+    "streetlight_je",
+    "streetlight_ae",
+    "streetlight_nodal_clerk",
+    "city_manager",
+    "deputy_municipal_commissioner",
+    "municipal_commissioner",
+    "pyau_je",
+    "pyau_ae",
+    "pyau_contractor",
   ]);
   const [summary, setSummary] = useState<AttendanceDashboardSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -173,6 +183,16 @@ export default function AttendanceDashboardPage() {
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">Fleet & Asset Registry</h3>
               <p className="text-sm text-slate-500">Vehicles, tricycles, hand carts - status and maintenance history.</p>
+            </Link>
+          )}
+
+          {["pyau_je", "pyau_ae", "pyau_contractor", "attendance_admin"].includes(user.role) && (
+            <Link href="/attendance/manage-pyaus" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Droplet className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Submersible Pyau Registry</h3>
+              <p className="text-sm text-slate-500">Ward-wise water kiosk inventory, issues, and maintenance log.</p>
             </Link>
           )}
         </div>
