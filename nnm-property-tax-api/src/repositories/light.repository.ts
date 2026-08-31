@@ -35,11 +35,21 @@ export const lightRepository = {
     latitude: number;
     longitude: number;
     installationAgencyId: number | null;
+    switchStatus?: "working" | "not_working" | "automatic" | "joint" | null;
   }): Promise<LightRow> {
     const { rows } = await pool.query<LightRow>(
-      `INSERT INTO lights (light_type, ward_id, locality_name, serial_number, latitude, longitude, installation_agency_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [input.lightType, input.wardId, input.localityName, input.serialNumber, input.latitude, input.longitude, input.installationAgencyId],
+      `INSERT INTO lights (light_type, ward_id, locality_name, serial_number, latitude, longitude, installation_agency_id, switch_status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        input.lightType,
+        input.wardId,
+        input.localityName,
+        input.serialNumber,
+        input.latitude,
+        input.longitude,
+        input.installationAgencyId,
+        input.switchStatus ?? null,
+      ],
     );
     return rows[0]!;
   },

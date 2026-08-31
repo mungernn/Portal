@@ -12,6 +12,12 @@ export const installationAgencyRepository = {
     return rows[0] ?? null;
   },
 
+  /** Used by the lights CSV import to match an "Established by" value against an existing agency, auto-creating one if it doesn't exist yet - same auto-create-on-import pattern as wards in the pyau CSV import. */
+  async findByName(agencyName: string): Promise<InstallationAgencyRow | null> {
+    const { rows } = await pool.query<InstallationAgencyRow>(`SELECT * FROM installation_agencies WHERE agency_name = $1`, [agencyName]);
+    return rows[0] ?? null;
+  },
+
   /** municipal_commissioner only - adds a new installation agency to the list. */
   async create(agencyName: string): Promise<InstallationAgencyRow> {
     const { rows } = await pool.query<InstallationAgencyRow>(

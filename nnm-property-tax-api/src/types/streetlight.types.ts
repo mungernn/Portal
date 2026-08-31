@@ -14,6 +14,7 @@ export interface LightRow {
   latitude: string;
   longitude: string;
   installation_agency_id: number | null;
+  switch_status: "working" | "not_working" | "automatic" | "joint" | null;
   active: boolean;
   created_at: string;
 }

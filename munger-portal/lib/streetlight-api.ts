@@ -63,6 +63,7 @@ export interface StreetLight {
   latitude: string;
   longitude: string;
   installationAgencyId: number | null;
+  switchStatus: "working" | "not_working" | "automatic" | "joint" | null;
   active: boolean;
 }
 
@@ -82,6 +83,7 @@ export async function createLight(input: {
   latitude: number;
   longitude: number;
   installationAgencyId: number | null;
+  switchStatus?: "working" | "not_working" | "automatic" | "joint" | null;
 }): Promise<StreetLight> {
   const res = await fetch(`${API_BASE_URL}/streetlight/lights`, {
     method: "POST",
@@ -103,6 +105,25 @@ export async function setLightActive(id: number, active: boolean): Promise<void>
     body: JSON.stringify({ active }),
   });
   if (!res.ok) throw new Error("Could not update light status.");
+}
+
+export interface LightsCsvImportResult {
+  created: number;
+  errors: { row: number; message: string }[];
+}
+
+/** The ward-wise field-inventory import - see the backend's lightCsvImport.service.ts for the exact expected columns. */
+export async function uploadLightsCsv(csvContent: string): Promise<LightsCsvImportResult> {
+  const res = await fetch(`${API_BASE_URL}/streetlight/lights/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ csvContent }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Upload failed.");
+  }
+  return res.json();
 }
 
 // ---------------------------------------------------------------------------

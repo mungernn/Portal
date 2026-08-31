@@ -5,6 +5,7 @@ import {
   setInstallationAgencyActiveHandler,
   listLightsHandler,
   createLightHandler,
+  uploadLightsCsvHandler,
   setLightActiveHandler,
   listContractorWardsHandler,
   assignContractorWardHandler,
@@ -39,6 +40,7 @@ streetlightRouter.patch("/agencies/:id/active", requireAttendanceRole(["municipa
 // --- Lights registry (streetlights and high-mast, filtered by ?lightType=) ---
 streetlightRouter.get("/lights", requireAttendanceRole(), listLightsHandler);
 streetlightRouter.post("/lights", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), createLightHandler);
+streetlightRouter.post("/lights/bulk-upload", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), uploadLightsCsvHandler);
 streetlightRouter.patch("/lights/:id/active", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), setLightActiveHandler);
 
 // --- Contractor-ward assignment ---

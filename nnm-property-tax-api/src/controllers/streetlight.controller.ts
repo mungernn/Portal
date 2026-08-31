@@ -7,6 +7,7 @@ import { lightFaultRepository } from "../repositories/lightFault.repository";
 import { lightFaultPenaltyRepository } from "../repositories/lightFaultPenalty.repository";
 import { reportFaultByStaff, markFaultRepaired, linkFaultToLight } from "../services/lightFault.service";
 import { accrueAllOverduePenalties, accruePenaltiesForFault } from "../services/penaltyAccrual.service";
+import { importLightsCsv } from "../services/lightCsvImport.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 
@@ -58,6 +59,7 @@ export const listLightsHandler = asyncHandler(async (req: Request, res: Response
       latitude: l.latitude,
       longitude: l.longitude,
       installationAgencyId: l.installation_agency_id,
+      switchStatus: l.switch_status,
       active: l.active,
     })),
   });
@@ -71,6 +73,7 @@ const createLightSchema = z.object({
   latitude: z.coerce.number().min(-90).max(90),
   longitude: z.coerce.number().min(-180).max(180),
   installationAgencyId: z.coerce.number().int().positive().nullish(),
+  switchStatus: z.enum(["working", "not_working", "automatic", "joint"]).nullish(),
 });
 
 export const createLightHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -88,6 +91,7 @@ export const createLightHandler = asyncHandler(async (req: Request, res: Respons
     latitude: parsed.data.latitude,
     longitude: parsed.data.longitude,
     installationAgencyId: parsed.data.installationAgencyId ?? null,
+    switchStatus: parsed.data.switchStatus ?? null,
   });
   res.status(200).json({
     light: {
@@ -99,6 +103,7 @@ export const createLightHandler = asyncHandler(async (req: Request, res: Respons
       latitude: light.latitude,
       longitude: light.longitude,
       installationAgencyId: light.installation_agency_id,
+      switchStatus: light.switch_status,
       active: light.active,
     },
   });
@@ -114,6 +119,16 @@ export const setLightActiveHandler = asyncHandler(async (req: Request, res: Resp
   const updated = await lightRepository.setActive(paramsParsed.data.id, bodyParsed.data.active);
   if (!updated) throw ApiError.notFound("Light not found");
   res.status(200).json({ light: { id: updated.id, active: updated.active } });
+});
+
+const csvUploadSchema = z.object({ csvContent: z.string().min(1, "File appears to be empty") });
+
+/** POST /api/v1/streetlight/lights/bulk-upload - the ward-wise field-inventory import (see lightCsvImport.service.ts for the exact expected columns). Additive - re-uploading does not deactivate/replace existing entries, since there's no natural per-row identifier to match against besides the serial number, which is already checked for duplicates. */
+export const uploadLightsCsvHandler = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = csvUploadSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
+  const result = await importLightsCsv(parsed.data.csvContent);
+  res.status(200).json(result);
 });
 
 // ---------------------------------------------------------------------------
