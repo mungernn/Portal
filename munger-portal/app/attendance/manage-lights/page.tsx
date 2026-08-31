@@ -24,12 +24,20 @@ const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 const SWITCH_LABELS: Record<string, string> = { working: "Working", not_working: "Not Working", automatic: "Automatic", joint: "Joint" };
 
-const MANAGE_ROLES = ["streetlight_nodal_clerk", "streetlight_ae", "streetlight_je", "city_manager", "municipal_commissioner", "deputy_municipal_commissioner"];
+const MANAGE_ROLES = [
+  "streetlight_nodal_clerk",
+  "streetlight_ae",
+  "streetlight_je",
+  "city_manager",
+  "municipal_commissioner",
+  "deputy_municipal_commissioner",
+  "attendance_admin",
+];
 
 export default function ManageLightsPage() {
   const user = useAttendanceGuard();
   const canManage = user ? MANAGE_ROLES.includes(user.role) : false;
-  const isMC = user?.role === "municipal_commissioner";
+  const isMC = user?.role === "municipal_commissioner" || user?.role === "attendance_admin";
 
   const [wards, setWards] = useState<AttendanceWard[]>([]);
   const [agencies, setAgencies] = useState<InstallationAgency[]>([]);

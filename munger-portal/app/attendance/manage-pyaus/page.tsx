@@ -27,7 +27,7 @@ const labelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 const STRUCTURE_LABELS: Record<string, string> = { pcc_structure: "PCC Structure", iron_stand: "Iron Stand", nothing: "None" };
 
-const MANAGE_ROLES = ["pyau_je", "pyau_ae"];
+const MANAGE_ROLES = ["pyau_je", "pyau_ae", "attendance_admin"];
 
 export default function ManagePyausPage() {
   const user = useAttendanceGuard();

@@ -21,6 +21,11 @@ import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 
 export const streetlightRouter = Router();
 
+// attendance_admin included throughout - the general super-admin
+// login for this whole module system (used consistently this way for
+// fleet/assets elsewhere), which had been missed here initially -
+// without it, an attendance_admin login could view every list but
+// couldn't create/upload/assign/manage anything.
 const REGISTRY_MANAGE_ROLES = [
   "streetlight_nodal_clerk",
   "streetlight_ae",
@@ -28,14 +33,19 @@ const REGISTRY_MANAGE_ROLES = [
   "city_manager",
   "municipal_commissioner",
   "deputy_municipal_commissioner",
+  "attendance_admin",
 ] as const;
 
-const OVERSIGHT_ROLES = ["city_manager", "municipal_commissioner", "deputy_municipal_commissioner"] as const;
+const OVERSIGHT_ROLES = ["city_manager", "municipal_commissioner", "deputy_municipal_commissioner", "attendance_admin"] as const;
 
 // --- Installation agencies - municipal_commissioner manages this list, per what was explicitly asked for ---
 streetlightRouter.get("/agencies", requireAttendanceRole(), listInstallationAgenciesHandler);
-streetlightRouter.post("/agencies", requireAttendanceRole(["municipal_commissioner"]), createInstallationAgencyHandler);
-streetlightRouter.patch("/agencies/:id/active", requireAttendanceRole(["municipal_commissioner"]), setInstallationAgencyActiveHandler);
+streetlightRouter.post("/agencies", requireAttendanceRole(["municipal_commissioner", "attendance_admin"]), createInstallationAgencyHandler);
+streetlightRouter.patch(
+  "/agencies/:id/active",
+  requireAttendanceRole(["municipal_commissioner", "attendance_admin"]),
+  setInstallationAgencyActiveHandler,
+);
 
 // --- Lights registry (streetlights and high-mast, filtered by ?lightType=) ---
 streetlightRouter.get("/lights", requireAttendanceRole(), listLightsHandler);

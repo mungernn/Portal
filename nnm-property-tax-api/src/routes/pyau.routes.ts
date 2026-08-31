@@ -16,7 +16,10 @@ import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 export const pyauRouter = Router();
 
 // Registry management - JE/AE and the contractor's own oversight; "purely internal for now" so no separate nodal-clerk-style role was asked for.
-const REGISTRY_MANAGE_ROLES = ["pyau_je", "pyau_ae"] as const;
+// attendance_admin included too - the general super-admin login for
+// this module system, missed initially the same way as in the street
+// light module's routes.
+const REGISTRY_MANAGE_ROLES = ["pyau_je", "pyau_ae", "attendance_admin"] as const;
 
 // --- Pyau registry ---
 pyauRouter.get("/pyaus", requireAttendanceRole(), listPyausHandler);
