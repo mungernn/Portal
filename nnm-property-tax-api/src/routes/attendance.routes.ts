@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { postAttendanceLogin } from "../controllers/attendanceAuth.controller";
-import { getAttendanceWards, getAttendanceShifts } from "../controllers/attendanceLookup.controller";
+import {
+  getAttendanceWards,
+  getAttendanceWardsWithUsage,
+  deleteAttendanceWardHandler,
+  deleteAllUnusedWardsHandler,
+  getAttendanceShifts,
+} from "../controllers/attendanceLookup.controller";
 import {
   getMyWardWorkersToday,
   postMarkStaffIn,
@@ -83,6 +89,12 @@ attendanceRouter.post("/auth/login", loginRateLimiter, postAttendanceLogin);
 
 // Any authenticated attendance user (dropdown data)
 attendanceRouter.get("/wards", requireAttendanceRole(), getAttendanceWards);
+// Order matters: /wards/usage and /wards/unused must be registered
+// before /wards/:id, or Express would try to match "usage"/"unused"
+// as the :id parameter first.
+attendanceRouter.get("/wards/usage", requireAttendanceRole(["attendance_admin"]), getAttendanceWardsWithUsage);
+attendanceRouter.delete("/wards/unused", requireAttendanceRole(["attendance_admin"]), deleteAllUnusedWardsHandler);
+attendanceRouter.delete("/wards/:id", requireAttendanceRole(["attendance_admin"]), deleteAttendanceWardHandler);
 attendanceRouter.get("/shifts", requireAttendanceRole(), getAttendanceShifts);
 
 // --- Field staff (Jamadar, own ward - any officer role can pass a wardId in the URL to view any ward, e.g. for feedback lookup) ---

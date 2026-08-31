@@ -19,6 +19,45 @@ export const attendanceWardRepository = {
     );
     return rows[0]!;
   },
+
+  /**
+   * Every ward alongside a count of records referencing it, across
+   * every table in the system with a ward_id column - lets an admin
+   * see at a glance which wards are genuinely in use versus safe to
+   * remove (usageCount = 0). Built specifically to help recover from
+   * a bad bulk-CSV import auto-creating garbage wards (the import
+   * services create a ward automatically for any unrecognized ward
+   * name in the file) - deleting the bad data rows doesn't remove the
+   * wards those rows referenced, so this surfaces the leftovers.
+   */
+  async listAllWithUsageCounts(): Promise<(AttendanceWardRow & { usageCount: number })[]> {
+    const { rows } = await pool.query<AttendanceWardRow & { usage_count: string }>(`
+      SELECT w.*, (
+        COALESCE((SELECT COUNT(*) FROM attendance_users WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_staff WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_staff_attendance WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_staff_feedback WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_staff_daily_photo WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_drivers WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_driver_attendance WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM asset_wards WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_assistants WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM field_assistant_attendance WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM lights WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM contractor_wards WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM pyaus WHERE ward_id = w.id), 0) +
+        COALESCE((SELECT COUNT(*) FROM pyau_contractor_wards WHERE ward_id = w.id), 0)
+      ) AS usage_count
+      FROM attendance_wards w
+      ORDER BY usage_count ASC, w.ward_name ASC
+    `);
+    return rows.map((r) => ({ ...r, usageCount: parseInt(r.usage_count, 10) }));
+  },
+
+  /** Deletes one ward - only if listAllWithUsageCounts confirms usageCount is 0; caller (the service layer) enforces that, not this method, to keep the check-then-act logic in one visible place. */
+  async deleteById(id: number): Promise<void> {
+    await pool.query(`DELETE FROM attendance_wards WHERE id = $1`, [id]);
+  },
 };
 
 export const attendanceShiftRepository = {

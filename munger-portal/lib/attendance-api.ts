@@ -26,6 +26,38 @@ export async function fetchAttendanceWards(): Promise<AttendanceWard[]> {
   return data.wards;
 }
 
+export interface AttendanceWardUsage extends AttendanceWard {
+  usageCount: number;
+}
+
+/** attendance_admin only - every ward with a count of records referencing it across every module, for identifying and cleaning up garbage wards (e.g. auto-created by a badly-formatted bulk CSV import). */
+export async function fetchAttendanceWardsWithUsage(): Promise<AttendanceWardUsage[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/wards/usage`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load ward usage.");
+  const data: { wards: AttendanceWardUsage[] } = await res.json();
+  return data.wards;
+}
+
+/** Only succeeds if the ward has zero references anywhere in the system. */
+export async function deleteAttendanceWard(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/wards/${id}`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this ward.");
+  }
+}
+
+/** Deletes every ward with zero references in one pass - returns how many were removed. */
+export async function deleteAllUnusedWards(): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/attendance/wards/unused`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete unused wards.");
+  }
+  const data: { deleted: number } = await res.json();
+  return data.deleted;
+}
+
 export interface AttendanceShift {
   id: number;
   shiftName: string;
