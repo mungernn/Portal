@@ -70,3 +70,23 @@ export async function markPyauIssueRepaired(
   await pyauRepository.setFunctionalStatus(updated.pyau_id, "functional");
   return updated;
 }
+
+/** Hard delete of one pyau, including its issue history - for removing genuinely bad data (e.g. a faulty CSV import), distinct from archiving via setActive. */
+export async function deleteOnePyau(pyauId: number): Promise<void> {
+  const pyau = await pyauRepository.findById(pyauId);
+  if (!pyau) throw ApiError.notFound("Pyau not found.");
+  await pyauIssueRepository.deleteForPyau(pyauId);
+  await pyauRepository.deleteOne(pyauId);
+}
+
+/** Hard delete of every pyau (and their issue history) in one ward - the ward-wise bulk cleanup option. Returns the count removed for a clear confirmation message. */
+export async function deletePyausByWard(wardId: number): Promise<number> {
+  await pyauIssueRepository.deleteForWard(wardId);
+  return pyauRepository.deleteByWard(wardId);
+}
+
+/** Hard delete of the ENTIRE pyau registry across every ward - the "whole Nagar Nigam dataset" wipe. Deliberately the most destructive option here; gated to attendance_admin only at the route level. */
+export async function deleteAllPyaus(): Promise<number> {
+  await pyauIssueRepository.deleteAll();
+  return pyauRepository.deleteAllPyaus();
+}

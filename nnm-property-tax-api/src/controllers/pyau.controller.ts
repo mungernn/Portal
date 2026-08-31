@@ -4,7 +4,7 @@ import { pyauRepository } from "../repositories/pyau.repository";
 import { attendanceWardRepository } from "../repositories/attendanceWard.repository";
 import { pyauContractorWardRepository } from "../repositories/pyauContractorWard.repository";
 import { pyauIssueRepository } from "../repositories/pyauIssue.repository";
-import { reportPyauIssue, markPyauIssueRepaired, isUnderBuilderWarranty } from "../services/pyauIssue.service";
+import { reportPyauIssue, markPyauIssueRepaired, isUnderBuilderWarranty, deleteOnePyau, deletePyausByWard, deleteAllPyaus } from "../services/pyauIssue.service";
 import { importPyauCsv } from "../services/pyauCsvImport.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
@@ -115,6 +115,71 @@ export const setPyauActiveHandler = asyncHandler(async (req: Request, res: Respo
   const updated = await pyauRepository.setActive(paramsParsed.data.id, bodyParsed.data.active);
   if (!updated) throw ApiError.notFound("Pyau not found");
   res.status(200).json({ pyau: serializePyau(updated) });
+});
+
+const updatePyauSchema = z.object({
+  locationAddress: z.string().trim().nullish(),
+  schemeName: z.string().trim().nullish(),
+  overheadTankCount: z.coerce.number().int().nonnegative().nullish(),
+  housesServed: z.coerce.number().int().nonnegative().nullish(),
+  structureType: z.enum(["pcc_structure", "iron_stand", "nothing"]).nullish(),
+  tankStandType: z.string().trim().nullish(),
+  pumpDetails: z.string().trim().nullish(),
+  boringDepthFeet: z.coerce.number().nonnegative().nullish(),
+  casingDetails: z.string().trim().nullish(),
+  installedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(),
+  builderName: z.string().trim().nullish(),
+  builderContact: z.string().trim().nullish(),
+  remarks: z.string().trim().nullish(),
+});
+
+/** PATCH /api/v1/pyau/pyaus/:id - edit any field of an existing entry. Ward and serial number are not editable here - see pyau.repository.ts's update() comment for why. */
+export const updatePyauHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = pyauIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid pyau id");
+  const bodyParsed = updatePyauSchema.safeParse(req.body);
+  if (!bodyParsed.success) throw ApiError.badRequest("Invalid input", bodyParsed.error.flatten().fieldErrors);
+
+  const updated = await pyauRepository.update(paramsParsed.data.id, {
+    ...bodyParsed.data,
+    overheadTankCount: bodyParsed.data.overheadTankCount ?? undefined,
+  });
+  if (!updated) throw ApiError.notFound("Pyau not found");
+  res.status(200).json({ pyau: serializePyau(updated) });
+});
+
+/** DELETE /api/v1/pyau/pyaus/:id - hard delete, including issue history. Distinct from setPyauActiveHandler (archiving) - for removing genuinely bad data. */
+export const deletePyauHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = pyauIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid pyau id");
+  await deleteOnePyau(paramsParsed.data.id);
+  res.status(200).json({ success: true });
+});
+
+const wardIdParamSchema = z.object({ wardId: z.coerce.number().int().positive() });
+
+/** DELETE /api/v1/pyau/pyaus/ward/:wardId - hard delete every pyau (and issue history) in one ward, for cleaning up a badly-scoped bulk import. */
+export const deletePyausByWardHandler = asyncHandler(async (req: Request, res: Response) => {
+  const paramsParsed = wardIdParamSchema.safeParse(req.params);
+  if (!paramsParsed.success) throw ApiError.badRequest("Invalid ward id");
+  const count = await deletePyausByWard(paramsParsed.data.wardId);
+  res.status(200).json({ deleted: count });
+});
+
+const deleteAllConfirmSchema = z.object({ confirm: z.literal("DELETE ALL PYAU DATA") });
+
+/**
+ * DELETE /api/v1/pyau/pyaus/all - hard delete the ENTIRE registry
+ * across every ward. Requires an exact confirmation phrase in the
+ * body, not just the button click, as a safeguard against this
+ * being triggered by accident - this is irreversible and wipes the
+ * whole Nagar Nigam dataset, not just one ward's worth of bad data.
+ */
+export const deleteAllPyausHandler = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = deleteAllConfirmSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest('Body must include { "confirm": "DELETE ALL PYAU DATA" } to proceed with this irreversible action.');
+  const count = await deleteAllPyaus();
+  res.status(200).json({ deleted: count });
 });
 
 // ---------------------------------------------------------------------------

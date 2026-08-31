@@ -3,6 +3,10 @@ import {
   listPyausHandler,
   createPyauHandler,
   uploadPyauCsvHandler,
+  updatePyauHandler,
+  deletePyauHandler,
+  deletePyausByWardHandler,
+  deleteAllPyausHandler,
   setPyauActiveHandler,
   listPyauContractorWardsHandler,
   assignPyauContractorWardHandler,
@@ -26,6 +30,13 @@ pyauRouter.get("/pyaus", requireAttendanceRole(), listPyausHandler);
 pyauRouter.post("/pyaus", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), createPyauHandler);
 pyauRouter.post("/pyaus/bulk-upload", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), uploadPyauCsvHandler);
 pyauRouter.patch("/pyaus/:id/active", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), setPyauActiveHandler);
+pyauRouter.patch("/pyaus/:id", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), updatePyauHandler);
+// Order matters here: /pyaus/all and /pyaus/ward/:wardId must be
+// registered before the generic /pyaus/:id delete route, or Express
+// would try to match "all"/"ward" as the :id parameter first.
+pyauRouter.delete("/pyaus/all", requireAttendanceRole(["attendance_admin"]), deleteAllPyausHandler);
+pyauRouter.delete("/pyaus/ward/:wardId", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), deletePyausByWardHandler);
+pyauRouter.delete("/pyaus/:id", requireAttendanceRole([...REGISTRY_MANAGE_ROLES]), deletePyauHandler);
 
 // --- Contractor-ward assignment (45 wards / 3 contractor groups) ---
 pyauRouter.get("/contractor-wards", requireAttendanceRole(), listPyauContractorWardsHandler);

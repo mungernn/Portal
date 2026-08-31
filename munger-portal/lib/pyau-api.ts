@@ -94,6 +94,73 @@ export async function setPyauActive(id: number, active: boolean): Promise<void> 
   if (!res.ok) throw new Error("Could not update pyau status.");
 }
 
+/** Edits any field of an existing entry - ward and serial number aren't editable here, per the backend's design (reassigning either has knock-on effects better handled as a separate, deliberate action). */
+export async function updatePyau(
+  id: number,
+  input: Partial<{
+    locationAddress: string | null;
+    schemeName: string | null;
+    overheadTankCount: number;
+    housesServed: number | null;
+    structureType: "pcc_structure" | "iron_stand" | "nothing" | null;
+    tankStandType: string | null;
+    pumpDetails: string | null;
+    boringDepthFeet: number | null;
+    casingDetails: string | null;
+    installedDate: string | null;
+    builderName: string | null;
+    builderContact: string | null;
+    remarks: string | null;
+  }>,
+): Promise<Pyau> {
+  const res = await fetch(`${API_BASE_URL}/pyau/pyaus/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not update this entry.");
+  }
+  const data: { pyau: Pyau } = await res.json();
+  return data.pyau;
+}
+
+/** Hard delete of one entry, including its issue history - distinct from setPyauActive (archiving), for genuinely removing bad data. */
+export async function deletePyau(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/pyau/pyaus/${id}`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this entry.");
+  }
+}
+
+/** Hard delete of every entry in one ward - returns how many were removed. */
+export async function deletePyausByWard(wardId: number): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/pyau/pyaus/ward/${wardId}`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this ward's entries.");
+  }
+  const data: { deleted: number } = await res.json();
+  return data.deleted;
+}
+
+/** Hard delete of the ENTIRE registry across every ward - irreversible, requires the exact confirmation phrase the backend checks for. */
+export async function deleteAllPyaus(): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/pyau/pyaus/all`, {
+    method: "DELETE",
+    headers: authHeaders(),
+    body: JSON.stringify({ confirm: "DELETE ALL PYAU DATA" }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete the dataset.");
+  }
+  const data: { deleted: number } = await res.json();
+  return data.deleted;
+}
+
 // ---------------------------------------------------------------------------
 // Contractor-ward assignment
 // ---------------------------------------------------------------------------

@@ -70,4 +70,19 @@ export const pyauIssueRepository = {
     );
     return rows[0] ?? null;
   },
+
+  /** Deletes every issue for one pyau - the cascade step before deleting the pyau itself, since pyau_issues.pyau_id has no ON DELETE CASCADE. */
+  async deleteForPyau(pyauId: number): Promise<void> {
+    await pool.query(`DELETE FROM pyau_issues WHERE pyau_id = $1`, [pyauId]);
+  },
+
+  /** Deletes every issue for pyaus in a given ward - the cascade step for ward-wise bulk deletion. */
+  async deleteForWard(wardId: number): Promise<void> {
+    await pool.query(`DELETE FROM pyau_issues WHERE pyau_id IN (SELECT id FROM pyaus WHERE ward_id = $1)`, [wardId]);
+  },
+
+  /** Deletes every issue in the system - the cascade step for deleting the entire pyau dataset. */
+  async deleteAll(): Promise<void> {
+    await pool.query(`DELETE FROM pyau_issues`);
+  },
 };

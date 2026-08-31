@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2, PlusCircle, Upload, BookOpen, X, Wrench } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, PlusCircle, Upload, BookOpen, X, Wrench, Pencil, Trash2, Download, AlertTriangle } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { fetchAttendanceWards, fetchAttendanceUsers, type AttendanceWard, type AttendanceUserSummary } from "@/lib/attendance-api";
 import {
   fetchPyaus,
   createPyau,
+  updatePyau,
+  deletePyau,
+  deletePyausByWard,
+  deleteAllPyaus,
   uploadPyauCsv,
   setPyauActive,
   fetchPyauContractorWards,
@@ -62,6 +66,31 @@ export default function ManagePyausPage() {
   const [assignContractorId, setAssignContractorId] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  // Edit modal
+  const [editingPyauId, setEditingPyauId] = useState<number | null>(null);
+  const [editLocationAddress, setEditLocationAddress] = useState("");
+  const [editSchemeName, setEditSchemeName] = useState("");
+  const [editOverheadTankCount, setEditOverheadTankCount] = useState("0");
+  const [editHousesServed, setEditHousesServed] = useState("");
+  const [editStructureType, setEditStructureType] = useState<"" | "pcc_structure" | "iron_stand" | "nothing">("");
+  const [editPumpDetails, setEditPumpDetails] = useState("");
+  const [editBoringDepthFeet, setEditBoringDepthFeet] = useState("");
+  const [editCasingDetails, setEditCasingDetails] = useState("");
+  const [editInstalledDate, setEditInstalledDate] = useState("");
+  const [editBuilderName, setEditBuilderName] = useState("");
+  const [editBuilderContact, setEditBuilderContact] = useState("");
+  const [editRemarks, setEditRemarks] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Delete
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteWardBusy, setDeleteWardBusy] = useState(false);
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState("");
+  const [deleteAllBusy, setDeleteAllBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Logbook modal
   const [logbookPyauId, setLogbookPyauId] = useState<number | null>(null);
@@ -181,6 +210,136 @@ export default function ManagePyausPage() {
     } finally {
       setAssigning(false);
     }
+  }
+
+  function openEditModal(p: Pyau) {
+    setEditingPyauId(p.id);
+    setEditLocationAddress(p.locationAddress ?? "");
+    setEditSchemeName(p.schemeName ?? "");
+    setEditOverheadTankCount(String(p.overheadTankCount));
+    setEditHousesServed(p.housesServed !== null ? String(p.housesServed) : "");
+    setEditStructureType(p.structureType ?? "");
+    setEditPumpDetails(p.pumpDetails ?? "");
+    setEditBoringDepthFeet(p.boringDepthFeet ?? "");
+    setEditCasingDetails(p.casingDetails ?? "");
+    setEditInstalledDate(p.installedDate ? p.installedDate.slice(0, 10) : "");
+    setEditBuilderName(p.builderName ?? "");
+    setEditBuilderContact(p.builderContact ?? "");
+    setEditRemarks(p.remarks ?? "");
+    setEditError(null);
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (editingPyauId === null) return;
+    setEditError(null);
+    setEditSubmitting(true);
+    try {
+      await updatePyau(editingPyauId, {
+        locationAddress: editLocationAddress || null,
+        schemeName: editSchemeName || null,
+        overheadTankCount: Number(editOverheadTankCount) || 0,
+        housesServed: editHousesServed ? Number(editHousesServed) : null,
+        structureType: editStructureType || null,
+        pumpDetails: editPumpDetails || null,
+        boringDepthFeet: editBoringDepthFeet ? Number(editBoringDepthFeet) : null,
+        casingDetails: editCasingDetails || null,
+        installedDate: editInstalledDate || null,
+        builderName: editBuilderName || null,
+        builderContact: editBuilderContact || null,
+        remarks: editRemarks || null,
+      });
+      setEditingPyauId(null);
+      await loadPyaus();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Could not save changes.");
+    } finally {
+      setEditSubmitting(false);
+    }
+  }
+
+  async function handleDeleteOne(p: Pyau) {
+    setDeleteError(null);
+    if (!window.confirm(`Permanently delete ${p.serialNumber ?? "this pyau"} and its full maintenance history? This cannot be undone.`)) return;
+    setDeletingId(p.id);
+    try {
+      await deletePyau(p.id);
+      await loadPyaus();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete this entry.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleDeleteWard() {
+    setDeleteError(null);
+    if (!wardFilter) {
+      setDeleteError("Select a specific ward from the filter above first.");
+      return;
+    }
+    const count = (pyaus ?? []).filter((p) => p.wardId === Number(wardFilter)).length;
+    if (!window.confirm(`Permanently delete all ${count} pyau(s) in ${wardName(Number(wardFilter))}, including their maintenance history? This cannot be undone.`))
+      return;
+    setDeleteWardBusy(true);
+    try {
+      await deletePyausByWard(Number(wardFilter));
+      await loadPyaus();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete this ward's entries.");
+    } finally {
+      setDeleteWardBusy(false);
+    }
+  }
+
+  async function handleDeleteAll() {
+    setDeleteError(null);
+    setDeleteAllBusy(true);
+    try {
+      await deleteAllPyaus();
+      setDeleteAllOpen(false);
+      setDeleteAllConfirmText("");
+      await loadPyaus();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete the dataset.");
+    } finally {
+      setDeleteAllBusy(false);
+    }
+  }
+
+  function handleDownloadCsv() {
+    if (!pyaus || pyaus.length === 0) return;
+    const headers = [
+      "Serial Number",
+      "Ward",
+      "Location",
+      "Scheme",
+      "Overhead Tank Count",
+      "Houses Served",
+      "Structure Type",
+      "Functional Status",
+      "Under Builder Warranty",
+    ];
+    const rows = pyaus.map((p) => [
+      p.serialNumber ?? "",
+      wardName(p.wardId),
+      p.locationAddress ?? "",
+      p.schemeName ?? "",
+      String(p.overheadTankCount),
+      p.housesServed !== null ? String(p.housesServed) : "",
+      p.structureType ? STRUCTURE_LABELS[p.structureType] : "",
+      p.functionalStatus,
+      p.underBuilderWarranty ? "Yes" : "No",
+    ]);
+    const escapeCsvCell = (cell: string) => (cell.includes(",") || cell.includes('"') || cell.includes("\n") ? `"${cell.replace(/"/g, '""')}"` : cell);
+    const csvContent = [headers, ...rows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pyau-registry-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function openLogbook(pyauId: number) {
@@ -440,16 +599,52 @@ export default function ManagePyausPage() {
         )}
 
         <section className="rounded-xl border border-slate-200 bg-white p-6">
-          <div className="mb-4 flex items-center justify-between">
+          {deleteError && (
+            <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {deleteError}
+            </div>
+          )}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold text-slate-700">All Pyaus ({visiblePyaus?.length ?? "..."})</h2>
-            <select value={wardFilter} onChange={(e) => setWardFilter(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
-              <option value="">All wards</option>
-              {wards.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.wardName}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleDownloadCsv}
+                disabled={!pyaus || pyaus.length === 0}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download CSV
+              </button>
+              <select value={wardFilter} onChange={(e) => setWardFilter(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-xs">
+                <option value="">All wards</option>
+                {wards.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.wardName}
+                  </option>
+                ))}
+              </select>
+              {canManage && (
+                <button
+                  onClick={handleDeleteWard}
+                  disabled={!wardFilter || deleteWardBusy}
+                  title={!wardFilter ? "Select a ward from the dropdown first" : undefined}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {deleteWardBusy ? "Deleting..." : "Delete Ward's Entries"}
+                </button>
+              )}
+              {user.role === "attendance_admin" && (
+                <button
+                  onClick={() => setDeleteAllOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Delete Entire Dataset
+                </button>
+              )}
+            </div>
           </div>
           {!visiblePyaus ? (
             <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -505,9 +700,23 @@ export default function ManagePyausPage() {
                             Logbook
                           </button>
                           {canManage && (
-                            <button onClick={() => handleToggleActive(p.id, !p.active)} className="text-xs font-medium text-slate-500 hover:underline">
-                              {p.active ? "Deactivate" : "Activate"}
-                            </button>
+                            <>
+                              <button onClick={() => openEditModal(p)} className="inline-flex items-center gap-1 text-xs font-medium text-nnm-blue hover:underline">
+                                <Pencil className="h-3 w-3" />
+                                Edit
+                              </button>
+                              <button onClick={() => handleToggleActive(p.id, !p.active)} className="text-xs font-medium text-slate-500 hover:underline">
+                                {p.active ? "Deactivate" : "Activate"}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOne(p)}
+                                disabled={deletingId === p.id}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                {deletingId === p.id ? "Deleting..." : "Delete"}
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -611,6 +820,139 @@ export default function ManagePyausPage() {
                 </button>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {editingPyauId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-lg">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Edit {pyaus?.find((p) => p.id === editingPyauId)?.serialNumber}</h2>
+              <button onClick={() => setEditingPyauId(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className={labelClass}>Location / Address</label>
+                <input value={editLocationAddress} onChange={(e) => setEditLocationAddress(e.target.value)} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Scheme Name</label>
+                  <input value={editSchemeName} onChange={(e) => setEditSchemeName(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Structure Type</label>
+                  <select value={editStructureType} onChange={(e) => setEditStructureType(e.target.value as typeof editStructureType)} className={inputClass}>
+                    <option value="">Not specified</option>
+                    <option value="pcc_structure">PCC Structure</option>
+                    <option value="iron_stand">Iron Stand</option>
+                    <option value="nothing">None</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Overhead Tank Count</label>
+                  <input type="number" min="0" value={editOverheadTankCount} onChange={(e) => setEditOverheadTankCount(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Houses Served</label>
+                  <input type="number" min="0" value={editHousesServed} onChange={(e) => setEditHousesServed(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Pump Details</label>
+                  <input value={editPumpDetails} onChange={(e) => setEditPumpDetails(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Boring Depth (feet)</label>
+                  <input type="number" min="0" step="0.1" value={editBoringDepthFeet} onChange={(e) => setEditBoringDepthFeet(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Casing Details</label>
+                  <input value={editCasingDetails} onChange={(e) => setEditCasingDetails(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Installed Date</label>
+                  <input type="date" value={editInstalledDate} onChange={(e) => setEditInstalledDate(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Builder Name</label>
+                  <input value={editBuilderName} onChange={(e) => setEditBuilderName(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Builder Contact</label>
+                  <input value={editBuilderContact} onChange={(e) => setEditBuilderContact(e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Remarks</label>
+                <textarea value={editRemarks} onChange={(e) => setEditRemarks(e.target.value)} rows={2} className={inputClass} />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingPyauId(null)}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="rounded-md bg-nnm-blue px-4 py-2 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                >
+                  {editSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {deleteAllOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl border-2 border-red-300 bg-white p-6 shadow-lg">
+            <div className="mb-3 flex items-center gap-2 text-red-700">
+              <AlertTriangle className="h-5 w-5" />
+              <h2 className="text-sm font-semibold">Delete the Entire Pyau Dataset</h2>
+            </div>
+            <p className="mb-4 text-sm text-slate-600">
+              This permanently deletes <strong>every pyau across every ward</strong>, including all maintenance history. This cannot
+              be undone. To confirm, type <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">DELETE ALL PYAU DATA</code> below.
+            </p>
+            <input
+              value={deleteAllConfirmText}
+              onChange={(e) => setDeleteAllConfirmText(e.target.value)}
+              placeholder="Type the confirmation phrase"
+              className={inputClass}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setDeleteAllOpen(false);
+                  setDeleteAllConfirmText("");
+                }}
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAll}
+                disabled={deleteAllConfirmText !== "DELETE ALL PYAU DATA" || deleteAllBusy}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+              >
+                {deleteAllBusy ? "Deleting..." : "Permanently Delete Everything"}
+              </button>
+            </div>
           </div>
         </div>
       )}

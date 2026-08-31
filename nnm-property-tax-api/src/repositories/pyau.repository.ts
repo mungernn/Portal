@@ -90,4 +90,77 @@ export const pyauRepository = {
     const { rows } = await pool.query<PyauRow>(`UPDATE pyaus SET active = $2 WHERE id = $1 RETURNING *`, [id, active]);
     return rows[0] ?? null;
   },
+
+  /** Full edit of an existing entry - every field optional so a caller can send just what changed; COALESCE keeps anything not provided as-is. Ward and serial number are deliberately excluded - reassigning either has knock-on effects (serial uniqueness, contractor assignment) better handled as a deliberate separate action than folded into a general edit. */
+  async update(
+    id: number,
+    input: {
+      locationAddress?: string | null;
+      schemeName?: string | null;
+      overheadTankCount?: number;
+      housesServed?: number | null;
+      structureType?: "pcc_structure" | "iron_stand" | "nothing" | null;
+      tankStandType?: string | null;
+      pumpDetails?: string | null;
+      boringDepthFeet?: number | null;
+      casingDetails?: string | null;
+      installedDate?: string | null;
+      builderName?: string | null;
+      builderContact?: string | null;
+      remarks?: string | null;
+    },
+  ): Promise<PyauRow | null> {
+    const { rows } = await pool.query<PyauRow>(
+      `UPDATE pyaus SET
+         location_address = COALESCE($2, location_address),
+         scheme_name = COALESCE($3, scheme_name),
+         overhead_tank_count = COALESCE($4, overhead_tank_count),
+         houses_served = COALESCE($5, houses_served),
+         structure_type = COALESCE($6, structure_type),
+         tank_stand_type = COALESCE($7, tank_stand_type),
+         pump_details = COALESCE($8, pump_details),
+         boring_depth_feet = COALESCE($9, boring_depth_feet),
+         casing_details = COALESCE($10, casing_details),
+         installed_date = COALESCE($11, installed_date),
+         builder_name = COALESCE($12, builder_name),
+         builder_contact = COALESCE($13, builder_contact),
+         remarks = COALESCE($14, remarks)
+       WHERE id = $1 RETURNING *`,
+      [
+        id,
+        input.locationAddress,
+        input.schemeName,
+        input.overheadTankCount,
+        input.housesServed,
+        input.structureType,
+        input.tankStandType,
+        input.pumpDetails,
+        input.boringDepthFeet,
+        input.casingDetails,
+        input.installedDate,
+        input.builderName,
+        input.builderContact,
+        input.remarks,
+      ],
+    );
+    return rows[0] ?? null;
+  },
+
+  /** Hard delete of one entry - distinct from setActive/archiving, for genuinely removing bad data (e.g. a faulty bulk import) rather than marking it inactive. Caller is responsible for deleting associated issues first (see pyauIssueRepository.deleteForPyau) since there's no ON DELETE CASCADE. */
+  async deleteOne(id: number): Promise<boolean> {
+    const { rowCount } = await pool.query(`DELETE FROM pyaus WHERE id = $1`, [id]);
+    return (rowCount ?? 0) > 0;
+  },
+
+  /** Hard delete of every pyau in one ward - caller deletes associated issues first via pyauIssueRepository.deleteForWard. Returns how many were removed, for a clear confirmation message. */
+  async deleteByWard(wardId: number): Promise<number> {
+    const { rowCount } = await pool.query(`DELETE FROM pyaus WHERE ward_id = $1`, [wardId]);
+    return rowCount ?? 0;
+  },
+
+  /** Hard delete of the entire registry across every ward - the "whole Nagar Nigam dataset" wipe, for recovering from a badly-formatted bulk import. Caller deletes all issues first via pyauIssueRepository.deleteAll(). */
+  async deleteAllPyaus(): Promise<number> {
+    const { rowCount } = await pool.query(`DELETE FROM pyaus`);
+    return rowCount ?? 0;
+  },
 };
