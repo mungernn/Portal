@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
 import { useAdminGuard } from "@/lib/use-admin-guard";
@@ -54,6 +54,7 @@ export default function AdminDashboardPage() {
   const isStallPrabhari = admin.role === "stall_prabhari";
   const isTradeLicenseNodal = admin.role === "trade_license_nodal";
   const isRestrictedRole = isStallPrabhari || isTradeLicenseNodal;
+  const canApproveShopPublication = admin.role === "stall_prabhari" || admin.role === "city_manager" || admin.role === "deputy_commissioner";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -162,6 +163,19 @@ export default function AdminDashboardPage() {
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rate per Sqft</h3>
               <p className="text-sm text-slate-500">See which occupied shops are renting below market rate.</p>
+            </Link>
+          )}
+
+          {canApproveShopPublication && (
+            <Link
+              href="/admin/shops-pending-publication"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <ShieldCheck className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shops Pending Publication</h3>
+              <p className="text-sm text-slate-500">Review newly-entered shops before they&apos;re publicly listed as available.</p>
             </Link>
           )}
 

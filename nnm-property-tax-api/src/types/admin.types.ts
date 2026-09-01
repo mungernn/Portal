@@ -65,6 +65,23 @@ export function nextShopApprovalStage(stage: AdminRole): AdminRole | null {
 }
 
 /**
+ * Fixed order a newly-entered shop moves through before it's publicly
+ * listed as available - a separate, shorter chain from
+ * SHOP_APPROVAL_STAGE_ORDER (which governs agreement/tenancy
+ * approval, not whether the shop record itself should be shown to
+ * the public yet). Skips tax_daroga and commissioner deliberately -
+ * this is a "does this listing look right" check, not a financial
+ * approval, so it doesn't need the full agreement chain.
+ */
+export const SHOP_PUBLICATION_STAGE_ORDER: AdminRole[] = ["stall_prabhari", "city_manager", "deputy_commissioner"];
+
+export function nextShopPublicationStage(stage: AdminRole): AdminRole | "approved" | null {
+  const idx = SHOP_PUBLICATION_STAGE_ORDER.indexOf(stage);
+  if (idx < 0) return null;
+  return idx < SHOP_PUBLICATION_STAGE_ORDER.length - 1 ? SHOP_PUBLICATION_STAGE_ORDER[idx + 1]! : "approved";
+}
+
+/**
  * Fixed order a TRADE LICENSE application (new or renewal) moves
  * through — a third, separate chain. Only 3 stages, and unlike the
  * other two chains, this one's final approval sits at Deputy

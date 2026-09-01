@@ -29,6 +29,7 @@ import {
   postRejectShopAgreementRequest,
 } from "../controllers/shopAgreement.controller";
 import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../controllers/shop.controller";
+import { getShopsPendingPublication, postApproveShopPublication } from "../controllers/shopPublicationApproval.controller";
 import { postResolveViolationNotice } from "../controllers/shopViolationNotice.controller";
 import {
   getRentalApplications,
@@ -110,6 +111,13 @@ adminRouter.post("/shop-agreement-requests/:id/approve", postApproveShopAgreemen
 adminRouter.post("/shop-agreement-requests/:id/reject", postRejectShopAgreementRequest);
 adminRouter.get("/shops", listAllShops);
 adminRouter.post("/shops/bulk-upload", requireAdminRole("commissioner"), uploadShopsCsvHandler);
+
+// Shop publication approval - gates a newly-entered shop from public
+// visibility until Stall Prabhari, City Manager, and Deputy
+// Commissioner have each reviewed it (see SHOP_PUBLICATION_STAGE_ORDER).
+const requirePublicationStageRole = requireAdminRole("stall_prabhari", "city_manager", "deputy_commissioner");
+adminRouter.get("/shops/pending-publication", requirePublicationStageRole, getShopsPendingPublication);
+adminRouter.post("/shops/:shopNo/approve-publication", requirePublicationStageRole, postApproveShopPublication);
 adminRouter.get("/shops/per-sqft-report", getPerSqftReport);
 adminRouter.post("/violation-notices/:id/resolve", postResolveViolationNotice);
 

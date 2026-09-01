@@ -449,3 +449,42 @@ export async function uploadShopsCsv(csvContent: string): Promise<ShopCsvImportR
   }
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Shop publication approval (Stall Prabhari -> City Manager -> Deputy
+// Commissioner) - gates a newly-entered shop from appearing in the
+// public "Apply for a New Rental Shop" listing until all 3 stages
+// have reviewed it.
+// ---------------------------------------------------------------------------
+
+export interface ShopPendingPublication {
+  shopNo: string;
+  marketName: string | null;
+  location: string;
+  ward: string | null;
+  areaSqft: string | null;
+  publicationStage: "stall_prabhari" | "city_manager" | "deputy_commissioner" | "approved";
+  createdBy: string;
+  createdDate: string;
+}
+
+/** Only returns shops sitting at the calling admin's own stage - filtered server-side. */
+export async function fetchShopsPendingPublication(): Promise<ShopPendingPublication[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/shops/pending-publication`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load shops pending publication approval.");
+  const data: { shops: ShopPendingPublication[] } = await res.json();
+  return data.shops;
+}
+
+export async function approveShopPublication(shopNo: string): Promise<ShopPendingPublication> {
+  const res = await fetch(`${API_BASE_URL}/admin/shops/${encodeURIComponent(shopNo)}/approve-publication`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not approve this shop for publication.");
+  }
+  const data: { shop: ShopPendingPublication } = await res.json();
+  return data.shop;
+}

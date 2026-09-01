@@ -7,6 +7,21 @@ export const shopRepository = {
     return rows[0] ?? null;
   },
 
+  /** Shops currently awaiting review at a given publication stage - the working set for Stall Prabhari/City Manager/Deputy Commissioner's publication-approval queue. */
+  async listByPublicationStage(stage: string): Promise<ShopRow[]> {
+    const { rows } = await pool.query<ShopRow>(`SELECT * FROM shops WHERE publication_stage = $1 ORDER BY created_date ASC`, [stage]);
+    return rows;
+  },
+
+  /** Atomic WHERE publication_stage=currentStage guard - same double-processing protection used throughout this app's other stage-advancement flows, so two admins can't both advance the same shop past the same stage. */
+  async advancePublicationStage(shopNo: string, currentStage: string, nextStage: string): Promise<ShopRow | null> {
+    const { rows } = await pool.query<ShopRow>(
+      `UPDATE shops SET publication_stage = $3 WHERE shop_no = $1 AND publication_stage = $2 RETURNING *`,
+      [shopNo, currentStage, nextStage],
+    );
+    return rows[0] ?? null;
+  },
+
   async listAll(): Promise<ShopRow[]> {
     const { rows } = await pool.query<ShopRow>(`SELECT * FROM shops ORDER BY shop_no ASC`);
     return rows;

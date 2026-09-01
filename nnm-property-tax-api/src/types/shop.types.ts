@@ -7,6 +7,7 @@ export interface ShopRow {
   total_area_sqft: string | null;
   built_up_area_sqft: string | null;
   status: "vacant" | "occupied" | "under_notice" | "terminated";
+  publication_stage: "stall_prabhari" | "city_manager" | "deputy_commissioner" | "approved";
   created_by: string;
   created_date: Date;
   last_modified_by: string | null;

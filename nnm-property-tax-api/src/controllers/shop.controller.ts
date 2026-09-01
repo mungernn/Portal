@@ -39,11 +39,19 @@ export const postShopLookup = asyncHandler(async (req: Request, res: Response) =
   res.status(200).json(result);
 });
 
-/** GET /api/v1/shops/vacant — public. Lists vacant shops (no personal data) so citizens can browse what's available before applying. */
+/**
+ * GET /api/v1/shops/vacant - public. Lists vacant shops (no personal
+ * data) so citizens can browse what's available before applying.
+ * Requires publication_stage='approved' in addition to status='vacant'
+ * - a newly-entered shop otherwise appeared here immediately (status
+ * defaults to 'vacant' on creation), before Stall Prabhari, City
+ * Manager, and Deputy Commissioner had a chance to review it, drawing
+ * unnecessary public attention to unconfirmed entries.
+ */
 export const listVacantShops = asyncHandler(async (_req: Request, res: Response) => {
   const allShops = await shopRepository.listAll();
   const vacant = allShops
-    .filter((s) => s.status === "vacant")
+    .filter((s) => s.status === "vacant" && s.publication_stage === "approved")
     .map((s) => ({ shopNo: s.shop_no, marketName: s.market_name, location: s.location, areaSqft: s.area_sqft }));
   res.status(200).json({ shops: vacant });
 });
