@@ -112,6 +112,20 @@ export default function DocumentArchivePage() {
     return <div className="flex min-h-screen items-center justify-center text-sm text-slate-400">Loading…</div>;
   }
 
+  if (admin.role === "stall_prabhari") {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <AdminHeader admin={admin} />
+        <main className="mx-auto max-w-2xl px-6 py-10">
+          <div role="alert" className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            The document archive isn&apos;t part of the shop/rental workflow this login is scoped to.
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (noticeReprint) {
     return (
       <div className="min-h-screen bg-slate-50">

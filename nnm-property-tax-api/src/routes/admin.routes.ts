@@ -65,22 +65,41 @@ adminRouter.use(requireAdmin);
 // license), so they're the natural senior-oversight roles here.
 const requireSeniorAdmin = requireAdminRole("commissioner", "deputy_commissioner");
 
+// Stall Prabhari's role is specific to the shop agreement/rental
+// chain (see SHOP_APPROVAL_STAGE_ORDER) - they're not part of the
+// property-tax side of this system at all, so they're excluded from
+// mutation approvals, cancellation requests, tax collector management,
+// and trade license services below, per what was explicitly asked for.
+const requireMutationChainRole = requireAdminRole("tax_daroga", "mutation_nodal_clerk", "deputy_commissioner", "commissioner");
+const requireNonStallPrabhari = requireAdminRole(
+  "tax_daroga",
+  "mutation_nodal_clerk",
+  "deputy_commissioner",
+  "commissioner",
+  "city_manager",
+  "trade_license_nodal",
+);
+
 // Operator management
 adminRouter.get("/operators", requireSeniorAdmin, listOperators);
 adminRouter.patch("/operators/:id/active", requireSeniorAdmin, setOperatorActive);
 
-// Property mutation approval queue
-adminRouter.get("/change-requests", getChangeRequests);
-adminRouter.get("/change-requests/:id", getChangeRequestById);
-adminRouter.post("/change-requests/:id/approve", postApproveChangeRequest);
-adminRouter.post("/change-requests/:id/reject", postRejectChangeRequest);
+// Property mutation approval queue - restricted to the actual chain's
+// roles (tax_daroga -> mutation_nodal_clerk -> deputy_commissioner ->
+// commissioner, per migration 005) - Stall Prabhari was never part of
+// this chain to begin with, so this also fixes a pre-existing gap
+// where it was reachable by every admin role with no restriction at all.
+adminRouter.get("/change-requests", requireMutationChainRole, getChangeRequests);
+adminRouter.get("/change-requests/:id", requireMutationChainRole, getChangeRequestById);
+adminRouter.post("/change-requests/:id/approve", requireMutationChainRole, postApproveChangeRequest);
+adminRouter.post("/change-requests/:id/reject", requireMutationChainRole, postRejectChangeRequest);
 
 // Demand notice / receipt cancellation approval queue - viewable by
-// any admin role, but approve/reject is tax_daroga-only (unlike the
-// property mutation chain above, this doesn't escalate through
-// multiple roles).
+// any admin role except Stall Prabhari, but approve/reject is
+// tax_daroga-only (unlike the property mutation chain above, this
+// doesn't escalate through multiple roles).
 const requireTaxDaroga = requireAdminRole("tax_daroga");
-adminRouter.get("/cancellation-requests", getCancellationRequests);
+adminRouter.get("/cancellation-requests", requireNonStallPrabhari, getCancellationRequests);
 adminRouter.post("/cancellation-requests/:id/approve", requireTaxDaroga, postApproveCancellation);
 adminRouter.post("/cancellation-requests/:id/reject", requireTaxDaroga, postRejectCancellation);
 
@@ -110,11 +129,13 @@ adminRouter.post("/shop-rental-preferences/:id/reject", postRejectRentalPreferen
 
 // Trade license applications (new + renewal) — /stats MUST come before
 // /:id below, or Express would try to parse "stats" as an id.
-adminRouter.get("/trade-license-applications/stats", getTradeLicenseStats);
-adminRouter.get("/trade-license-applications", getTradeLicenseApplications);
-adminRouter.get("/trade-license-applications/:id", getTradeLicenseApplicationById);
-adminRouter.post("/trade-license-applications/:id/approve", postApproveTradeLicenseApplication);
-adminRouter.post("/trade-license-applications/:id/reject", postRejectTradeLicenseApplication);
+// Restricted from Stall Prabhari - trade licenses aren't part of the
+// shop/rental workflow that role is scoped to.
+adminRouter.get("/trade-license-applications/stats", requireNonStallPrabhari, getTradeLicenseStats);
+adminRouter.get("/trade-license-applications", requireNonStallPrabhari, getTradeLicenseApplications);
+adminRouter.get("/trade-license-applications/:id", requireNonStallPrabhari, getTradeLicenseApplicationById);
+adminRouter.post("/trade-license-applications/:id/approve", requireNonStallPrabhari, postApproveTradeLicenseApplication);
+adminRouter.post("/trade-license-applications/:id/reject", requireNonStallPrabhari, postRejectTradeLicenseApplication);
 
 // Bulk demand notice generation
 adminRouter.post("/demand-notices/bulk-generate", requireSeniorAdmin, postBulkGenerateDemandNotices);
@@ -125,13 +146,14 @@ adminRouter.post("/tax-history/bulk-regenerate", requireSeniorAdmin, postBulkReg
 // Data export - GET /api/v1/admin/export?dataset=properties|payments|notices|changes|all
 adminRouter.get("/export", requireSeniorAdmin, getDataExport);
 
-// Tax collector management - any admin can view/create/toggle.
-adminRouter.get("/tax-collectors", listTaxCollectors);
-adminRouter.post("/tax-collectors", createTaxCollector);
-adminRouter.patch("/tax-collectors/:id/active", setTaxCollectorActive);
+// Tax collector management - any admin except Stall Prabhari can view/create/toggle.
+adminRouter.get("/tax-collectors", requireNonStallPrabhari, listTaxCollectors);
+adminRouter.post("/tax-collectors", requireNonStallPrabhari, createTaxCollector);
+adminRouter.patch("/tax-collectors/:id/active", requireNonStallPrabhari, setTaxCollectorActive);
 
-// Ward tagging - viewing is open to any admin, but only Tax Daroga can
-// change which wards a collector is allowed to operate in.
-adminRouter.get("/tax-collectors/available-wards", getAvailableWards);
-adminRouter.get("/tax-collectors/:id/wards", getTaxCollectorWards);
+// Ward tagging - viewing is open to any admin except Stall Prabhari,
+// but only Tax Daroga can change which wards a collector is allowed
+// to operate in.
+adminRouter.get("/tax-collectors/available-wards", requireNonStallPrabhari, getAvailableWards);
+adminRouter.get("/tax-collectors/:id/wards", requireNonStallPrabhari, getTaxCollectorWards);
 adminRouter.put("/tax-collectors/:id/wards", requireAdminRole("tax_daroga"), setTaxCollectorWards);

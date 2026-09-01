@@ -1,18 +1,31 @@
 const TOKEN_KEY = "nnm_admin_token";
 const ADMIN_KEY = "nnm_admin_info";
 
-export type AdminRole = "tax_daroga" | "mutation_nodal_clerk" | "deputy_commissioner" | "commissioner";
+export type AdminRole =
+  | "tax_daroga"
+  | "mutation_nodal_clerk"
+  | "deputy_commissioner"
+  | "commissioner"
+  | "stall_prabhari"
+  | "city_manager"
+  | "trade_license_nodal";
 
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {
   tax_daroga: "Tax Daroga",
   mutation_nodal_clerk: "Mutation Nodal Clerk",
-  deputy_commissioner: "City Manager / Deputy Municipal Commissioner",
+  deputy_commissioner: "Deputy Municipal Commissioner",
   commissioner: "Municipal Commissioner",
+  stall_prabhari: "Stall Prabhari",
+  city_manager: "City Manager",
+  trade_license_nodal: "Trade License Nodal",
 };
 
 export const ADMIN_ROLE_ORDER: AdminRole[] = [
+  "stall_prabhari",
   "tax_daroga",
+  "city_manager",
   "mutation_nodal_clerk",
+  "trade_license_nodal",
   "deputy_commissioner",
   "commissioner",
 ];

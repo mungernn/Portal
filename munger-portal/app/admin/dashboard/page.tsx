@@ -66,31 +66,35 @@ export default function AdminDashboardPage() {
         />
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Link
-            href="/admin/change-requests"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <FileClock className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Mutation Approvals</h3>
-            <p className="text-sm text-slate-500">
-              {myStagePendingCount === null
-                ? "Review property change requests waiting on your desk."
-                : `${myStagePendingCount} request${myStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-            </p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/change-requests"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <FileClock className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Mutation Approvals</h3>
+              <p className="text-sm text-slate-500">
+                {myStagePendingCount === null
+                  ? "Review property change requests waiting on your desk."
+                  : `${myStagePendingCount} request${myStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/cancellation-requests"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <XCircle className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Cancellation Requests</h3>
-            <p className="text-sm text-slate-500">Requests to cancel a demand notice or payment receipt.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/cancellation-requests"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <XCircle className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Cancellation Requests</h3>
+              <p className="text-sm text-slate-500">Requests to cancel a demand notice or payment receipt.</p>
+            </Link>
+          )}
 
           <Link
             href="/admin/shop-agreement-requests"
@@ -144,75 +148,87 @@ export default function AdminDashboardPage() {
             <p className="text-sm text-slate-500">See which occupied shops are renting below market rate.</p>
           </Link>
 
-          <Link
-            href="/admin/trade-license-requests"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Award className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Trade License Applications</h3>
-            <p className="text-sm text-slate-500">
-              {myTradeLicensePendingCount === null
-                ? "Review trade license applications waiting on your desk."
-                : `${myTradeLicensePendingCount} application${myTradeLicensePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-            </p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/trade-license-requests"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Award className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Trade License Applications</h3>
+              <p className="text-sm text-slate-500">
+                {myTradeLicensePendingCount === null
+                  ? "Review trade license applications waiting on your desk."
+                  : `${myTradeLicensePendingCount} application${myTradeLicensePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/trade-license-dashboard"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Trade License — Reporting</h3>
-            <p className="text-sm text-slate-500">Received, pendency, disposal rate, and anything overdue 2+ weeks.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/trade-license-dashboard"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Trade License - Reporting</h3>
+              <p className="text-sm text-slate-500">Received, pendency, disposal rate, and anything overdue 2+ weeks.</p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/operators"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Users className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Operators</h3>
-            <p className="text-sm text-slate-500">Activate or deactivate counter operator accounts.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/operators"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Users className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Operators</h3>
+              <p className="text-sm text-slate-500">Activate or deactivate counter operator accounts.</p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/tax-collectors"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Users className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Tax Collectors</h3>
-            <p className="text-sm text-slate-500">Add field collectors and their codes for payment tracking.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/tax-collectors"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Users className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Tax Collectors</h3>
+              <p className="text-sm text-slate-500">Add field collectors and their codes for payment tracking.</p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/demand-notices"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <FileWarning className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Bulk Demand Notices</h3>
-            <p className="text-sm text-slate-500">Generate demand notices for every holding that doesn&apos;t have one yet.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/demand-notices"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <FileWarning className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Bulk Demand Notices</h3>
+              <p className="text-sm text-slate-500">Generate demand notices for every holding that doesn&apos;t have one yet.</p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/document-archive"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Archive className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Document Archive</h3>
-            <p className="text-sm text-slate-500">Look up any past demand notice, receipt, or violation notice — view only.</p>
-          </Link>
+          {admin.role !== "stall_prabhari" && (
+            <Link
+              href="/admin/document-archive"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Archive className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Document Archive</h3>
+              <p className="text-sm text-slate-500">Look up any past demand notice, receipt, or violation notice - view only.</p>
+            </Link>
+          )}
 
           {admin.role === "commissioner" && (
             <Link
