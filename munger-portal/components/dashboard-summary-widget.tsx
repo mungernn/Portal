@@ -66,7 +66,7 @@ interface TradeLicenseIssuedListItem {
   requestedAt: string;
 }
 
-type TabKey = "holdings" | "propertyChanges" | "shops" | "shopApplications" | "tradeLicenseApplications" | "tradeLicensesIssued";
+export type TabKey = "holdings" | "propertyChanges" | "shops" | "shopApplications" | "tradeLicenseApplications" | "tradeLicensesIssued";
 
 const PAGE_SIZE_OPTIONS = [25, 50];
 
@@ -216,12 +216,16 @@ export interface DashboardSummaryWidgetProps {
   fetchShopApplications: (page: number, pageSize: number) => Promise<PaginatedResult<ShopApplicationListItem>>;
   fetchTradeLicenseApplications: (page: number, pageSize: number) => Promise<PaginatedResult<TradeLicenseApplicationListItem>>;
   fetchTradeLicensesIssued: (page: number, pageSize: number) => Promise<PaginatedResult<TradeLicenseIssuedListItem>>;
+  /** Restricts which tabs are shown/fetched - e.g. a role scoped to only the shop workflow shouldn't see property-tax or trade-license tabs. Defaults to every tab, so existing callers (e.g. the operator dashboard) are unaffected. */
+  visibleTabs?: TabKey[];
 }
 
 export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
   const [summary, setSummary] = useState<DashboardSummaryShape | null>(null);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabKey>("holdings");
+  const ALL_TAB_KEYS: TabKey[] = ["holdings", "propertyChanges", "shops", "shopApplications", "tradeLicenseApplications", "tradeLicensesIssued"];
+  const visibleKeys = props.visibleTabs ?? ALL_TAB_KEYS;
+  const [activeTab, setActiveTab] = useState<TabKey>(visibleKeys[0] ?? "holdings");
   const [wardFilter, setWardFilter] = useState("");
   const [wardFilterInput, setWardFilterInput] = useState("");
 
@@ -234,7 +238,7 @@ export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const tabs: { key: TabKey; label: string; count: number | null }[] = [
+  const allTabsWithCounts: { key: TabKey; label: string; count: number | null }[] = [
     { key: "holdings", label: "Holdings", count: summary?.holdings.total ?? null },
     { key: "propertyChanges", label: "Property Changes Pending", count: summary?.propertyChanges.pending ?? null },
     { key: "shops", label: "Shop Entries", count: summary?.shops.total ?? null },
@@ -242,6 +246,7 @@ export function DashboardSummaryWidget(props: DashboardSummaryWidgetProps) {
     { key: "tradeLicenseApplications", label: "Trade License Applications", count: summary?.tradeLicense.received ?? null },
     { key: "tradeLicensesIssued", label: "Trade Licenses Issued", count: summary?.tradeLicense.issued ?? null },
   ];
+  const tabs = allTabsWithCounts.filter((t) => visibleKeys.includes(t.key));
 
   return (
     <section className="mb-8 rounded-xl border border-slate-200 bg-white p-6">

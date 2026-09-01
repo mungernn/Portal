@@ -47,6 +47,14 @@ export default function AdminDashboardPage() {
     return <div className="flex min-h-screen items-center justify-center text-sm text-slate-400">Loading…</div>;
   }
 
+  // Stall Prabhari is scoped to the shop/rental workflow only; Trade
+  // License Nodal is scoped to trade licenses only - each should see
+  // just their own area of the dashboard, not the general
+  // property-tax tooling or each other's area.
+  const isStallPrabhari = admin.role === "stall_prabhari";
+  const isTradeLicenseNodal = admin.role === "trade_license_nodal";
+  const isRestrictedRole = isStallPrabhari || isTradeLicenseNodal;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <AdminHeader admin={admin} />
@@ -63,10 +71,11 @@ export default function AdminDashboardPage() {
           fetchShopApplications={fetchDashboardShopApplicationsAdmin}
           fetchTradeLicenseApplications={fetchDashboardTradeLicenseApplicationsAdmin}
           fetchTradeLicensesIssued={fetchDashboardTradeLicensesIssuedAdmin}
+          visibleTabs={isStallPrabhari ? ["shops", "shopApplications"] : isTradeLicenseNodal ? ["tradeLicenseApplications", "tradeLicensesIssued"] : undefined}
         />
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/change-requests"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -83,7 +92,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/cancellation-requests"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -96,59 +105,67 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          <Link
-            href="/admin/shop-agreement-requests"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <ShoppingBag className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Agreement Approvals</h3>
-            <p className="text-sm text-slate-500">
-              {myShopStagePendingCount === null
-                ? "Review shop agreement requests waiting on your desk."
-                : `${myShopStagePendingCount} request${myShopStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-            </p>
-          </Link>
+          {!isTradeLicenseNodal && (
+            <Link
+              href="/admin/shop-agreement-requests"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <ShoppingBag className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Agreement Approvals</h3>
+              <p className="text-sm text-slate-500">
+                {myShopStagePendingCount === null
+                  ? "Review shop agreement requests waiting on your desk."
+                  : `${myShopStagePendingCount} request${myShopStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/shop-rental-applications"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Store className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rental Applications</h3>
-            <p className="text-sm text-slate-500">
-              {myRentalAppPendingCount === null
-                ? "Review new tenant applications waiting on your desk."
-                : `${myRentalAppPendingCount} application${myRentalAppPendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-            </p>
-          </Link>
+          {!isTradeLicenseNodal && (
+            <Link
+              href="/admin/shop-rental-applications"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Store className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rental Applications</h3>
+              <p className="text-sm text-slate-500">
+                {myRentalAppPendingCount === null
+                  ? "Review new tenant applications waiting on your desk."
+                  : `${myRentalAppPendingCount} application${myRentalAppPendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+              </p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/shop-rental-preferences"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Store className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rental Preferences</h3>
-            <p className="text-sm text-slate-500">Match market/size/bid preferences to vacant shops and allot one.</p>
-          </Link>
+          {!isTradeLicenseNodal && (
+            <Link
+              href="/admin/shop-rental-preferences"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Store className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rental Preferences</h3>
+              <p className="text-sm text-slate-500">Match market/size/bid preferences to vacant shops and allot one.</p>
+            </Link>
+          )}
 
-          <Link
-            href="/admin/shop-rate-report"
-            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-          >
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rate per Sqft</h3>
-            <p className="text-sm text-slate-500">See which occupied shops are renting below market rate.</p>
-          </Link>
+          {!isTradeLicenseNodal && (
+            <Link
+              href="/admin/shop-rate-report"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rate per Sqft</h3>
+              <p className="text-sm text-slate-500">See which occupied shops are renting below market rate.</p>
+            </Link>
+          )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isStallPrabhari && (
             <Link
               href="/admin/trade-license-requests"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -165,7 +182,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isStallPrabhari && (
             <Link
               href="/admin/trade-license-dashboard"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -178,7 +195,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/operators"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -191,7 +208,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/tax-collectors"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -204,7 +221,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/demand-notices"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
@@ -217,7 +234,7 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
-          {admin.role !== "stall_prabhari" && (
+          {!isRestrictedRole && (
             <Link
               href="/admin/document-archive"
               className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
