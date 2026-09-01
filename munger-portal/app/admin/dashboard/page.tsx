@@ -179,6 +179,19 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
+          {canApproveShopPublication && (
+            <Link
+              href="/admin/shop-edit-requests"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <FileClock className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Edit Approvals</h3>
+              <p className="text-sm text-slate-500">Review proposed edits to existing shops&apos; details.</p>
+            </Link>
+          )}
+
           {!isStallPrabhari && (
             <Link
               href="/admin/trade-license-requests"

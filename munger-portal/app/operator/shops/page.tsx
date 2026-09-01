@@ -5,6 +5,8 @@ import Link from "next/link";
 import { AlertCircle, FilePlus2, Loader2, Plus, Search, Sparkles } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { ShopAgreementForm } from "@/components/operator/shop-agreement-form";
+import { ShopEditForm } from "@/components/operator/shop-edit-form";
+import { ShopAgreementDocumentPanel } from "@/components/operator/shop-agreement-document-panel";
 import { ShopRentalApplicationForm } from "@/components/operator/shop-rental-application-form";
 import { ShopRentPaymentPanel } from "@/components/operator/shop-rent-payment-panel";
 import { ShopViolationNotices } from "@/components/operator/shop-violation-notices";
@@ -39,6 +41,7 @@ export default function OperatorShopsPage() {
   const [searching, setSearching] = useState(false);
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
   const [showAgreementForm, setShowAgreementForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [receipt, setReceipt] = useState<ShopRentPaymentResult | null>(null);
   const [permit, setPermit] = useState<PrintableShopAgreement | null>(null);
@@ -384,6 +387,34 @@ export default function OperatorShopsPage() {
                   <span>{String(mode.result.shop?.area_sqft ?? "—")} sqft</span>
                 </div>
               </div>
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  onClick={() => setShowEditForm((v) => !v)}
+                  className="text-sm font-medium text-nnm-blue hover:underline"
+                >
+                  {showEditForm ? "Cancel edit" : "Edit this shop's details"}
+                </button>
+                {showEditForm && (
+                  <div className="mt-3">
+                    <ShopEditForm
+                      shopNo={shopNo}
+                      current={{
+                        marketName: mode.result.shop?.market_name != null ? String(mode.result.shop.market_name) : null,
+                        location: String(mode.result.shop?.location ?? ""),
+                        ward: mode.result.shop?.ward != null ? String(mode.result.shop.ward) : null,
+                        areaSqft: mode.result.shop?.area_sqft != null ? String(mode.result.shop.area_sqft) : null,
+                        totalAreaSqft: mode.result.shop?.total_area_sqft != null ? String(mode.result.shop.total_area_sqft) : null,
+                        builtUpAreaSqft: mode.result.shop?.built_up_area_sqft != null ? String(mode.result.shop.built_up_area_sqft) : null,
+                      }}
+                      onSubmitted={() => {}}
+                      onCancel={() => setShowEditForm(false)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <ShopAgreementDocumentPanel shopNo={shopNo} />
 
               {mode.result.agreement ? (
                 <div className="mt-4 border-t border-slate-100 pt-4">

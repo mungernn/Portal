@@ -30,6 +30,12 @@ import {
 } from "../controllers/shopAgreement.controller";
 import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../controllers/shop.controller";
 import { getShopsPendingPublication, postApproveShopPublication } from "../controllers/shopPublicationApproval.controller";
+import {
+  getShopEditRequests,
+  getShopEditRequestById,
+  postApproveShopEditRequest,
+  postRejectShopEditRequest,
+} from "../controllers/shopEditRequest.controller";
 import { postResolveViolationNotice } from "../controllers/shopViolationNotice.controller";
 import {
   getRentalApplications,
@@ -118,6 +124,15 @@ adminRouter.post("/shops/bulk-upload", requireAdminRole("commissioner"), uploadS
 const requirePublicationStageRole = requireAdminRole("stall_prabhari", "city_manager", "deputy_commissioner");
 adminRouter.get("/shops/pending-publication", requirePublicationStageRole, getShopsPendingPublication);
 adminRouter.post("/shops/:shopNo/approve-publication", requirePublicationStageRole, postApproveShopPublication);
+
+// Shop edit approval - an operator's proposed edit to an existing
+// shop's own details only takes effect once Stall Prabhari, City
+// Manager, and Deputy Commissioner have all approved it, mirroring
+// the property/holding edit pattern.
+adminRouter.get("/shop-edit-requests", requirePublicationStageRole, getShopEditRequests);
+adminRouter.get("/shop-edit-requests/:id", requirePublicationStageRole, getShopEditRequestById);
+adminRouter.post("/shop-edit-requests/:id/approve", requirePublicationStageRole, postApproveShopEditRequest);
+adminRouter.post("/shop-edit-requests/:id/reject", requirePublicationStageRole, postRejectShopEditRequest);
 adminRouter.get("/shops/per-sqft-report", getPerSqftReport);
 adminRouter.post("/violation-notices/:id/resolve", postResolveViolationNotice);
 

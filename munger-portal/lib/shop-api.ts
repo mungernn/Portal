@@ -423,3 +423,101 @@ export async function fetchShopPaymentHistory(shopNo: string): Promise<ShopPayme
   const data: { history: ShopPaymentHistoryEntry[] } = await res.json();
   return data.history;
 }
+// ---------------------------------------------------------------------------
+// Shop edit requests - proposing a change to a shop's own details
+// (location, market, ward, area). Nothing is applied until Stall
+// Prabhari, City Manager, and Deputy Commissioner have all approved
+// it, mirroring the property/holding edit pattern.
+// ---------------------------------------------------------------------------
+
+export interface ShopEditProposedData {
+  marketName?: string | null;
+  location?: string;
+  ward?: string | null;
+  areaSqft?: number | null;
+  totalAreaSqft?: number | null;
+  builtUpAreaSqft?: number | null;
+}
+
+export async function submitShopEditRequest(
+  shopNo: string,
+  changeReason: string,
+  proposedData: ShopEditProposedData,
+): Promise<{ request: { id: number; status: string } }> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/edit-requests`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ changeReason, proposedData }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not submit this edit request.");
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Shop agreement document (PDF) - kept safe per shop. Operator or
+// admin can upload/view it (see requireOperatorOrAdmin on the backend
+// route) - whoever's processing the signed paperwork.
+// ---------------------------------------------------------------------------
+
+export interface ShopAgreementDocumentMeta {
+  id: number;
+  shop_no: string;
+  file_name: string;
+  file_size: number;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
+export async function fetchShopAgreementDocumentMeta(shopNo: string): Promise<ShopAgreementDocumentMeta | null> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/agreement-document`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not check for an existing agreement document.");
+  const data: { document: ShopAgreementDocumentMeta | null } = await res.json();
+  return data.document;
+}
+
+/** Reads a File object as base64, for sending in the JSON body - this app has no multipart/file-upload middleware set up. */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the "data:application/pdf;base64," prefix FileReader adds.
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = () => reject(new Error("Could not read the selected file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadShopAgreementDocument(shopNo: string, file: File): Promise<ShopAgreementDocumentMeta> {
+  const fileDataBase64 = await readFileAsBase64(file);
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/agreement-document`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ fileName: file.name, fileDataBase64 }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not upload this file.");
+  }
+  const data: { document: ShopAgreementDocumentMeta } = await res.json();
+  return data.document;
+}
+
+/**
+ * Fetches the PDF as a blob and returns an object URL for viewing/
+ * downloading - a plain <a href> can't be used here since the file
+ * endpoint requires the same Bearer auth header as every other admin/
+ * operator request, and browsers don't attach custom headers to plain
+ * navigation. Caller is responsible for revoking the returned URL
+ * (URL.revokeObjectURL) once done with it, to avoid leaking memory.
+ */
+export async function fetchShopAgreementDocumentBlobUrl(shopNo: string): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/agreement-document/file`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the agreement document.");
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}

@@ -14,6 +14,55 @@ export interface ShopRow {
   last_modified_date: Date | null;
 }
 
+/** What an operator may propose changing about an existing shop's details - a partial set, only the fields actually being edited. */
+export interface ShopEditProposedData {
+  marketName?: string | null;
+  location?: string;
+  ward?: string | null;
+  areaSqft?: number | null;
+  totalAreaSqft?: number | null;
+  builtUpAreaSqft?: number | null;
+}
+
+export interface ShopEditRequestRow {
+  id: number;
+  shop_no: string;
+  requested_by: string;
+  requested_at: Date;
+  status: "pending" | "approved" | "rejected";
+  current_stage: "stall_prabhari" | "city_manager" | "deputy_commissioner";
+  change_reason: string;
+  proposed_data: ShopEditProposedData;
+  reviewed_by: string | null;
+  reviewed_role: string | null;
+  reviewed_at: Date | null;
+  review_notes: string | null;
+}
+
+export interface ShopEditApprovalRow {
+  id: number;
+  edit_request_id: number;
+  stage: string;
+  decision: "approved" | "rejected";
+  decided_by_username: string;
+  decided_by_display_name: string;
+  decided_at: Date;
+  notes: string | null;
+}
+
+export interface ShopAgreementDocumentRow {
+  id: number;
+  shop_no: string;
+  file_data: Buffer;
+  file_name: string;
+  file_size: number;
+  uploaded_by: string;
+  uploaded_at: Date;
+}
+
+/** Same shape without file_data - for listing/metadata endpoints that shouldn't pull the full PDF bytes into memory just to show upload info. */
+export type ShopAgreementDocumentMeta = Omit<ShopAgreementDocumentRow, "file_data">;
+
 export type ShopAgreementDataStatus = "complete" | "partial";
 
 export interface ShopAgreementRow {

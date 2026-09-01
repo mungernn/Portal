@@ -488,3 +488,90 @@ export async function approveShopPublication(shopNo: string): Promise<ShopPendin
   const data: { shop: ShopPendingPublication } = await res.json();
   return data.shop;
 }
+
+// ---------------------------------------------------------------------------
+// Shop edit requests - an operator's proposed edit to an existing
+// shop's own details, approved through Stall Prabhari -> City Manager
+// -> Deputy Commissioner before it's applied. Mirrors the property/
+// holding change-request pattern (fetchChangeRequests in admin-api.ts).
+// ---------------------------------------------------------------------------
+
+export type ShopEditRequestStatus = "pending" | "approved" | "rejected";
+
+export interface ShopEditRequestSummary {
+  id: number;
+  shop_no: string;
+  requested_by: string;
+  requested_at: string;
+  status: ShopEditRequestStatus;
+  current_stage: string;
+  change_reason: string;
+  proposed_data: Record<string, unknown>;
+  reviewed_by: string | null;
+  reviewed_role: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+}
+
+export async function fetchShopEditRequests(opts: {
+  status?: ShopEditRequestStatus;
+  myStage?: boolean;
+}): Promise<{ requests: ShopEditRequestSummary[]; myRole: string; stageOrder: string[] }> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.myStage) params.set("myStage", "true");
+  const res = await fetch(`${API_BASE_URL}/admin/shop-edit-requests?${params.toString()}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load shop edit requests.");
+  return res.json();
+}
+
+export interface ShopEditRequestApproval {
+  id: number;
+  edit_request_id: number;
+  stage: string;
+  decision: "approved" | "rejected";
+  decided_by_username: string;
+  decided_by_display_name: string;
+  decided_at: string;
+  notes: string | null;
+}
+
+export interface ShopEditRequestDetail {
+  request: ShopEditRequestSummary;
+  currentShop: Record<string, unknown> | null;
+  approvalHistory: ShopEditRequestApproval[];
+}
+
+export async function fetchShopEditRequestDetail(id: number): Promise<ShopEditRequestDetail> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-edit-requests/${id}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this edit request.");
+  return res.json();
+}
+
+export async function approveShopEditRequest(id: number, notes?: string): Promise<ShopEditRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-edit-requests/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not approve this request.");
+  }
+  const data: { request: ShopEditRequestSummary } = await res.json();
+  return data.request;
+}
+
+export async function rejectShopEditRequest(id: number, notes: string): Promise<ShopEditRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-edit-requests/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not reject this request.");
+  }
+  const data: { request: ShopEditRequestSummary } = await res.json();
+  return data.request;
+}

@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { getShopByShopNo, postShopLookup, postCreateShop, getMarketList, getNextShopNumber, listVacantShops } from "../controllers/shop.controller";
 import { postSubmitAgreementChange, getPrintableAgreement } from "../controllers/shopAgreement.controller";
+import { postSubmitShopEditRequest } from "../controllers/shopEditRequest.controller";
+import {
+  postUploadShopAgreementDocument,
+  getShopAgreementDocumentMetaHandler,
+  getShopAgreementDocumentFile,
+} from "../controllers/shopAgreementDocument.controller";
 import {
   postGenerateRentDemand,
   getUnsettledRentDemands,
@@ -36,6 +42,20 @@ shopRouter.get("/:shopNo", requireOperator, getShopByShopNo);
 
 // POST /api/v1/shops/:shopNo/agreement — queue a new/edited agreement for the 5-stage approval chain
 shopRouter.post("/:shopNo/agreement", requireOperator, postSubmitAgreementChange);
+
+// Propose an edit to an existing shop's own details (location,
+// market, ward, area) - operator only, matching the property/holding
+// edit pattern (nothing is applied until Stall Prabhari, City
+// Manager, and Deputy Commissioner have all approved it).
+shopRouter.post("/:shopNo/edit-requests", requireOperator, postSubmitShopEditRequest);
+
+// Signed shop agreement PDF - kept safe per shop. Operator or admin
+// (whoever's processing the paperwork) can upload/view it - see
+// requireOperatorOrAdmin's comment for why this is one of the few
+// endpoints deliberately open to either session type.
+shopRouter.post("/:shopNo/agreement-document", requireOperatorOrAdmin, postUploadShopAgreementDocument);
+shopRouter.get("/:shopNo/agreement-document", requireOperatorOrAdmin, getShopAgreementDocumentMetaHandler);
+shopRouter.get("/:shopNo/agreement-document/file", requireOperatorOrAdmin, getShopAgreementDocumentFile);
 
 // GET /api/v1/shops/agreements/:agreementId/print — the formal permit/agreement document
 shopRouter.get("/agreements/:agreementId/print", requireOperatorOrAdmin, getPrintableAgreement);
