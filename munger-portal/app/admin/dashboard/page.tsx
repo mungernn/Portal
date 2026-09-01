@@ -123,6 +123,17 @@ export default function AdminDashboardPage() {
           </Link>
 
           <Link
+            href="/admin/shop-rental-preferences"
+            className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+          >
+            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+              <Store className="h-6 w-6" strokeWidth={1.8} />
+            </span>
+            <h3 className="mb-1.5 text-base font-semibold text-slate-900">Shop Rental Preferences</h3>
+            <p className="text-sm text-slate-500">Match market/size/bid preferences to vacant shops and allot one.</p>
+          </Link>
+
+          <Link
             href="/admin/shop-rate-report"
             className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
           >

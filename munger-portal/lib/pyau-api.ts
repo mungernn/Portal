@@ -14,6 +14,8 @@ export interface Pyau {
   wardId: number;
   serialNumber: string | null;
   locationAddress: string | null;
+  latitude: string | null;
+  longitude: string | null;
   schemeName: string | null;
   overheadTankCount: number;
   housesServed: number | null;
@@ -41,6 +43,8 @@ export async function fetchPyaus(): Promise<Pyau[]> {
 export async function createPyau(input: {
   wardId: number;
   locationAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
   schemeName: string | null;
   overheadTankCount: number;
   housesServed: number | null;
@@ -99,6 +103,8 @@ export async function updatePyau(
   id: number,
   input: Partial<{
     locationAddress: string | null;
+    latitude: number | null;
+    longitude: number | null;
     schemeName: string | null;
     overheadTankCount: number;
     housesServed: number | null;

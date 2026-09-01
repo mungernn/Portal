@@ -16,6 +16,8 @@ function serializePyau(p: Awaited<ReturnType<typeof pyauRepository.findById>>) {
     wardId: p.ward_id,
     serialNumber: p.serial_number,
     locationAddress: p.location_address,
+    latitude: p.latitude,
+    longitude: p.longitude,
     schemeName: p.scheme_name,
     overheadTankCount: p.overhead_tank_count,
     housesServed: p.houses_served,
@@ -46,6 +48,8 @@ export const listPyausHandler = asyncHandler(async (_req: Request, res: Response
 const createPyauSchema = z.object({
   wardId: z.coerce.number().int().positive(),
   locationAddress: z.string().trim().nullish(),
+  latitude: z.coerce.number().min(-90).max(90).nullish(),
+  longitude: z.coerce.number().min(-180).max(180).nullish(),
   schemeName: z.string().trim().nullish(),
   overheadTankCount: z.coerce.number().int().nonnegative().default(0),
   housesServed: z.coerce.number().int().nonnegative().nullish(),
@@ -78,6 +82,8 @@ export const createPyauHandler = asyncHandler(async (req: Request, res: Response
     wardId: parsed.data.wardId,
     serialNumber,
     locationAddress: parsed.data.locationAddress ?? null,
+    latitude: parsed.data.latitude ?? null,
+    longitude: parsed.data.longitude ?? null,
     schemeName: parsed.data.schemeName ?? null,
     overheadTankCount: parsed.data.overheadTankCount,
     housesServed: parsed.data.housesServed ?? null,
@@ -119,6 +125,8 @@ export const setPyauActiveHandler = asyncHandler(async (req: Request, res: Respo
 
 const updatePyauSchema = z.object({
   locationAddress: z.string().trim().nullish(),
+  latitude: z.coerce.number().min(-90).max(90).nullish(),
+  longitude: z.coerce.number().min(-180).max(180).nullish(),
   schemeName: z.string().trim().nullish(),
   overheadTankCount: z.coerce.number().int().nonnegative().nullish(),
   housesServed: z.coerce.number().int().nonnegative().nullish(),

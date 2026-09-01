@@ -328,3 +328,101 @@ export async function fetchPrintableViolationNoticeAdmin(id: number): Promise<Pr
   if (!res.ok) throw new Error("Could not load this violation notice.");
   return res.json();
 }
+// ---------------------------------------------------------------------------
+// Shop rental preferences (market/size/bid intake, before a specific
+// shop is picked - see the "Apply for a New Rental Shop" page). An
+// admin views which pending preferences match a given vacant shop and
+// manually allots one, which creates a normal rental application that
+// still goes through the existing 5-stage approval chain above.
+// ---------------------------------------------------------------------------
+
+export type ShopRentalPreferenceStatus = "pending" | "allotted" | "rejected" | "withdrawn";
+
+export interface ShopRentalPreferenceSummary {
+  id: number;
+  applicant_name: string;
+  applicant_relation_name: string | null;
+  applicant_mobile: string | null;
+  applicant_business_name: string | null;
+  applicant_property_holding_no: string | null;
+  min_area_sqft: string;
+  max_area_sqft: string;
+  bid_amount: string;
+  status: ShopRentalPreferenceStatus;
+  allotted_shop_no: string | null;
+  allotted_application_id: number | null;
+  requested_by: string;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_notes: string | null;
+  markets: string[];
+}
+
+export async function fetchRentalPreferences(status?: ShopRentalPreferenceStatus): Promise<ShopRentalPreferenceSummary[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  const res = await fetch(`${API_BASE_URL}/admin/shop-rental-preferences?${params.toString()}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load rental preferences.");
+  const data: { preferences: ShopRentalPreferenceSummary[] } = await res.json();
+  return data.preferences;
+}
+
+export interface ShopSummaryForAllotment {
+  shop_no: string;
+  market_name: string | null;
+  location: string;
+  area_sqft: string | null;
+  status: string;
+}
+
+/** Every shop, for the admin to pick a vacant one from - filter client-side, since there's no dedicated admin vacant-shops endpoint. */
+export async function fetchAllShopsForAdmin(): Promise<ShopSummaryForAllotment[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/shops`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load shops.");
+  const data: { shops: ShopSummaryForAllotment[] } = await res.json();
+  return data.shops;
+}
+
+/** Every pending preference that matches a specific vacant shop's market and size, ranked by bid as a starting guide - the admin still picks manually. */
+export async function fetchPreferencesMatchingShop(
+  shopNo: string,
+): Promise<{ shop: ShopSummaryForAllotment; matches: ShopRentalPreferenceSummary[] }> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-rental-preferences/matching?shopNo=${encodeURIComponent(shopNo)}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not load matching preferences.");
+  }
+  return res.json();
+}
+
+/** The manual allotment decision - creates a normal shop_rental_applications row that still goes through the full existing approval chain. */
+export async function allotRentalPreference(preferenceId: number, shopNo: string): Promise<ShopRentalPreferenceSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-rental-preferences/${preferenceId}/allot`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ shopNo }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not allot this preference.");
+  }
+  const data: { preference: ShopRentalPreferenceSummary } = await res.json();
+  return data.preference;
+}
+
+export async function rejectRentalPreference(id: number, notes: string): Promise<ShopRentalPreferenceSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-rental-preferences/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not reject this preference.");
+  }
+  const data: { preference: ShopRentalPreferenceSummary } = await res.json();
+  return data.preference;
+}

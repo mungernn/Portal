@@ -22,6 +22,21 @@ export const lookupTaxCollector = asyncHandler(async (req: Request, res: Respons
   res.status(200).json({ code: collector.code, name: collector.name });
 });
 
+/**
+ * GET /api/v1/tax-collectors/active - deliberately public, no auth.
+ * Powers the dropdown on both the operator's counter-payment form and
+ * the citizen-facing payment page (see TaxCollectorCodeInput) -
+ * replaces free-text code entry, which had no way to show what codes
+ * actually exist without a lookup per keystroke. Only active
+ * collectors are exposed here, and only code+name (same minimal
+ * exposure as the single-code lookup above) - deactivated ones stay
+ * out of new payments but remain visible to admins via listTaxCollectors.
+ */
+export const listActiveTaxCollectors = asyncHandler(async (_req: Request, res: Response) => {
+  const collectors = await taxCollectorRepository.listActive();
+  res.status(200).json({ collectors: collectors.map((c) => ({ code: c.code, name: c.name })) });
+});
+
 /** GET /api/v1/tax-collectors - admin only, for management. */
 export const listTaxCollectors = asyncHandler(async (_req: Request, res: Response) => {
   const collectors = await taxCollectorRepository.listAll();

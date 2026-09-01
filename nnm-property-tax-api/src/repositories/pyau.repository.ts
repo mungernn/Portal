@@ -40,6 +40,8 @@ export const pyauRepository = {
     wardId: number;
     serialNumber: string;
     locationAddress: string | null;
+    latitude: number | null;
+    longitude: number | null;
     schemeName: string | null;
     overheadTankCount: number;
     housesServed: number | null;
@@ -56,13 +58,15 @@ export const pyauRepository = {
   }): Promise<PyauRow> {
     const { rows } = await pool.query<PyauRow>(
       `INSERT INTO pyaus
-         (ward_id, serial_number, location_address, scheme_name, overhead_tank_count, houses_served, structure_type,
+         (ward_id, serial_number, location_address, latitude, longitude, scheme_name, overhead_tank_count, houses_served, structure_type,
           tank_stand_type, pump_details, boring_depth_feet, casing_details, installed_date, builder_name, builder_contact, remarks, functional_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,COALESCE($16,'functional')) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,COALESCE($18,'functional')) RETURNING *`,
       [
         input.wardId,
         input.serialNumber,
         input.locationAddress,
+        input.latitude,
+        input.longitude,
         input.schemeName,
         input.overheadTankCount,
         input.housesServed,
@@ -96,6 +100,8 @@ export const pyauRepository = {
     id: number,
     input: {
       locationAddress?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
       schemeName?: string | null;
       overheadTankCount?: number;
       housesServed?: number | null;
@@ -113,22 +119,26 @@ export const pyauRepository = {
     const { rows } = await pool.query<PyauRow>(
       `UPDATE pyaus SET
          location_address = COALESCE($2, location_address),
-         scheme_name = COALESCE($3, scheme_name),
-         overhead_tank_count = COALESCE($4, overhead_tank_count),
-         houses_served = COALESCE($5, houses_served),
-         structure_type = COALESCE($6, structure_type),
-         tank_stand_type = COALESCE($7, tank_stand_type),
-         pump_details = COALESCE($8, pump_details),
-         boring_depth_feet = COALESCE($9, boring_depth_feet),
-         casing_details = COALESCE($10, casing_details),
-         installed_date = COALESCE($11, installed_date),
-         builder_name = COALESCE($12, builder_name),
-         builder_contact = COALESCE($13, builder_contact),
-         remarks = COALESCE($14, remarks)
+         latitude = COALESCE($3, latitude),
+         longitude = COALESCE($4, longitude),
+         scheme_name = COALESCE($5, scheme_name),
+         overhead_tank_count = COALESCE($6, overhead_tank_count),
+         houses_served = COALESCE($7, houses_served),
+         structure_type = COALESCE($8, structure_type),
+         tank_stand_type = COALESCE($9, tank_stand_type),
+         pump_details = COALESCE($10, pump_details),
+         boring_depth_feet = COALESCE($11, boring_depth_feet),
+         casing_details = COALESCE($12, casing_details),
+         installed_date = COALESCE($13, installed_date),
+         builder_name = COALESCE($14, builder_name),
+         builder_contact = COALESCE($15, builder_contact),
+         remarks = COALESCE($16, remarks)
        WHERE id = $1 RETURNING *`,
       [
         id,
         input.locationAddress,
+        input.latitude,
+        input.longitude,
         input.schemeName,
         input.overheadTankCount,
         input.housesServed,

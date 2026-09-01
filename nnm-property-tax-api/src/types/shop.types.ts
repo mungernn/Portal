@@ -99,6 +99,53 @@ export interface ShopViolationNoticeRow {
   resolved_at: Date | null;
 }
 
+/**
+ * What an applicant submits when expressing interest in a rental shop
+ * WITHOUT picking one specific shop - a set of acceptable markets, a
+ * size range, and a bid. An admin later matches this against actual
+ * vacant shops and allots one manually (see
+ * shopRentalPreference.service.ts) - this record never becomes an
+ * agreement directly, it feeds into ShopRentalApplicationInput once
+ * allotted.
+ */
+export interface ShopRentalPreferenceInput {
+  marketNames: string[];
+  minAreaSqft: number;
+  maxAreaSqft: number;
+  bidAmount: number;
+  applicantName: string;
+  applicantRelationType?: string | null;
+  applicantRelationName?: string | null;
+  applicantMobile?: string | null;
+  applicantAddress?: string | null;
+  applicantIdProofNumber?: string | null;
+  applicantBusinessName?: string | null;
+  applicantPropertyHoldingNo?: string | null;
+}
+
+export interface ShopRentalPreferenceRow {
+  id: number;
+  applicant_name: string;
+  applicant_relation_type: string | null;
+  applicant_relation_name: string | null;
+  applicant_mobile: string | null;
+  applicant_address: string | null;
+  applicant_id_proof_number: string | null;
+  applicant_business_name: string | null;
+  applicant_property_holding_no: string | null;
+  min_area_sqft: string;
+  max_area_sqft: string;
+  bid_amount: string;
+  status: "pending" | "allotted" | "rejected" | "withdrawn";
+  allotted_shop_no: string | null;
+  allotted_application_id: number | null;
+  requested_by: string;
+  requested_at: Date;
+  decided_by: string | null;
+  decided_at: Date | null;
+  decision_notes: string | null;
+}
+
 /** What an operator submits to record a new shop rental application. */
 export interface ShopRentalApplicationInput {
   shopNo: string;

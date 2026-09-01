@@ -37,6 +37,13 @@ import {
   postRejectRentalApplication,
 } from "../controllers/shopRentalApplication.controller";
 import {
+  getRentalPreferences,
+  getRentalPreferenceById,
+  getPreferencesMatchingShop,
+  postAllotPreference,
+  postRejectRentalPreference,
+} from "../controllers/shopRentalPreference.controller";
+import {
   getTradeLicenseApplications,
   getTradeLicenseApplicationById,
   postApproveTradeLicenseApplication,
@@ -91,6 +98,14 @@ adminRouter.get("/shop-rental-applications", getRentalApplications);
 adminRouter.get("/shop-rental-applications/:id", getRentalApplicationById);
 adminRouter.post("/shop-rental-applications/:id/approve", postApproveRentalApplication);
 adminRouter.post("/shop-rental-applications/:id/reject", postRejectRentalApplication);
+
+// Shop rental preferences (market/size/bid intake, before a specific shop is picked)
+// - /matching must come before /:id, or Express would treat "matching" as an id.
+adminRouter.get("/shop-rental-preferences", getRentalPreferences);
+adminRouter.get("/shop-rental-preferences/matching", getPreferencesMatchingShop);
+adminRouter.get("/shop-rental-preferences/:id", getRentalPreferenceById);
+adminRouter.post("/shop-rental-preferences/:id/allot", postAllotPreference);
+adminRouter.post("/shop-rental-preferences/:id/reject", postRejectRentalPreference);
 
 // Trade license applications (new + renewal) — /stats MUST come before
 // /:id below, or Express would try to parse "stats" as an id.

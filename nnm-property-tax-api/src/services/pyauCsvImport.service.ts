@@ -8,10 +8,15 @@ export interface PyauImportResult {
 }
 
 /**
- * Imports the specific field-inventory CSV format the ward-level pyau
- * survey was delivered in - column headers are fixed (matched by
- * position, not name, since the real file's headers are long mixed
- * Hindi/English text that's fragile to match exactly). Columns:
+ * Imports the ward-level pyau field-inventory CSV - column headers
+ * are fixed (matched by position, not name, since the real file's
+ * headers are long mixed Hindi/English text that's fragile to match
+ * exactly). Columns 0-9 are the original field-survey columns; 10-17
+ * are optional additions covering every field the "Add One Pyau" form
+ * supports, so the bulk upload isn't limited to a narrower set of
+ * fields than manual entry - a CSV without these trailing columns
+ * still imports fine, they just come through as null (to be filled
+ * in later per-pyau, same as before this was added). Columns:
  *   0 Ward No
  *   1 (installed count summary - ward-level only, ignored per-row)
  *   2 Address/Location of Water Kiosk
@@ -24,6 +29,17 @@ export interface PyauImportResult {
  *   7 Tank Stand type ("Yes" / "Through Direct pipe")
  *   8 (without-stand count - sparse, low-value, not imported)
  *   9 Houses served (via pipeline)
+ *   10 Scheme Name (optional)
+ *   11 Pump Details (optional)
+ *   12 Boring Depth in feet (optional, numeric)
+ *   13 Casing Details (optional)
+ *   14 Installed Date (optional, yyyy-MM-dd)
+ *   15 Builder Name (optional)
+ *   16 Builder Contact (optional)
+ *   17 Remarks (optional, additional free text - combined with any
+ *      auto-captured not-working reason from column 5, not replacing it)
+ *   18 Latitude (optional, numeric)
+ *   19 Longitude (optional, numeric)
  *
  * Auto-creates a ward if the CSV's ward number doesn't exist yet
  * (this import IS the initial ward setup for many municipalities
@@ -81,9 +97,6 @@ export async function importPyauCsv(csvContent: string): Promise<PyauImportResul
       const notWorkingRaw = (row[5] ?? "").trim();
       const functionalStatus: "functional" | "non_functional" = workingRaw === "not working" || notWorkingRaw ? "non_functional" : "functional";
 
-      const remarksParts = [tankRemark, notWorkingRaw && !/^\d+$/.test(notWorkingRaw) ? notWorkingRaw : null].filter(Boolean);
-      const remarks = remarksParts.length > 0 ? remarksParts.join(" | ") : null;
-
       const structureRaw = (row[6] ?? "").trim().toLowerCase();
       const structureType: "pcc_structure" | "iron_stand" | "nothing" | null =
         structureRaw === "pcc structure" ? "pcc_structure" : structureRaw === "iron stand" ? "iron_stand" : structureRaw === "nothing" ? "nothing" : null;
@@ -93,21 +106,49 @@ export async function importPyauCsv(csvContent: string): Promise<PyauImportResul
       const housesServedRaw = (row[9] ?? "").trim();
       const housesServed = /^\d+$/.test(housesServedRaw) ? parseInt(housesServedRaw, 10) : null;
 
+      // Optional trailing columns - every field the individual "Add
+      // One Pyau" form supports, so the bulk upload isn't limited to
+      // a narrower set of fields than manual entry.
+      const schemeName = (row[10] ?? "").trim() || null;
+      const pumpDetails = (row[11] ?? "").trim() || null;
+      const boringDepthRaw = (row[12] ?? "").trim();
+      const boringDepthFeet = boringDepthRaw && /^\d+(\.\d+)?$/.test(boringDepthRaw) ? parseFloat(boringDepthRaw) : null;
+      const casingDetails = (row[13] ?? "").trim() || null;
+      const installedDateRaw = (row[14] ?? "").trim();
+      const installedDate = /^\d{4}-\d{2}-\d{2}$/.test(installedDateRaw) ? installedDateRaw : null;
+      const builderName = (row[15] ?? "").trim() || null;
+      const builderContact = (row[16] ?? "").trim() || null;
+      const remarksColumnRaw = (row[17] ?? "").trim() || null;
+
+      const remarksParts = [
+        tankRemark,
+        notWorkingRaw && !/^\d+$/.test(notWorkingRaw) ? notWorkingRaw : null,
+        remarksColumnRaw,
+      ].filter(Boolean);
+      const remarks = remarksParts.length > 0 ? remarksParts.join(" | ") : null;
+
+      const latitudeRaw = (row[18] ?? "").trim();
+      const latitude = latitudeRaw && /^-?\d+(\.\d+)?$/.test(latitudeRaw) ? parseFloat(latitudeRaw) : null;
+      const longitudeRaw = (row[19] ?? "").trim();
+      const longitude = longitudeRaw && /^-?\d+(\.\d+)?$/.test(longitudeRaw) ? parseFloat(longitudeRaw) : null;
+
       await pyauRepository.create({
         wardId: ward.id,
         serialNumber,
         locationAddress,
-        schemeName: null,
+        latitude,
+        longitude,
+        schemeName,
         overheadTankCount,
         housesServed,
         structureType,
         tankStandType,
-        pumpDetails: null,
-        boringDepthFeet: null,
-        casingDetails: null,
-        installedDate: null,
-        builderName: null,
-        builderContact: null,
+        pumpDetails,
+        boringDepthFeet,
+        casingDetails,
+        installedDate,
+        builderName,
+        builderContact,
         remarks,
         initialFunctionalStatus: functionalStatus,
       });

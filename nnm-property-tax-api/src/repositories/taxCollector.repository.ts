@@ -22,6 +22,12 @@ export const taxCollectorRepository = {
     return rows;
   },
 
+  /** Active collectors only, code+name - the public-safe list for the payment form's dropdown (see lookupTaxCollector for the same code+name-only exposure pattern). Deactivated collectors shouldn't be selectable for new payments, but still need to appear in listAll() for an admin to reactivate them. */
+  async listActive(): Promise<TaxCollectorRow[]> {
+    const { rows } = await pool.query<TaxCollectorRow>(`SELECT * FROM tax_collectors WHERE active = TRUE ORDER BY name ASC`);
+    return rows;
+  },
+
   async findById(id: number): Promise<TaxCollectorRow | null> {
     const { rows } = await pool.query<TaxCollectorRow>(`SELECT * FROM tax_collectors WHERE id = $1`, [id]);
     return rows[0] ?? null;

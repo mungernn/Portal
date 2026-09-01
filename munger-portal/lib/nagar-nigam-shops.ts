@@ -136,3 +136,39 @@ export async function submitPublicRentalApplication(
   }
   return res.json();
 }
+
+/**
+ * Preference-based intake - the applicant lists acceptable markets and
+ * a size range instead of picking one specific shop, plus a bid. An
+ * admin later matches this against actual vacant shops and manually
+ * allots one; this never becomes a tenancy directly.
+ */
+export interface PublicRentalPreferenceInput {
+  marketNames: string[];
+  minAreaSqft: number;
+  maxAreaSqft: number;
+  bidAmount: number;
+  applicantName: string;
+  applicantRelationType?: string | null;
+  applicantRelationName?: string | null;
+  applicantMobile?: string | null;
+  applicantAddress?: string | null;
+  applicantIdProofNumber?: string | null;
+  applicantBusinessName?: string | null;
+  applicantPropertyHoldingNo?: string | null;
+}
+
+export async function submitPublicRentalPreference(
+  input: PublicRentalPreferenceInput,
+): Promise<{ preferenceId: number; status: "pending" }> {
+  const res = await fetch(`${API_BASE_URL}/shop-rental-preferences/public`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not submit your preference.");
+  }
+  return res.json();
+}

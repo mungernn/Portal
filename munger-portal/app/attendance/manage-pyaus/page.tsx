@@ -48,6 +48,8 @@ export default function ManagePyausPage() {
   // Create form
   const [wardId, setWardId] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [schemeName, setSchemeName] = useState("");
   const [overheadTankCount, setOverheadTankCount] = useState("0");
   const [housesServed, setHousesServed] = useState("");
@@ -70,6 +72,8 @@ export default function ManagePyausPage() {
   // Edit modal
   const [editingPyauId, setEditingPyauId] = useState<number | null>(null);
   const [editLocationAddress, setEditLocationAddress] = useState("");
+  const [editLatitude, setEditLatitude] = useState("");
+  const [editLongitude, setEditLongitude] = useState("");
   const [editSchemeName, setEditSchemeName] = useState("");
   const [editOverheadTankCount, setEditOverheadTankCount] = useState("0");
   const [editHousesServed, setEditHousesServed] = useState("");
@@ -136,6 +140,8 @@ export default function ManagePyausPage() {
       await createPyau({
         wardId: Number(wardId),
         locationAddress: locationAddress || null,
+        latitude: latitude ? Number(latitude) : null,
+        longitude: longitude ? Number(longitude) : null,
         schemeName: schemeName || null,
         overheadTankCount: Number(overheadTankCount) || 0,
         housesServed: housesServed ? Number(housesServed) : null,
@@ -151,6 +157,8 @@ export default function ManagePyausPage() {
       });
       setCreated(true);
       setLocationAddress("");
+      setLatitude("");
+      setLongitude("");
       setSchemeName("");
       setOverheadTankCount("0");
       setHousesServed("");
@@ -215,6 +223,8 @@ export default function ManagePyausPage() {
   function openEditModal(p: Pyau) {
     setEditingPyauId(p.id);
     setEditLocationAddress(p.locationAddress ?? "");
+    setEditLatitude(p.latitude ?? "");
+    setEditLongitude(p.longitude ?? "");
     setEditSchemeName(p.schemeName ?? "");
     setEditOverheadTankCount(String(p.overheadTankCount));
     setEditHousesServed(p.housesServed !== null ? String(p.housesServed) : "");
@@ -237,6 +247,8 @@ export default function ManagePyausPage() {
     try {
       await updatePyau(editingPyauId, {
         locationAddress: editLocationAddress || null,
+        latitude: editLatitude ? Number(editLatitude) : null,
+        longitude: editLongitude ? Number(editLongitude) : null,
         schemeName: editSchemeName || null,
         overheadTankCount: Number(editOverheadTankCount) || 0,
         housesServed: editHousesServed ? Number(editHousesServed) : null,
@@ -451,6 +463,14 @@ export default function ManagePyausPage() {
                 <input value={locationAddress} onChange={(e) => setLocationAddress(e.target.value)} className={inputClass} />
               </div>
               <div>
+                <label className={labelClass}>Latitude</label>
+                <input type="number" step="0.000001" value={latitude} onChange={(e) => setLatitude(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Longitude</label>
+                <input type="number" step="0.000001" value={longitude} onChange={(e) => setLongitude(e.target.value)} className={inputClass} />
+              </div>
+              <div>
                 <label className={labelClass}>Scheme Name (optional)</label>
                 <input value={schemeName} onChange={(e) => setSchemeName(e.target.value)} className={inputClass} />
               </div>
@@ -507,11 +527,22 @@ export default function ManagePyausPage() {
                 <li>Tank Stand of Water Kiosk (Made of Concrete)</li>
                 <li>Number of Water Kiosks Without Stand (not imported)</li>
                 <li>How many houses get water via line or just stand</li>
+                <li>Scheme Name (optional)</li>
+                <li>Pump Details (optional)</li>
+                <li>Boring Depth in feet (optional, numeric)</li>
+                <li>Casing Details (optional)</li>
+                <li>Installed Date (optional, format yyyy-mm-dd)</li>
+                <li>Builder Name (optional)</li>
+                <li>Builder Contact (optional)</li>
+                <li>Remarks (optional - combined with any not-working reason from column 6, not replacing it)</li>
+                <li>Latitude (optional, numeric)</li>
+                <li>Longitude (optional, numeric)</li>
               </ol>
               <p className="mt-2 text-slate-500">
-                Columns are matched by position, not header name, since the source file&apos;s headers mix Hindi and English text.
-                Scheme name, pump details, boring depth, casing, and installed date aren&apos;t in this file - add those per-pyau
-                afterward using &quot;Add One Pyau&quot; above.
+                Columns 1-10 are matched by position, not header name, since the source file&apos;s headers mix Hindi and English
+                text. Columns 11-19 are optional additions covering every field the &quot;Add One Pyau&quot; form supports - a file
+                without them still imports fine, those fields are just left blank to fill in later. If you add any of them, they
+                must be appended in this exact order after column 10, since position is what&apos;s matched, not the column name.
               </p>
             </details>
             <input
@@ -663,6 +694,8 @@ export default function ManagePyausPage() {
                     <th className="px-3 py-2 font-medium">Structure</th>
                     <th className="px-3 py-2 font-medium">Tanks</th>
                     <th className="px-3 py-2 font-medium">Houses Served</th>
+                    <th className="px-3 py-2 font-medium">GPS Location</th>
+                    <th className="px-3 py-2 font-medium">Remarks</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium"></th>
                   </tr>
@@ -681,6 +714,23 @@ export default function ManagePyausPage() {
                       <td className="px-3 py-2 text-xs">{p.structureType ? STRUCTURE_LABELS[p.structureType] : "-"}</td>
                       <td className="px-3 py-2 text-xs">{p.overheadTankCount}</td>
                       <td className="px-3 py-2 text-xs">{p.housesServed ?? "-"}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {p.latitude && p.longitude ? (
+                          <a
+                            href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-nnm-blue hover:underline"
+                          >
+                            {p.latitude}, {p.longitude}
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 max-w-[12rem] truncate text-xs text-slate-500" title={p.remarks ?? ""}>
+                        {p.remarks ?? "-"}
+                      </td>
                       <td className="px-3 py-2">
                         <div className="flex flex-col gap-1">
                           <span
@@ -845,6 +895,16 @@ export default function ManagePyausPage() {
               <div>
                 <label className={labelClass}>Location / Address</label>
                 <input value={editLocationAddress} onChange={(e) => setEditLocationAddress(e.target.value)} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Latitude</label>
+                  <input type="number" step="0.000001" value={editLatitude} onChange={(e) => setEditLatitude(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Longitude</label>
+                  <input type="number" step="0.000001" value={editLongitude} onChange={(e) => setEditLongitude(e.target.value)} className={inputClass} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -14,3 +14,11 @@ export async function lookupTaxCollectorByCode(code: string): Promise<{ code: st
   if (!res.ok) throw new Error("Could not look up tax collector.");
   return res.json();
 }
+
+/** Public, unauthenticated - powers the code+name dropdown on both the operator's and citizen's payment forms, replacing free-text entry. */
+export async function fetchActiveTaxCollectors(): Promise<{ code: string; name: string }[]> {
+  const res = await fetch(`${API_BASE_URL}/tax-collectors/active`);
+  if (!res.ok) throw new Error("Could not load tax collectors.");
+  const data: { collectors: { code: string; name: string }[] } = await res.json();
+  return data.collectors;
+}

@@ -3,6 +3,8 @@ export interface PyauRow {
   ward_id: number;
   serial_number: string | null;
   location_address: string | null;
+  latitude: string | null;
+  longitude: string | null;
   scheme_name: string | null;
   overhead_tank_count: number;
   houses_served: number | null;
