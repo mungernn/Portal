@@ -28,7 +28,7 @@ import {
   postApproveShopAgreementRequest,
   postRejectShopAgreementRequest,
 } from "../controllers/shopAgreement.controller";
-import { listAllShops, getPerSqftReport } from "../controllers/shop.controller";
+import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../controllers/shop.controller";
 import { postResolveViolationNotice } from "../controllers/shopViolationNotice.controller";
 import {
   getRentalApplications,
@@ -90,6 +90,7 @@ adminRouter.get("/shop-agreement-requests/:id", getShopAgreementRequestById);
 adminRouter.post("/shop-agreement-requests/:id/approve", postApproveShopAgreementRequest);
 adminRouter.post("/shop-agreement-requests/:id/reject", postRejectShopAgreementRequest);
 adminRouter.get("/shops", listAllShops);
+adminRouter.post("/shops/bulk-upload", requireAdminRole("commissioner"), uploadShopsCsvHandler);
 adminRouter.get("/shops/per-sqft-report", getPerSqftReport);
 adminRouter.post("/violation-notices/:id/resolve", postResolveViolationNotice);
 

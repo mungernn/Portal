@@ -426,3 +426,26 @@ export async function rejectRentalPreference(id: number, notes: string): Promise
   const data: { preference: ShopRentalPreferenceSummary } = await res.json();
   return data.preference;
 }
+
+// ---------------------------------------------------------------------------
+// Shop bulk upload (commissioner only)
+// ---------------------------------------------------------------------------
+
+export interface ShopCsvImportResult {
+  shopsCreated: number;
+  agreementsCreated: number;
+  errors: { row: number; message: string }[];
+}
+
+export async function uploadShopsCsv(csvContent: string): Promise<ShopCsvImportResult> {
+  const res = await fetch(`${API_BASE_URL}/admin/shops/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ csvContent }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Upload failed.");
+  }
+  return res.json();
+}

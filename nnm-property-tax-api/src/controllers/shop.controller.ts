@@ -4,6 +4,7 @@ import { shopRepository } from "../repositories/shop.repository";
 import { searchShopByShopNo, searchShopForCitizen } from "../services/shopSearch.service";
 import { getPerSqftRateReport } from "../services/shopReporting.service";
 import { getNextShopNoForMarket } from "../services/shopNumbering.service";
+import { importShopsCsv } from "../services/shopCsvImport.service";
 import { KNOWN_MARKET_CODES } from "../constants/marketCodes";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
@@ -99,4 +100,21 @@ export const getNextShopNumber = asyncHandler(async (req: Request, res: Response
   if (!parsed.success) throw ApiError.badRequest("Invalid market name");
   const shopNo = await getNextShopNoForMarket(parsed.data.marketName);
   res.status(200).json({ shopNo });
+});
+
+const csvUploadSchema = z.object({ csvContent: z.string().min(1, "File appears to be empty") });
+
+/**
+ * POST /api/v1/admin/shops/bulk-upload - commissioner only. Creates
+ * shops directly (bypassing the operator/approval flow entirely,
+ * since this is a bulk data-load, not a day-to-day operation) and, for
+ * any row with a Holder Name, a matching agreement via
+ * shopAgreementRepository.insertPartial (data_status='partial') - see
+ * shopCsvImport.service.ts for the exact expected columns.
+ */
+export const uploadShopsCsvHandler = asyncHandler(async (req: Request, res: Response) => {
+  const parsed = csvUploadSchema.safeParse(req.body);
+  if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
+  const result = await importShopsCsv(parsed.data.csvContent, req.admin!.displayName);
+  res.status(200).json(result);
 });
