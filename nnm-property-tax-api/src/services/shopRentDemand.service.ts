@@ -1,6 +1,7 @@
 import { shopRepository, shopAgreementRepository } from "../repositories/shop.repository";
 import { shopRentDemandRepository } from "../repositories/shopRent.repository";
-import { summarizePendingRent } from "./rentCalculation.service";
+import { shopRentEscalationPeriodRepository } from "../repositories/shopRentEscalationPeriod.repository";
+import { summarizePendingRent, checkAgreementCompletenessForDemand } from "./rentCalculation.service";
 import { ApiError } from "../utils/ApiError";
 import { num } from "../utils/num";
 import { buildVerificationUrl } from "../utils/verificationSignature";
@@ -25,7 +26,16 @@ export async function generateRentDemand(
   const agreement = await shopAgreementRepository.findActiveByShopNo(shopNo);
   if (!agreement) throw ApiError.badRequest(`No active agreement on file for shop ${shopNo}.`);
 
-  const pending = summarizePendingRent(agreement);
+  const escalationPeriods = await shopRentEscalationPeriodRepository.listForShop(shopNo);
+
+  const completeness = checkAgreementCompletenessForDemand(agreement, escalationPeriods);
+  if (!completeness.isComplete) {
+    throw ApiError.badRequest(
+      `Cannot generate a demand yet - this agreement is missing: ${completeness.missingFields.join(", ")}. Please complete these on the agreement before generating a demand.`,
+    );
+  }
+
+  const pending = summarizePendingRent(agreement, new Date(), escalationPeriods);
   if (pending.pendingMonths.length === 0) {
     throw ApiError.badRequest("Rent is already paid up to date — nothing to generate a demand for.");
   }

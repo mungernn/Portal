@@ -59,7 +59,7 @@ export const listVacantShops = asyncHandler(async (_req: Request, res: Response)
 const createShopSchema = z.object({
   shopNo: z.string().trim().min(1).max(32),
   marketName: z.string().nullish(),
-  location: z.string().min(1),
+  location: z.string().trim().nullish(),
   ward: z.string().nullish(),
   areaSqft: z.coerce.number().min(0).nullish(),
   totalAreaSqft: z.coerce.number().min(0).nullish(),

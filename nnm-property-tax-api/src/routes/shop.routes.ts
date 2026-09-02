@@ -8,6 +8,11 @@ import {
   getShopAgreementDocumentFile,
 } from "../controllers/shopAgreementDocument.controller";
 import {
+  getEscalationPeriods,
+  postAddEscalationPeriod,
+  deleteEscalationPeriodHandler,
+} from "../controllers/shopRentEscalationPeriod.controller";
+import {
   postGenerateRentDemand,
   getUnsettledRentDemands,
   postShopRentPaymentHandler,
@@ -56,6 +61,15 @@ shopRouter.post("/:shopNo/edit-requests", requireOperator, postSubmitShopEditReq
 shopRouter.post("/:shopNo/agreement-document", requireOperatorOrAdmin, postUploadShopAgreementDocument);
 shopRouter.get("/:shopNo/agreement-document", requireOperatorOrAdmin, getShopAgreementDocumentMetaHandler);
 shopRouter.get("/:shopNo/agreement-document/file", requireOperatorOrAdmin, getShopAgreementDocumentFile);
+
+// Rent escalation history - manually entered, always by whoever
+// reviews the shop's paper agreement (operator or admin). See
+// migration 042's header comment for why this exists alongside the
+// old legacy rent_pre_2019/2019_20/2020_21_onwards fields rather than
+// replacing them.
+shopRouter.get("/:shopNo/rent-escalation-periods", requireOperatorOrAdmin, getEscalationPeriods);
+shopRouter.post("/:shopNo/rent-escalation-periods", requireOperatorOrAdmin, postAddEscalationPeriod);
+shopRouter.delete("/:shopNo/rent-escalation-periods/:id", requireOperatorOrAdmin, deleteEscalationPeriodHandler);
 
 // GET /api/v1/shops/agreements/:agreementId/print — the formal permit/agreement document
 shopRouter.get("/agreements/:agreementId/print", requireOperatorOrAdmin, getPrintableAgreement);

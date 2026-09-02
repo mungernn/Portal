@@ -1,6 +1,57 @@
 import { parseYearMonth, currentYearMonth, monthsDiff, monthRange, formatYearMonth, type YearMonth } from "../utils/yearMonth";
 import { num } from "../utils/num";
-import type { ShopAgreementRow } from "../types/shop.types";
+import type { ShopAgreementRow, ShopRentEscalationPeriodRow } from "../types/shop.types";
+
+function dateToYearMonth(d: Date | string): YearMonth {
+  const parsed = d instanceof Date ? d : new Date(d);
+  return { year: parsed.getFullYear(), month: parsed.getMonth() + 1 };
+}
+
+/**
+ * Finds which manually-entered escalation period (if any) covers a
+ * given month - the period whose [start, end) range contains it.
+ * period_end_date is exclusive and null means "still open". Periods
+ * are expected non-overlapping by construction (see
+ * shopRentEscalationPeriod.repository.ts's setEndDate, used when a
+ * new period supersedes a previous open one), so at most one match is
+ * expected. Returns null if forMonth falls before the earliest period
+ * or after the last period's end with no newer period covering it -
+ * the caller falls back to the legacy fixed-formula calculation below
+ * in that case.
+ */
+export function findApplicablePeriod(periods: ShopRentEscalationPeriodRow[], forMonth: YearMonth): ShopRentEscalationPeriodRow | null {
+  for (const p of periods) {
+    const startYM = dateToYearMonth(p.period_start_date);
+    if (monthsDiff(startYM, forMonth) < 0) continue;
+    if (p.period_end_date) {
+      const endYM = dateToYearMonth(p.period_end_date);
+      if (monthsDiff(endYM, forMonth) >= 0) continue;
+    }
+    return p;
+  }
+  return null;
+}
+
+/**
+ * Compounds a period's own escalation percentage every N years since
+ * that period's own start date - fully independent of any other
+ * shop's schedule, unlike the old global calendar-anchored formula.
+ * If the period's escalation terms are unresolved (percent/interval
+ * both null, per NNM's instruction to flag rather than guess), the
+ * base rent is returned flat with isUnresolved=true so callers can
+ * surface a review warning instead of silently trusting an unescalated figure.
+ */
+export function calculateRentFromPeriod(period: ShopRentEscalationPeriodRow, forMonth: YearMonth): { rent: number; isUnresolved: boolean } {
+  const base = num(period.base_rent);
+  if (period.escalation_percent === null || period.escalation_interval_years === null) {
+    return { rent: base, isUnresolved: true };
+  }
+  const startYM = dateToYearMonth(period.period_start_date);
+  const monthsElapsed = Math.max(0, monthsDiff(startYM, forMonth));
+  const intervalsElapsed = Math.floor(monthsElapsed / (period.escalation_interval_years * 12));
+  const pct = num(period.escalation_percent) / 100;
+  return { rent: base * Math.pow(1 + pct, intervalsElapsed), isUnresolved: false };
+}
 
 // --- Rent escalation schedule (confirmed with NNM) ---
 // pre-2019-20 rate -> 2019-20: +25%
@@ -87,16 +138,48 @@ export function resolveRentPeriodsFromValues(
  * shopAgreement.service.ts, which surfaces this specifically at the
  * Deputy Municipal Commissioner review stage.
  */
+/**
+ * base_monthly_rent falls back into the "2020-21 onwards" slot when
+ * that specific legacy field isn't set - base_monthly_rent is the
+ * PRIMARY field an operator fills in for a normal, new agreement (the
+ * three rent_pre_2019/2019_20/2020_21_onwards fields exist
+ * specifically for reconstructing OLD migrated agreements' history,
+ * not for everyday new entries). Without this fallback, a completely
+ * ordinary new agreement with only base_monthly_rent filled in would
+ * resolve to "no rent on file at all", since resolveRentPeriodsFromValues
+ * only ever looked at those three legacy fields. Any back-derived
+ * pre-2019/2019-20 figures from this fallback are harmless for a new
+ * agreement - calculateEffectiveMonthlyRent never applies them to a
+ * month before those years exist.
+ */
 export function resolveRentPeriods(agreement: ShopAgreementRow): ResolvedRentPeriods | null {
-  return resolveRentPeriodsFromValues(agreement.rent_pre_2019, agreement.rent_2019_20, agreement.rent_2020_21_onwards);
+  return resolveRentPeriodsFromValues(agreement.rent_pre_2019, agreement.rent_2019_20, agreement.rent_2020_21_onwards ?? agreement.base_monthly_rent);
 }
 
 function fyStartYear(ym: YearMonth): number {
   return ym.month >= 4 ? ym.year : ym.year - 1;
 }
 
-/** The effective monthly rent for a given calendar month, per the confirmed escalation schedule. Returns 0 if no period rate is on file at all. */
-export function calculateEffectiveMonthlyRent(agreement: ShopAgreementRow, forMonth: YearMonth): number {
+/**
+ * The effective monthly rent for a given calendar month. If the shop
+ * has manually-entered escalation periods on file (the accurate,
+ * per-agreement system), those take priority - see
+ * findApplicablePeriod. Only when no period covers forMonth (most
+ * commonly: no periods have been entered for this shop at all yet)
+ * does this fall back to the old fixed municipality-wide formula
+ * below, which assumes every shop followed the same 2019-20/2020-21/
+ * triennial-5% schedule. Returns 0 if neither source has anything on file.
+ */
+export function calculateEffectiveMonthlyRent(
+  agreement: ShopAgreementRow,
+  forMonth: YearMonth,
+  escalationPeriods: ShopRentEscalationPeriodRow[] = [],
+): number {
+  if (escalationPeriods.length > 0) {
+    const applicable = findApplicablePeriod(escalationPeriods, forMonth);
+    if (applicable) return calculateRentFromPeriod(applicable, forMonth).rent;
+  }
+
   const resolved = resolveRentPeriods(agreement);
   if (!resolved) return 0;
 
@@ -108,6 +191,37 @@ export function calculateEffectiveMonthlyRent(agreement: ShopAgreementRow, forMo
 
   const stepsElapsed = Math.floor((fy - 2024) / 3);
   return resolved.period2020_21Onwards * Math.pow(RATE_TRIENNIAL_STEP, stepsElapsed);
+}
+
+export interface AgreementCompletenessCheck {
+  isComplete: boolean;
+  missingFields: string[];
+}
+
+/**
+ * What's needed to generate a meaningful rent demand - checked lazily
+ * right before generation, NOT at data-entry or approval time (see
+ * migration 043's header comment: nothing is mandatory to enter, but
+ * a specific action can require specific fields and say so clearly).
+ * Without this check, a shop with no base_monthly_rent on file and no
+ * escalation periods would silently generate a ₹0 demand rather than
+ * being blocked with a clear explanation.
+ */
+export function checkAgreementCompletenessForDemand(
+  agreement: ShopAgreementRow,
+  escalationPeriods: ShopRentEscalationPeriodRow[] = [],
+): AgreementCompletenessCheck {
+  const missing: string[] = [];
+  if (!agreement.holder_name) missing.push("Tenant/holder name");
+
+  const hasResolvableRent = escalationPeriods.length > 0 || resolveRentPeriods(agreement) !== null;
+  if (!hasResolvableRent) missing.push("Base monthly rent (or at least one escalation period)");
+
+  if (!agreement.agreement_start_date && !agreement.rent_paid_till_month) {
+    missing.push("Agreement start date or rent-paid-till month (needed to know which months are pending)");
+  }
+
+  return { isComplete: missing.length === 0, missingFields: missing };
 }
 
 const PENALTY_RATE = 0.02; // 2%, compounded per full year overdue
@@ -129,6 +243,8 @@ export interface PendingRentMonth {
   baseRent: number;
   penalty: number;
   total: number;
+  /** True if this month's rent came from an escalation period whose percent/interval aren't known yet - the base rent shown is accurate as of that period's start, but whether it should have escalated further by this month is unverified. Surfaced per-month since a shop's later periods may be resolved even if an earlier one wasn't. */
+  isUnresolved: boolean;
 }
 
 export interface PendingRentSummary {
@@ -138,6 +254,8 @@ export interface PendingRentSummary {
   totalPending: number;
   note: string;
   rentPeriodsInconsistent: boolean;
+  /** True if ANY pending month relied on an unresolved escalation period - a review-needed signal at the summary level, independent of rentPeriodsInconsistent (which is about the OLD legacy fields disagreeing with each other, a different kind of problem). */
+  hasUnresolvedEscalation: boolean;
 }
 
 /**
@@ -148,7 +266,11 @@ export interface PendingRentSummary {
  * schedule-adjusted base rent and its own penalty, evaluated against
  * how long THAT specific month has been outstanding.
  */
-export function summarizePendingRent(agreement: ShopAgreementRow, asOfDate: Date = new Date()): PendingRentSummary {
+export function summarizePendingRent(
+  agreement: ShopAgreementRow,
+  asOfDate: Date = new Date(),
+  escalationPeriods: ShopRentEscalationPeriodRow[] = [],
+): PendingRentSummary {
   const paidTill = parseYearMonth(agreement.rent_paid_till_month);
   const startDate = agreement.agreement_start_date ? new Date(agreement.agreement_start_date) : null;
   const startMonth: YearMonth | null = startDate ? { year: startDate.getFullYear(), month: startDate.getMonth() + 1 } : null;
@@ -164,6 +286,7 @@ export function summarizePendingRent(agreement: ShopAgreementRow, asOfDate: Date
       totalPending: 0,
       note: "Neither rent-paid-till nor agreement start date is on file — cannot determine pending rent. Please complete this agreement's details.",
       rentPeriodsInconsistent: false,
+      hasUnresolvedEscalation: false,
     };
   }
   const normalizedStart =
@@ -177,19 +300,23 @@ export function summarizePendingRent(agreement: ShopAgreementRow, asOfDate: Date
       totalPending: 0,
       note: "Rent paid up to date.",
       rentPeriodsInconsistent: resolved ? !resolved.isConsistent : false,
+      hasUnresolvedEscalation: false,
     };
   }
 
   const months = monthRange(normalizedStart, nowMonth);
   const pendingMonths: PendingRentMonth[] = months.map((m) => {
-    const baseRent = calculateEffectiveMonthlyRent(agreement, m);
+    const applicable = escalationPeriods.length > 0 ? findApplicablePeriod(escalationPeriods, m) : null;
+    const baseRent = calculateEffectiveMonthlyRent(agreement, m, escalationPeriods);
+    const isUnresolved = applicable ? calculateRentFromPeriod(applicable, m).isUnresolved : false;
     const monthsOverdue = Math.max(0, monthsDiff(m, nowMonth));
     const penalty = calculatePenaltyForMonth(baseRent, monthsOverdue);
-    return { month: formatYearMonth(m), baseRent, penalty, total: baseRent + penalty };
+    return { month: formatYearMonth(m), baseRent, penalty, total: baseRent + penalty, isUnresolved };
   });
 
   const totalBase = pendingMonths.reduce((sum, m) => sum + m.baseRent, 0);
   const totalPenalty = pendingMonths.reduce((sum, m) => sum + m.penalty, 0);
+  const hasUnresolvedEscalation = pendingMonths.some((m) => m.isUnresolved);
 
   return {
     pendingMonths,
@@ -200,5 +327,6 @@ export function summarizePendingRent(agreement: ShopAgreementRow, asOfDate: Date
       `${pendingMonths.length} month(s) pending, from ${formatYearMonth(normalizedStart)} to ${formatYearMonth(nowMonth)}.` +
       (totalPenalty > 0 ? ` Includes penalty for months overdue more than a year.` : ""),
     rentPeriodsInconsistent: resolved ? !resolved.isConsistent : false,
+    hasUnresolvedEscalation,
   };
 }

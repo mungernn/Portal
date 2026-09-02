@@ -63,6 +63,26 @@ export interface ShopAgreementDocumentRow {
 /** Same shape without file_data - for listing/metadata endpoints that shouldn't pull the full PDF bytes into memory just to show upload info. */
 export type ShopAgreementDocumentMeta = Omit<ShopAgreementDocumentRow, "file_data">;
 
+/**
+ * One "chapter" of a shop's rent history - manually entered, never
+ * auto-generated (see migration 042's header comment). A shop with no
+ * periods on file falls back to the legacy fixed-formula calculation
+ * in rentCalculation.service.ts; entering periods here is what
+ * "upgrades" a shop to accurate per-agreement calculation.
+ */
+export interface ShopRentEscalationPeriodRow {
+  id: number;
+  shop_no: string;
+  period_start_date: Date;
+  period_end_date: Date | null;
+  base_rent: string;
+  escalation_percent: string | null;
+  escalation_interval_years: number | null;
+  source_note: string;
+  added_by: string;
+  added_date: Date;
+}
+
 export type ShopAgreementDataStatus = "complete" | "partial";
 
 export interface ShopAgreementRow {
@@ -260,7 +280,7 @@ export interface ShopAgreementSaveInput {
   agreementNumber?: string | null;
   agreementHolderName?: string | null;
   demandRegisterHolderName?: string | null;
-  holderName: string;
+  holderName?: string | null;
   holderRelationType?: string | null;
   holderRelationName?: string | null;
   holderMobile?: string | null;
@@ -269,7 +289,7 @@ export interface ShopAgreementSaveInput {
   businessName?: string | null;
   agreementRent?: number | null;
   demandRegisterRent?: number | null;
-  baseMonthlyRent: number;
+  baseMonthlyRent?: number | null;
   rentPre2019?: number | null;
   rent201920?: number | null;
   rent202021Onwards?: number | null;

@@ -521,3 +521,65 @@ export async function fetchShopAgreementDocumentBlobUrl(shopNo: string): Promise
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
+
+// ---------------------------------------------------------------------------
+// Shop rent escalation periods - a shop's rent history as a sequence
+// of dated periods, each with its own base rent and optional
+// escalation rule. Always manually entered. See migration 042's
+// header comment for why this exists alongside the older legacy
+// rent_pre_2019/2019_20/2020_21_onwards fields rather than replacing them.
+// ---------------------------------------------------------------------------
+
+export interface ShopRentEscalationPeriod {
+  id: number;
+  shop_no: string;
+  period_start_date: string;
+  period_end_date: string | null;
+  base_rent: string;
+  escalation_percent: string | null;
+  escalation_interval_years: number | null;
+  source_note: string;
+  added_by: string;
+  added_date: string;
+}
+
+export async function fetchEscalationPeriods(shopNo: string): Promise<ShopRentEscalationPeriod[]> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/rent-escalation-periods`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this shop's rent history.");
+  const data: { periods: ShopRentEscalationPeriod[] } = await res.json();
+  return data.periods;
+}
+
+export async function addEscalationPeriod(
+  shopNo: string,
+  input: {
+    periodStartDate: string;
+    baseRent: number;
+    escalationPercent: number | null;
+    escalationIntervalYears: number | null;
+    sourceNote: string;
+  },
+): Promise<ShopRentEscalationPeriod> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/rent-escalation-periods`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not add this period.");
+  }
+  const data: { period: ShopRentEscalationPeriod } = await res.json();
+  return data.period;
+}
+
+export async function deleteEscalationPeriod(shopNo: string, id: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/shops/${encodeURIComponent(shopNo)}/rent-escalation-periods/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this period.");
+  }
+}

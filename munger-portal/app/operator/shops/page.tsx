@@ -7,6 +7,7 @@ import { OperatorHeader } from "@/components/operator-header";
 import { ShopAgreementForm } from "@/components/operator/shop-agreement-form";
 import { ShopEditForm } from "@/components/operator/shop-edit-form";
 import { ShopAgreementDocumentPanel } from "@/components/operator/shop-agreement-document-panel";
+import { ShopRentEscalationPanel } from "@/components/operator/shop-rent-escalation-panel";
 import { ShopRentalApplicationForm } from "@/components/operator/shop-rental-application-form";
 import { ShopRentPaymentPanel } from "@/components/operator/shop-rent-payment-panel";
 import { ShopViolationNotices } from "@/components/operator/shop-violation-notices";
@@ -415,6 +416,8 @@ export default function OperatorShopsPage() {
               </div>
 
               <ShopAgreementDocumentPanel shopNo={shopNo} />
+
+              <ShopRentEscalationPanel shopNo={shopNo} />
 
               {mode.result.agreement ? (
                 <div className="mt-4 border-t border-slate-100 pt-4">
