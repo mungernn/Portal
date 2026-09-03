@@ -585,3 +585,27 @@ export async function renumberHolding(holdingNo: string): Promise<{ newHoldingNo
   }
   return res.json();
 }
+
+export interface PropertyBulkImportResult {
+  propertiesCreated: number;
+  floorsCreated: number;
+  transactionsCreated: number;
+  demandNoticesCreated: number;
+  taxHistoryStagesCreated: number;
+  propertyHistoryCreated: number;
+  errors: { sheet: string; row: number; message: string }[];
+}
+
+/** Commissioner only. fileDataBase64 is the raw base64 content of the .xlsx file (no data-URL prefix). */
+export async function uploadPropertiesXlsx(fileDataBase64: string): Promise<PropertyBulkImportResult> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/bulk-upload`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ fileDataBase64 }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not upload this file.");
+  }
+  return res.json();
+}
