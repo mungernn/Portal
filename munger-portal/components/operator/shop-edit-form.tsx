@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, Clock } from "lucide-react";
-import { submitShopEditRequest, type ShopEditProposedData } from "@/lib/shop-api";
+import { useEffect, useState } from "react";
+import { AlertCircle, Clock, Loader2 } from "lucide-react";
+import { submitShopEditRequest, fetchMarketList, type ShopEditProposedData } from "@/lib/shop-api";
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
@@ -28,7 +28,13 @@ export function ShopEditForm({
   onSubmitted: (requestId: number) => void;
   onCancel: () => void;
 }) {
-  const [marketName, setMarketName] = useState(current.marketName ?? "");
+  const [markets, setMarkets] = useState<string[] | null>(null);
+  // Starts empty and resolves once the market list loads (see the
+  // effect below) - the current value might be a known market, or a
+  // legacy/one-off name not in the list, so which branch applies
+  // isn't known until the fetch completes.
+  const [selectedMarket, setSelectedMarket] = useState("");
+  const [customMarket, setCustomMarket] = useState("");
   const [location, setLocation] = useState(current.location);
   const [ward, setWard] = useState(current.ward ?? "");
   const [areaSqft, setAreaSqft] = useState(current.areaSqft ?? "");
@@ -39,6 +45,27 @@ export function ShopEditForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submittedId, setSubmittedId] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchMarketList()
+      .then((list) => {
+        setMarkets(list);
+        const currentValue = current.marketName ?? "";
+        if (currentValue && !list.includes(currentValue)) {
+          // The shop's existing market isn't in the known list (a
+          // legacy/one-off name) - preselect "Other" and pre-fill it,
+          // rather than silently losing the current value.
+          setSelectedMarket("__other__");
+          setCustomMarket(currentValue);
+        } else {
+          setSelectedMarket(currentValue);
+        }
+      })
+      .catch(() => setMarkets([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const effectiveMarket = selectedMarket === "__other__" ? customMarket.trim() : selectedMarket;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,7 +85,7 @@ export function ShopEditForm({
     // keeping the proposal itself minimal makes the diff clearer for
     // whoever reviews it.
     const proposedData: ShopEditProposedData = {};
-    if (marketName !== (current.marketName ?? "")) proposedData.marketName = marketName || null;
+    if (effectiveMarket !== (current.marketName ?? "")) proposedData.marketName = effectiveMarket || null;
     if (location !== current.location) proposedData.location = location;
     if (ward !== (current.ward ?? "")) proposedData.ward = ward || null;
     if (areaSqft !== (current.areaSqft ?? "")) proposedData.areaSqft = areaSqft ? Number(areaSqft) : null;
@@ -113,7 +140,30 @@ export function ShopEditForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className={labelClass}>Market Name</label>
-          <input value={marketName} onChange={(e) => setMarketName(e.target.value)} className={inputClass} />
+          {markets === null ? (
+            <div className="flex items-center gap-2 py-2 text-sm text-slate-400">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading markets…
+            </div>
+          ) : (
+            <select value={selectedMarket} onChange={(e) => setSelectedMarket(e.target.value)} className={inputClass}>
+              <option value="">- None -</option>
+              {markets.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              <option value="__other__">Other (new market)…</option>
+            </select>
+          )}
+          {selectedMarket === "__other__" && (
+            <input
+              value={customMarket}
+              onChange={(e) => setCustomMarket(e.target.value)}
+              placeholder="New market name"
+              className={`${inputClass} mt-2`}
+            />
+          )}
         </div>
         <div>
           <label className={labelClass}>Ward</label>

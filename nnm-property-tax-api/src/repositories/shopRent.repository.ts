@@ -92,6 +92,52 @@ export const shopRentDemandRepository = {
     const { rows } = await pool.query<ShopRentDemandRow>(`SELECT * FROM shop_rent_demands ORDER BY demand_date DESC`);
     return rows;
   },
+
+  /** Every unpaid, un-cancelled, not-yet-superseded demand for a shop - the working set a supersede action can reference. */
+  async findActiveUnpaidForShop(shopNo: string): Promise<ShopRentDemandRow[]> {
+    const { rows } = await pool.query<ShopRentDemandRow>(
+      `SELECT * FROM shop_rent_demands WHERE shop_no = $1 AND settled = FALSE AND cancelled = FALSE AND superseded = FALSE ORDER BY demand_date ASC`,
+      [shopNo],
+    );
+    return rows;
+  },
+
+  /** Atomic - only succeeds if not already settled/cancelled, so an approval can never cancel a demand that was paid in the meantime. */
+  async cancel(demandNo: string, reason: string, client: Pick<typeof pool, "query"> = pool): Promise<ShopRentDemandRow | null> {
+    const { rows } = await client.query<ShopRentDemandRow>(
+      `UPDATE shop_rent_demands SET cancelled = TRUE, cancelled_reason = $2, cancelled_at = now()
+       WHERE demand_no = $1 AND settled = FALSE AND cancelled = FALSE RETURNING *`,
+      [demandNo, reason],
+    );
+    return rows[0] ?? null;
+  },
+
+  async markSuperseded(demandNo: string, client: Pick<typeof pool, "query"> = pool): Promise<void> {
+    await client.query(`UPDATE shop_rent_demands SET superseded = TRUE, superseded_at = now() WHERE demand_no = $1`, [demandNo]);
+  },
+
+  async recordSupersession(newDemandNo: string, supersededDemandNo: string, client: Pick<typeof pool, "query"> = pool): Promise<void> {
+    await client.query(
+      `INSERT INTO shop_rent_demand_supersessions (new_demand_no, superseded_demand_no) VALUES ($1, $2)`,
+      [newDemandNo, supersededDemandNo],
+    );
+  },
+
+  /** The prior demands a given (superseding) demand references - for showing "this replaces notices #X, #Y issued on..." on the printed notice. */
+  async findSupersededBy(newDemandNo: string): Promise<ShopRentDemandRow[]> {
+    const { rows } = await pool.query<ShopRentDemandRow>(
+      `SELECT d.* FROM shop_rent_demands d
+       JOIN shop_rent_demand_supersessions s ON s.superseded_demand_no = d.demand_no
+       WHERE s.new_demand_no = $1 ORDER BY d.demand_date ASC`,
+      [newDemandNo],
+    );
+    return rows;
+  },
+
+  /** Used when a receipt is cancelled - its linked demand goes back to unsettled/payable, mirroring the property-tax cancellation pattern. */
+  async revertToUnsettled(demandNo: string, client: Pick<typeof pool, "query"> = pool): Promise<void> {
+    await client.query(`UPDATE shop_rent_demands SET settled = FALSE, settled_receipt_no = NULL, settled_at = NULL WHERE demand_no = $1`, [demandNo]);
+  },
 };
 
 export const shopRentPaymentRepository = {
@@ -142,5 +188,15 @@ export const shopRentPaymentRepository = {
       [shopNo],
     );
     return rows;
+  },
+
+  /** Atomic - only succeeds if not already cancelled. */
+  async cancel(receiptNo: string, reason: string, client: Pick<typeof pool, "query"> = pool): Promise<ShopRentPaymentRow | null> {
+    const { rows } = await client.query<ShopRentPaymentRow>(
+      `UPDATE shop_rent_payments SET cancelled = TRUE, cancelled_reason = $2, cancelled_at = now()
+       WHERE receipt_no = $1 AND cancelled = FALSE RETURNING *`,
+      [receiptNo, reason],
+    );
+    return rows[0] ?? null;
   },
 };

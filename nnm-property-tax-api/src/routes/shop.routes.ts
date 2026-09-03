@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { getShopByShopNo, postShopLookup, postCreateShop, getMarketList, getNextShopNumber, listVacantShops } from "../controllers/shop.controller";
+import { getShopByShopNo, postShopLookup, postCreateShop, getMarketList, getNextShopNumber, listVacantShops, listShopsWithSummary } from "../controllers/shop.controller";
 import { postSubmitAgreementChange, getPrintableAgreement } from "../controllers/shopAgreement.controller";
 import { postSubmitShopEditRequest } from "../controllers/shopEditRequest.controller";
+import { postRequestDemandAction } from "../controllers/shopDemandAction.controller";
 import {
   postUploadShopAgreementDocument,
   getShopAgreementDocumentMetaHandler,
@@ -39,6 +40,11 @@ shopRouter.get("/markets", requireOperator, getMarketList);
 shopRouter.get("/next-number", requireOperator, getNextShopNumber);
 shopRouter.get("/vacant", listVacantShops);
 
+// Full-screen shop list (shop no, market, rent paid till, rent,
+// agreement date) - replaces a search-only page that showed nothing
+// by default.
+shopRouter.get("/", requireOperatorOrAdmin, listShopsWithSummary);
+
 // POST /api/v1/shops — create a new shop record (operator only, direct — no approval chain)
 shopRouter.post("/", requireOperator, postCreateShop);
 
@@ -53,6 +59,11 @@ shopRouter.post("/:shopNo/agreement", requireOperator, postSubmitAgreementChange
 // edit pattern (nothing is applied until Stall Prabhari, City
 // Manager, and Deputy Commissioner have all approved it).
 shopRouter.post("/:shopNo/edit-requests", requireOperator, postSubmitShopEditRequest);
+
+// Cancel/supersede a rent demand or cancel a receipt - operator or
+// admin can request, but nothing is applied until Stall Prabhari then
+// City Manager both approve.
+shopRouter.post("/demand-actions", requireOperatorOrAdmin, postRequestDemandAction);
 
 // Signed shop agreement PDF - kept safe per shop. Operator or admin
 // (whoever's processing the paperwork) can upload/view it - see

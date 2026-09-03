@@ -575,3 +575,102 @@ export async function rejectShopEditRequest(id: number, notes: string): Promise<
   const data: { request: ShopEditRequestSummary } = await res.json();
   return data.request;
 }
+
+/** Commissioner only - blocked server-side if the shop has any real financial/legal history (rent payments, demand notices, or violation notices) on file. */
+export async function deleteShopAdmin(shopNo: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/shops/${encodeURIComponent(shopNo)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this shop.");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Demand notice cancel/supersede and receipt cancel - a fixed 2-stage
+// chain (Stall Prabhari, then City Manager only). Mirrors the shop
+// edit request pattern above.
+// ---------------------------------------------------------------------------
+
+export type ShopDemandActionType = "cancel_demand" | "supersede_demand" | "cancel_receipt";
+export type ShopDemandActionStatus = "pending" | "approved" | "rejected";
+
+export interface ShopDemandActionRequestSummary {
+  id: number;
+  action_type: ShopDemandActionType;
+  target_id: string;
+  shop_no: string;
+  reason: string;
+  requested_by: string;
+  requested_at: string;
+  status: ShopDemandActionStatus;
+  current_stage: "stall_prabhari" | "city_manager";
+  reviewed_by: string | null;
+  reviewed_role: string | null;
+  reviewed_at: string | null;
+  review_notes: string | null;
+}
+
+export async function fetchDemandActionRequests(opts: {
+  status?: ShopDemandActionStatus;
+  myStage?: boolean;
+}): Promise<{ requests: ShopDemandActionRequestSummary[]; myRole: string; stageOrder: string[] }> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set("status", opts.status);
+  if (opts.myStage) params.set("myStage", "true");
+  const res = await fetch(`${API_BASE_URL}/admin/shop-demand-actions?${params.toString()}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load demand action requests.");
+  return res.json();
+}
+
+export interface ShopDemandActionApproval {
+  id: number;
+  request_id: number;
+  stage: string;
+  decision: "approved" | "rejected";
+  decided_by_username: string;
+  decided_by_display_name: string;
+  decided_at: string;
+  notes: string | null;
+}
+
+export interface ShopDemandActionRequestDetail {
+  request: ShopDemandActionRequestSummary;
+  approvalHistory: ShopDemandActionApproval[];
+}
+
+export async function fetchDemandActionRequestDetail(id: number): Promise<ShopDemandActionRequestDetail> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-demand-actions/${id}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this request.");
+  return res.json();
+}
+
+export async function approveDemandActionRequest(id: number, notes?: string): Promise<ShopDemandActionRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-demand-actions/${id}/approve`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not approve this request.");
+  }
+  const data: { request: ShopDemandActionRequestSummary } = await res.json();
+  return data.request;
+}
+
+export async function rejectDemandActionRequest(id: number, notes: string): Promise<ShopDemandActionRequestSummary> {
+  const res = await fetch(`${API_BASE_URL}/admin/shop-demand-actions/${id}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not reject this request.");
+  }
+  const data: { request: ShopDemandActionRequestSummary } = await res.json();
+  return data.request;
+}

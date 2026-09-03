@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Pencil, Sparkles, FilePlus2 } from "lucide-react";
+import { Receipt, Pencil, Sparkles } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { useOperatorGuard } from "@/lib/use-operator-guard";
 
@@ -19,15 +19,9 @@ const options = [
     href: "/operator/shops",
   },
   {
-    title: "Create New Shop",
-    description: "A genuinely new shop — auto-numbered, full details plus tenant/agreement in one entry.",
+    title: "Add a New or Existing-on-Paper Shop",
+    description: "A brand-new, auto-numbered shop, or one from the paper register not yet in the system - both start here.",
     icon: Sparkles,
-    href: "/operator/shops/new-entry",
-  },
-  {
-    title: "Enter Existing / Old Shop",
-    description: "A shop from the paper register not yet in the system — enter its existing number and details.",
-    icon: FilePlus2,
     href: "/operator/shops/new-entry",
   },
 ];

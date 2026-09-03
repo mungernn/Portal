@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck, Trash2 } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
 import { useAdminGuard } from "@/lib/use-admin-guard";
@@ -55,6 +55,7 @@ export default function AdminDashboardPage() {
   const isTradeLicenseNodal = admin.role === "trade_license_nodal";
   const isRestrictedRole = isStallPrabhari || isTradeLicenseNodal;
   const canApproveShopPublication = admin.role === "stall_prabhari" || admin.role === "city_manager" || admin.role === "deputy_commissioner";
+  const canApproveDemandActions = admin.role === "stall_prabhari" || admin.role === "city_manager";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -192,6 +193,19 @@ export default function AdminDashboardPage() {
             </Link>
           )}
 
+          {canApproveDemandActions && (
+            <Link
+              href="/admin/shop-demand-actions"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <XCircle className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Demand / Receipt Actions</h3>
+              <p className="text-sm text-slate-500">Cancel or supersede a demand notice, or cancel a payment receipt.</p>
+            </Link>
+          )}
+
           {!isStallPrabhari && (
             <Link
               href="/admin/trade-license-requests"
@@ -310,6 +324,19 @@ export default function AdminDashboardPage() {
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">Bulk Upload Shops</h3>
               <p className="text-sm text-slate-500">Import shops and their current tenancy from a CSV file.</p>
+            </Link>
+          )}
+
+          {admin.role === "commissioner" && (
+            <Link
+              href="/admin/shops-manage"
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+            >
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Trash2 className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Manage Shops</h3>
+              <p className="text-sm text-slate-500">Delete a shop entered in error - blocked if it has any financial history.</p>
             </Link>
           )}
         </div>

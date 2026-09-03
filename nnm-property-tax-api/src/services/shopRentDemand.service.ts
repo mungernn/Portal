@@ -166,6 +166,8 @@ export interface ShopDemandHistoryEntry {
   periodEndMonth: string;
   totalAmountDemanded: string;
   settled: boolean;
+  cancelled: boolean;
+  superseded: boolean;
 }
 
 /** Every rent demand ever generated for a shop, settled or not — the read-only document history list. */
@@ -179,5 +181,7 @@ export async function listShopDemandHistory(shopNo: string): Promise<ShopDemandH
     periodEndMonth: r.period_end_month,
     totalAmountDemanded: r.total_amount_demanded,
     settled: r.settled,
+    cancelled: r.cancelled,
+    superseded: r.superseded,
   }));
 }

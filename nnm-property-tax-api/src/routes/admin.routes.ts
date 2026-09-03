@@ -29,6 +29,7 @@ import {
   postRejectShopAgreementRequest,
 } from "../controllers/shopAgreement.controller";
 import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../controllers/shop.controller";
+import { deleteShopHandler } from "../controllers/shopDelete.controller";
 import { getShopsPendingPublication, postApproveShopPublication } from "../controllers/shopPublicationApproval.controller";
 import {
   getShopEditRequests,
@@ -36,6 +37,12 @@ import {
   postApproveShopEditRequest,
   postRejectShopEditRequest,
 } from "../controllers/shopEditRequest.controller";
+import {
+  getDemandActionRequests,
+  getDemandActionRequestById,
+  postApproveDemandAction,
+  postRejectDemandAction,
+} from "../controllers/shopDemandAction.controller";
 import { postResolveViolationNotice } from "../controllers/shopViolationNotice.controller";
 import {
   getRentalApplications,
@@ -117,6 +124,7 @@ adminRouter.post("/shop-agreement-requests/:id/approve", postApproveShopAgreemen
 adminRouter.post("/shop-agreement-requests/:id/reject", postRejectShopAgreementRequest);
 adminRouter.get("/shops", listAllShops);
 adminRouter.post("/shops/bulk-upload", requireAdminRole("commissioner"), uploadShopsCsvHandler);
+adminRouter.delete("/shops/:shopNo", requireAdminRole("commissioner"), deleteShopHandler);
 
 // Shop publication approval - gates a newly-entered shop from public
 // visibility until Stall Prabhari, City Manager, and Deputy
@@ -133,6 +141,17 @@ adminRouter.get("/shop-edit-requests", requirePublicationStageRole, getShopEditR
 adminRouter.get("/shop-edit-requests/:id", requirePublicationStageRole, getShopEditRequestById);
 adminRouter.post("/shop-edit-requests/:id/approve", requirePublicationStageRole, postApproveShopEditRequest);
 adminRouter.post("/shop-edit-requests/:id/reject", requirePublicationStageRole, postRejectShopEditRequest);
+
+// Demand notice cancel/supersede and receipt cancel - a separate,
+// FIXED 2-stage chain (Stall Prabhari, then City Manager only - no
+// Deputy Commissioner, unlike the 3-stage publication/edit chains
+// above), since this specific approval was asked for as exactly those
+// two roles.
+const requireDemandActionStageRole = requireAdminRole("stall_prabhari", "city_manager");
+adminRouter.get("/shop-demand-actions", requireDemandActionStageRole, getDemandActionRequests);
+adminRouter.get("/shop-demand-actions/:id", requireDemandActionStageRole, getDemandActionRequestById);
+adminRouter.post("/shop-demand-actions/:id/approve", requireDemandActionStageRole, postApproveDemandAction);
+adminRouter.post("/shop-demand-actions/:id/reject", requireDemandActionStageRole, postRejectDemandAction);
 adminRouter.get("/shops/per-sqft-report", getPerSqftReport);
 adminRouter.post("/violation-notices/:id/resolve", postResolveViolationNotice);
 

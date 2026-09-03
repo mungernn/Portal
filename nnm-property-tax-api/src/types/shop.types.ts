@@ -14,6 +14,18 @@ export interface ShopRow {
   last_modified_date: Date | null;
 }
 
+/** A shop joined with its current active agreement's summary fields (all null if the shop has no active agreement) - powers the full-screen shop list. */
+export interface ShopWithAgreementSummary {
+  shop_no: string;
+  market_name: string | null;
+  location: string;
+  status: "vacant" | "occupied" | "under_notice" | "terminated";
+  holder_name: string | null;
+  base_monthly_rent: string | null;
+  rent_paid_till_month: string | null;
+  agreement_start_date: Date | null;
+}
+
 /** What an operator may propose changing about an existing shop's details - a partial set, only the fields actually being edited. */
 export interface ShopEditProposedData {
   marketName?: string | null;
@@ -142,6 +154,11 @@ export interface ShopRentDemandRow {
   settled: boolean;
   settled_receipt_no: string | null;
   settled_at: Date | null;
+  cancelled: boolean;
+  cancelled_reason: string | null;
+  cancelled_at: Date | null;
+  superseded: boolean;
+  superseded_at: Date | null;
 }
 
 export interface ShopRentPaymentRow {
@@ -154,6 +171,38 @@ export interface ShopRentPaymentRow {
   collected_by: string;
   counter: string | null;
   txn_date: Date;
+  cancelled: boolean;
+  cancelled_reason: string | null;
+  cancelled_at: Date | null;
+}
+
+export type ShopDemandActionType = "cancel_demand" | "supersede_demand" | "cancel_receipt";
+
+export interface ShopDemandActionRequestRow {
+  id: number;
+  action_type: ShopDemandActionType;
+  target_id: string;
+  shop_no: string;
+  reason: string;
+  requested_by: string;
+  requested_at: Date;
+  status: "pending" | "approved" | "rejected";
+  current_stage: "stall_prabhari" | "city_manager";
+  reviewed_by: string | null;
+  reviewed_role: string | null;
+  reviewed_at: Date | null;
+  review_notes: string | null;
+}
+
+export interface ShopDemandActionApprovalRow {
+  id: number;
+  request_id: number;
+  stage: string;
+  decision: "approved" | "rejected";
+  decided_by_username: string;
+  decided_by_display_name: string;
+  decided_at: Date;
+  notes: string | null;
 }
 
 export interface ShopViolationNoticeRow {

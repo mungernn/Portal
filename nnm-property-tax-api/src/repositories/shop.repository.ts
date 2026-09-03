@@ -1,5 +1,5 @@
 import { pool } from "../config/db";
-import type { ShopRow, ShopAgreementRow } from "../types/shop.types";
+import type { ShopRow, ShopAgreementRow, ShopWithAgreementSummary } from "../types/shop.types";
 
 export const shopRepository = {
   async findByShopNo(shopNo: string): Promise<ShopRow | null> {
@@ -24,6 +24,33 @@ export const shopRepository = {
 
   async listAll(): Promise<ShopRow[]> {
     const { rows } = await pool.query<ShopRow>(`SELECT * FROM shops ORDER BY shop_no ASC`);
+    return rows;
+  },
+
+  /**
+   * Every shop with its current active agreement's summary fields (if
+   * any) in one query - powers the full-screen shop list, so an
+   * operator sees rent-paid-till/rent/agreement date without needing
+   * to search for one shop at a time. DISTINCT ON + ORDER BY id DESC
+   * picks only the most recent active agreement per shop, mirroring
+   * findActiveByShopNo's own "status='active' ORDER BY id DESC LIMIT
+   * 1" logic - just applied across every shop in a single query
+   * instead of one shop at a time.
+   */
+  async listAllWithAgreementSummary(): Promise<ShopWithAgreementSummary[]> {
+    const { rows } = await pool.query<ShopWithAgreementSummary>(
+      `SELECT
+         s.shop_no, s.market_name, s.location, s.status,
+         a.holder_name, a.base_monthly_rent, a.rent_paid_till_month, a.agreement_start_date
+       FROM shops s
+       LEFT JOIN LATERAL (
+         SELECT holder_name, base_monthly_rent, rent_paid_till_month, agreement_start_date
+         FROM shop_agreements
+         WHERE shop_agreements.shop_no = s.shop_no AND shop_agreements.status = 'active'
+         ORDER BY id DESC LIMIT 1
+       ) a ON true
+       ORDER BY s.shop_no ASC`,
+    );
     return rows;
   },
 
@@ -66,7 +93,13 @@ export const shopRepository = {
           s.areaSqft,
           s.totalAreaSqft ?? null,
           s.builtUpAreaSqft ?? null,
-          s.status ?? "vacant",
+          // Falls back to 'occupied' - the safe default (see migration
+          // 044). The database column itself also defaults to
+          // 'occupied' now, but this application-level fallback is
+          // needed too since passing an explicit `undefined` as a
+          // query parameter does NOT let Postgres apply its column
+          // default - it must be given an actual value here.
+          s.status ?? "occupied",
           actorDisplayName,
         ],
       );
@@ -270,7 +303,7 @@ export const shopAgreementRepository = {
     return rows[0]!;
   },
 
-  async updateRentPaidTillMonth(id: number, yearMonth: string): Promise<void> {
-    await pool.query(`UPDATE shop_agreements SET rent_paid_till_month = $2 WHERE id = $1`, [id, yearMonth]);
+  async updateRentPaidTillMonth(id: number, yearMonth: string, client: Pick<typeof pool, "query"> = pool): Promise<void> {
+    await client.query(`UPDATE shop_agreements SET rent_paid_till_month = $2 WHERE id = $1`, [id, yearMonth]);
   },
 };

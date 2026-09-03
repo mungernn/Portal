@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ArrowRight, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { ShopAgreementForm } from "@/components/operator/shop-agreement-form";
+import { ShopRentEscalationPanel } from "@/components/operator/shop-rent-escalation-panel";
 import { useOperatorGuard } from "@/lib/use-operator-guard";
 import {
   fetchShopByShopNo,
@@ -32,6 +33,10 @@ export default function ShopNewEntryPage() {
   const [areaSqft, setAreaSqft] = useState("");
   const [totalAreaSqft, setTotalAreaSqft] = useState("");
   const [builtUpAreaSqft, setBuiltUpAreaSqft] = useState("");
+  // Defaults to occupied - the safe default, since a shop wrongly left
+  // vacant becomes publicly visible as available to apply for. The
+  // operator must consciously switch this if the shop actually is vacant.
+  const [isVacant, setIsVacant] = useState(false);
 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -69,6 +74,7 @@ export default function ShopNewEntryPage() {
     setAreaSqft("");
     setTotalAreaSqft("");
     setBuiltUpAreaSqft("");
+    setIsVacant(false);
     setCreateError(null);
     setCreatedShopNo(null);
     setAgreementDone(false);
@@ -125,8 +131,13 @@ export default function ShopNewEntryPage() {
         areaSqft: areaSqft ? Number(areaSqft) : null,
         totalAreaSqft: totalAreaSqft ? Number(totalAreaSqft) : null,
         builtUpAreaSqft: builtUpAreaSqft ? Number(builtUpAreaSqft) : null,
+        status: isVacant ? "vacant" : "occupied",
       });
       setCreatedShopNo(shopNo);
+      if (isVacant) {
+        // No tenant to enter for a vacant shop - the agreement step doesn't apply.
+        setAgreementDone(true);
+      }
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Could not create shop.");
     } finally {
@@ -262,6 +273,34 @@ export default function ShopNewEntryPage() {
               </div>
             </section>
 
+            <section className="rounded-xl border-2 border-amber-300 bg-amber-50 p-6">
+              <label className="mb-2 block text-sm font-semibold text-slate-800">Is this shop currently vacant?</label>
+              <p className="mb-3 text-xs text-slate-600">
+                A vacant shop becomes visible to the public for rental applications once approved. Get this right - an
+                occupied shop wrongly marked vacant will draw public applications for a shop that isn&apos;t actually available.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsVacant(false)}
+                  className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-semibold ${
+                    !isVacant ? "border-nnm-blue bg-white text-nnm-blue" : "border-slate-200 bg-white text-slate-500"
+                  }`}
+                >
+                  Occupied (has a tenant)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsVacant(true)}
+                  className={`flex-1 rounded-md border-2 px-4 py-3 text-sm font-semibold ${
+                    isVacant ? "border-nnm-blue bg-white text-nnm-blue" : "border-slate-200 bg-white text-slate-500"
+                  }`}
+                >
+                  Vacant
+                </button>
+              </div>
+            </section>
+
             <button
               type="submit"
               disabled={creating}
@@ -284,13 +323,19 @@ export default function ShopNewEntryPage() {
               isEditing={false}
               onSubmitted={() => setAgreementDone(true)}
             />
+            <p className="text-xs text-slate-500">
+              If this agreement has a known rent escalation clause (e.g. a fixed % every few years), record it below - it&apos;s
+              independent of the tenant/agreement details above and isn&apos;t required to submit the agreement.
+            </p>
+            <ShopRentEscalationPanel shopNo={createdShopNo} />
           </div>
         )}
 
         {agreementDone && (
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-white p-6">
             <p className="text-sm text-slate-600">
-              Shop <b className="font-mono">{createdShopNo}</b> and its agreement request are recorded.
+              Shop <b className="font-mono">{createdShopNo}</b>{" "}
+              {isVacant ? "is recorded as vacant." : "and its agreement request are recorded."}
             </p>
             <button
               onClick={resetAll}

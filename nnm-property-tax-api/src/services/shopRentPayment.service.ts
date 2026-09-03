@@ -178,6 +178,7 @@ export interface ShopPaymentHistoryEntry {
   date: string;
   amountReceived: string;
   paymentMode: string;
+  cancelled: boolean;
 }
 
 /** Every rent payment ever collected for a shop, most recent first — the read-only document history list. */
@@ -189,5 +190,6 @@ export async function listShopPaymentHistory(shopNo: string): Promise<ShopPaymen
     date: `${String(p.txn_date.getDate()).padStart(2, "0")}-${String(p.txn_date.getMonth() + 1).padStart(2, "0")}-${p.txn_date.getFullYear()}`,
     amountReceived: p.amount_received,
     paymentMode: p.payment_mode,
+    cancelled: p.cancelled,
   }));
 }

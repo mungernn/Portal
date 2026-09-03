@@ -21,9 +21,11 @@ import {
   fetchMarketList,
   fetchNextShopNumber,
   fetchPrintableAgreement,
+  fetchShopsList,
   type ShopSearchResult,
   type ShopRentPaymentResult,
   type PrintableShopAgreement,
+  type ShopListEntry,
 } from "@/lib/shop-api";
 
 const inputClass =
@@ -41,6 +43,9 @@ export default function OperatorShopsPage() {
   const [shopNoQuery, setShopNoQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [mode, setMode] = useState<Mode>({ kind: "idle" });
+  const [shopList, setShopList] = useState<ShopListEntry[] | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+  const [listFilter, setListFilter] = useState("");
   const [showAgreementForm, setShowAgreementForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
@@ -84,10 +89,14 @@ export default function OperatorShopsPage() {
       .finally(() => setPreviewLoading(false));
   }, [mode.kind, effectiveMarket]);
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const shopNo = shopNoQuery.trim();
-    if (!shopNo) return;
+  useEffect(() => {
+    if (mode.kind !== "idle" || shopList !== null) return;
+    fetchShopsList()
+      .then(setShopList)
+      .catch((err) => setListError(err instanceof Error ? err.message : "Could not load the shop list."));
+  }, [mode.kind, shopList]);
+
+  async function searchByShopNo(shopNo: string) {
     setSearching(true);
     setReceipt(null);
     setShowAgreementForm(false);
@@ -102,6 +111,13 @@ export default function OperatorShopsPage() {
     } finally {
       setSearching(false);
     }
+  }
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const shopNo = shopNoQuery.trim();
+    if (!shopNo) return;
+    await searchByShopNo(shopNo);
   }
 
   function startNewAuto() {
@@ -188,7 +204,7 @@ export default function OperatorShopsPage() {
         <OperatorHeader operator={operator} />
       </div>
 
-      <main className="mx-auto max-w-3xl px-6 py-10">
+      <main className={`mx-auto px-6 py-10 ${mode.kind === "idle" ? "max-w-6xl" : "max-w-3xl"}`}>
         {receipt ? (
           <ShopReceiptView receipt={receipt} onClose={() => setReceipt(null)} />
         ) : permit ? (
@@ -233,6 +249,82 @@ export default function OperatorShopsPage() {
             Full Entry (shop + tenant)
           </Link>
         </div>
+
+        {mode.kind === "idle" && (
+          <div>
+            {listError && (
+              <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {listError}
+              </div>
+            )}
+            {!shopList ? (
+              <div className="flex items-center gap-2 py-8 text-sm text-slate-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading shops…
+              </div>
+            ) : (
+              <>
+                <input
+                  value={listFilter}
+                  onChange={(e) => setListFilter(e.target.value)}
+                  placeholder="Filter by shop no, market, or holder name"
+                  className={`${inputClass} mb-4`}
+                />
+                <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Shop No</th>
+                        <th className="px-4 py-3 font-medium">Market</th>
+                        <th className="px-4 py-3 font-medium">Rent Paid Till</th>
+                        <th className="px-4 py-3 font-medium">Rent Amount</th>
+                        <th className="px-4 py-3 font-medium">Agreement Date</th>
+                        <th className="px-4 py-3 font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shopList
+                        .filter(
+                          (s) =>
+                            !listFilter.trim() ||
+                            s.shopNo.toLowerCase().includes(listFilter.toLowerCase()) ||
+                            (s.marketName ?? "").toLowerCase().includes(listFilter.toLowerCase()) ||
+                            (s.holderName ?? "").toLowerCase().includes(listFilter.toLowerCase()),
+                        )
+                        .map((s) => (
+                          <tr key={s.shopNo} className="border-t border-slate-100">
+                            <td className="px-4 py-3 font-mono text-xs">{s.shopNo}</td>
+                            <td className="px-4 py-3">{s.marketName ?? "-"}</td>
+                            <td className="px-4 py-3 text-xs text-slate-500">{s.rentPaidTillMonth ?? "-"}</td>
+                            <td className="px-4 py-3 text-xs text-slate-500">{s.baseMonthlyRent ? `₹${s.baseMonthlyRent}` : "-"}</td>
+                            <td className="px-4 py-3 text-xs text-slate-500">
+                              {s.agreementStartDate ? new Date(s.agreementStartDate).toLocaleDateString("en-IN") : "-"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex justify-end gap-2 whitespace-nowrap text-xs">
+                                <button onClick={() => searchByShopNo(s.shopNo)} className="font-medium text-nnm-blue hover:underline">
+                                  Collect Rent
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button onClick={() => searchByShopNo(s.shopNo)} className="font-medium text-nnm-blue hover:underline">
+                                  Issue Notice
+                                </button>
+                                <span className="text-slate-300">|</span>
+                                <button onClick={() => searchByShopNo(s.shopNo)} className="font-medium text-nnm-blue hover:underline">
+                                  Edit
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {mode.kind === "notFoundCreate" && (
           <div className="space-y-4">
@@ -368,6 +460,15 @@ export default function OperatorShopsPage() {
 
         {mode.kind === "found" && (
           <div className="space-y-6">
+            <button
+              onClick={() => {
+                setMode({ kind: "idle" });
+                setShopList(null); // force a fresh fetch, since this shop's data may have just changed
+              }}
+              className="text-sm font-medium text-nnm-blue hover:underline"
+            >
+              ← Back to shop list
+            </button>
             <section className="rounded-xl border border-slate-200 bg-white p-6">
               <h2 className="mb-3 text-base font-semibold text-slate-900">Shop {shopNo}</h2>
               <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">

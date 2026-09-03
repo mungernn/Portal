@@ -16,6 +16,25 @@ export interface PendingRentMonth {
   total: string;
 }
 
+export interface ShopListEntry {
+  shopNo: string;
+  marketName: string | null;
+  location: string;
+  status: "vacant" | "occupied" | "under_notice" | "terminated";
+  holderName: string | null;
+  baseMonthlyRent: string | null;
+  rentPaidTillMonth: string | null;
+  agreementStartDate: string | null;
+}
+
+/** Every shop with its current agreement summary - powers the full-screen shop list. */
+export async function fetchShopsList(): Promise<ShopListEntry[]> {
+  const res = await fetch(`${API_BASE_URL}/shops`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the shop list.");
+  const data: { shops: ShopListEntry[] } = await res.json();
+  return data.shops;
+}
+
 export interface ShopSearchResult {
   found: boolean;
   message?: string;
@@ -45,6 +64,7 @@ export interface CreateShopInput {
   areaSqft?: number | null;
   totalAreaSqft?: number | null;
   builtUpAreaSqft?: number | null;
+  status?: "vacant" | "occupied";
 }
 
 export async function createShop(input: CreateShopInput): Promise<{ shopNo: string }> {
@@ -370,6 +390,8 @@ export interface ShopDemandHistoryEntry {
   periodEndMonth: string;
   totalAmountDemanded: string;
   settled: boolean;
+  cancelled: boolean;
+  superseded: boolean;
 }
 
 export async function fetchShopDemandHistory(shopNo: string): Promise<ShopDemandHistoryEntry[]> {
@@ -415,6 +437,7 @@ export interface ShopPaymentHistoryEntry {
   date: string;
   amountReceived: string;
   paymentMode: string;
+  cancelled: boolean;
 }
 
 export async function fetchShopPaymentHistory(shopNo: string): Promise<ShopPaymentHistoryEntry[]> {
@@ -582,4 +605,30 @@ export async function deleteEscalationPeriod(shopNo: string, id: number): Promis
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Could not delete this period.");
   }
+}
+
+// ---------------------------------------------------------------------------
+// Demand notice cancel/supersede and receipt cancel - operator or
+// admin can request, but nothing is applied until Stall Prabhari then
+// City Manager both approve.
+// ---------------------------------------------------------------------------
+
+export type ShopDemandActionType = "cancel_demand" | "supersede_demand" | "cancel_receipt";
+
+export async function requestDemandAction(
+  actionType: ShopDemandActionType,
+  targetId: string,
+  shopNo: string,
+  reason: string,
+): Promise<{ request: { id: number; status: string } }> {
+  const res = await fetch(`${API_BASE_URL}/shops/demand-actions`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ actionType, targetId, shopNo, reason }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not submit this request.");
+  }
+  return res.json();
 }

@@ -23,16 +23,34 @@ function toNumberOrNull(s: string): number | null {
 /**
  * Bulk import of shops, optionally with their current tenancy in the
  * same row - a shop with no "Holder Name" is created vacant, a shop
- * with one also gets a full agreement via
+ * with one also gets an agreement record via
  * shopAgreementRepository.insertPartial (data_status='partial', the
  * same path the schema was already designed for migrated/incomplete
- * records - see that method's comment). Only ONE of the three period
- * rent columns (Rent Pre-2019 / Rent 2019-20 / Rent 2020-21 Onwards)
- * needs to be filled in per row - resolveRentPeriodsFromValues derives
- * the other two automatically per the confirmed escalation formula
- * (25% at 2019-20, a further 50% from 2020-21), so this import doesn't
- * require all three; whichever the sheet provides is stored, and the
- * rest are computed at read time, not here.
+ * records - see that method's comment).
+ *
+ * Holder Name and Base Monthly Rent from the sheet are DELIBERATELY
+ * NOT applied to holder_name/base_monthly_rent - there was
+ * historically no clarity on which of several possibly-conflicting
+ * name/rent sources (the sheet's own Holder Name column vs. its
+ * separate Agreement/Demand Register reference columns) should be
+ * treated as authoritative, and guessing wrong would mean generating
+ * demand notices against the wrong tenant or amount. Both raw values
+ * still "sit on the server" rather than being lost - recorded in the
+ * agreement's notes as a pending-review line - so whoever reviews the
+ * shop later has everything needed to make the correction (fill in
+ * holder_name/base_monthly_rent directly, or via a rent escalation
+ * period if the figure they choose comes with a known escalation
+ * rule). Everything else from the sheet (the reference columns,
+ * addresses, dates, deposits, etc.) is still applied normally - only
+ * these two specific columns are held back.
+ *
+ * Only ONE of the three period rent columns (Rent Pre-2019 / Rent
+ * 2019-20 / Rent 2020-21 Onwards) needs to be filled in per row -
+ * resolveRentPeriodsFromValues derives the other two automatically
+ * per the confirmed escalation formula (25% at 2019-20, a further 50%
+ * from 2020-21), so this import doesn't require all three; whichever
+ * the sheet provides is stored, and the rest are computed at read
+ * time, not here.
  */
 export async function importShopsCsv(csvContent: string, actorDisplayName: string): Promise<ShopImportResult> {
   const records: Record<string, string>[] = parse(csvContent, { columns: true, skip_empty_lines: true, relax_column_count: true });
@@ -61,8 +79,9 @@ export async function importShopsCsv(csvContent: string, actorDisplayName: strin
         continue;
       }
 
-      const holderName = pick(row, ["Holder Name"]);
-      const baseMonthlyRentRaw = pick(row, ["Base Monthly Rent"]);
+      const holderNameFromSheet = pick(row, ["Holder Name"]);
+      const baseMonthlyRentFromSheet = pick(row, ["Base Monthly Rent"]);
+      const isOccupied = Boolean(holderNameFromSheet);
 
       await shopRepository.upsert(
         shopNo,
@@ -73,18 +92,19 @@ export async function importShopsCsv(csvContent: string, actorDisplayName: strin
           areaSqft: toNumberOrNull(pick(row, ["Area Sqft"])),
           totalAreaSqft: toNumberOrNull(pick(row, ["Total Area Sqft"])),
           builtUpAreaSqft: toNumberOrNull(pick(row, ["Built Up Area Sqft"])),
-          status: holderName ? "occupied" : "vacant",
+          status: isOccupied ? "occupied" : "vacant",
         },
         actorDisplayName,
         true,
       );
       result.shopsCreated++;
 
-      if (holderName) {
-        if (!baseMonthlyRentRaw) {
-          result.errors.push({ row: rowNum, message: `Shop "${shopNo}" has a Holder Name but no Base Monthly Rent - shop created, but no agreement was recorded.` });
-          continue;
-        }
+      if (isOccupied) {
+        const sheetNotes = pick(row, ["Notes"]) || null;
+        const pendingReviewNote = `[Pending review from bulk upload] Sheet's Holder Name: "${holderNameFromSheet}"${
+          baseMonthlyRentFromSheet ? `, Base Monthly Rent: "${baseMonthlyRentFromSheet}"` : ""
+        } - not yet applied, confirm the correct value before generating any demand for this shop.`;
+        const notes = sheetNotes ? `${sheetNotes}\n\n${pendingReviewNote}` : pendingReviewNote;
 
         await shopAgreementRepository.insertPartial(
           shopNo,
@@ -92,7 +112,7 @@ export async function importShopsCsv(csvContent: string, actorDisplayName: strin
             agreementNumber: pick(row, ["Agreement Number"]) || null,
             agreementHolderName: pick(row, ["Agreement Holder Name"]) || null,
             demandRegisterHolderName: pick(row, ["Demand Register Holder Name"]) || null,
-            holderName,
+            holderName: null,
             holderRelationType: pick(row, ["Holder Relation Type"]) || null,
             holderRelationName: pick(row, ["Holder Relation Name"]) || null,
             holderMobile: pick(row, ["Holder Mobile"]) || null,
@@ -101,7 +121,7 @@ export async function importShopsCsv(csvContent: string, actorDisplayName: strin
             businessName: pick(row, ["Business Name"]) || null,
             agreementRent: toNumberOrNull(pick(row, ["Agreement Rent"])),
             demandRegisterRent: toNumberOrNull(pick(row, ["Demand Register Rent"])),
-            baseMonthlyRent: Number(baseMonthlyRentRaw),
+            baseMonthlyRent: null,
             rentPre2019: toNumberOrNull(pick(row, ["Rent Pre-2019", "Rent Pre 2019"])),
             rent201920: toNumberOrNull(pick(row, ["Rent 2019-20", "Rent 2019 20"])),
             rent202021Onwards: toNumberOrNull(pick(row, ["Rent 2020-21 Onwards", "Rent 2020 21 Onwards"])),
@@ -115,7 +135,7 @@ export async function importShopsCsv(csvContent: string, actorDisplayName: strin
             jointHolderName: pick(row, ["Joint Holder Name"]) || null,
             jointHolderRelation: pick(row, ["Joint Holder Relation"]) || null,
             jointHolderIdProofNumber: pick(row, ["Joint Holder ID Proof Number"]) || null,
-            notes: pick(row, ["Notes"]) || null,
+            notes,
             rentPaidTillMonth: pick(row, ["Rent Paid Till Month"]) || null,
           },
           actorDisplayName,

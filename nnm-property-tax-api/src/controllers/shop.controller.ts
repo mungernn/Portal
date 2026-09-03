@@ -126,3 +126,25 @@ export const uploadShopsCsvHandler = asyncHandler(async (req: Request, res: Resp
   const result = await importShopsCsv(parsed.data.csvContent, req.admin!.displayName);
   res.status(200).json(result);
 });
+
+/**
+ * GET /api/v1/shops - operator or admin. Every shop with its current
+ * agreement summary in one call - powers the full-screen shop list
+ * (shop no, market, rent paid till, rent, agreement date), replacing
+ * a page that showed nothing until a specific shop number was typed in.
+ */
+export const listShopsWithSummary = asyncHandler(async (_req: Request, res: Response) => {
+  const shops = await shopRepository.listAllWithAgreementSummary();
+  res.status(200).json({
+    shops: shops.map((s) => ({
+      shopNo: s.shop_no,
+      marketName: s.market_name,
+      location: s.location,
+      status: s.status,
+      holderName: s.holder_name,
+      baseMonthlyRent: s.base_monthly_rent,
+      rentPaidTillMonth: s.rent_paid_till_month,
+      agreementStartDate: s.agreement_start_date,
+    })),
+  });
+});

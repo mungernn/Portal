@@ -72,8 +72,12 @@ export default function ShopsBulkUploadPage() {
             </ul>
             <p className="mt-3 font-medium text-slate-700">Tenancy (leave Holder Name blank for a vacant shop)</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
-              <li>Holder Name - the confirmed applicable name; required if occupied</li>
-              <li>Base Monthly Rent - the confirmed applicable rent; required if occupied</li>
+              <li>
+                Holder Name and Base Monthly Rent - if a Holder Name is present the shop is marked occupied, but these two
+                values are <strong>not</strong> applied to the agreement directly - they&apos;re recorded as a pending-review
+                note instead, since there was no clarity on which of possibly several conflicting name/rent sources should be
+                treated as official. Someone reviews and confirms these on the shop before any demand can be generated.
+              </li>
               <li>Agreement Number, Agreement Holder Name, Demand Register Holder Name, Agreement Rent, Demand Register Rent - reference values only, all optional</li>
               <li>Holder Relation Type (S/O, D/O, W/O, C/O), Holder Relation Name, Holder Mobile, Holder Address, ID Proof Number, Business Name</li>
               <li>
