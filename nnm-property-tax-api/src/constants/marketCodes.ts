@@ -14,16 +14,16 @@
 export const KNOWN_MARKET_CODES: Record<string, string> = {
   "Nagar Nigam Campus": "NNC",
   "Raja Bazar": "RB",
-  "Raja Bazar Passage A": "RBPA",
-  "Raja Bazar Passage B": "RBPB",
+  "Raja Bazaar Passage A": "RBPA",
+  "Raja Bazaar Passage B": "RBPB",
   "Om Prakash Market": "OPM",
-  "Karpuri Market": "KPM",
+  "Karpuri Market": "KM",
   "Kaura Maidan market": "KMM",
-  "Bekapur market": "BKM",
+  "Bekapur market": "BM",
   "Lalit Narayan Market": "LNM",
   "Hospital road market": "HRM",
-  "Private taxi stand": "PTS",
-  "Private Bus Stand": "PBS",
+  "Private taxi stand": "PTSM",
+  "Private Bus Stand": "PBSM",
   "Company Garden stall": "CGS",
 };
 

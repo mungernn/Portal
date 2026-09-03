@@ -83,11 +83,12 @@ export const shopRepository = {
     if (isNew) {
       await pool.query(
         `INSERT INTO shops (
-          shop_no, market_name, location, ward, area_sqft, total_area_sqft, built_up_area_sqft, status, created_by, created_date
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())`,
+          shop_no, market_name, market_shop_number, location, ward, area_sqft, total_area_sqft, built_up_area_sqft, status, created_by, created_date
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())`,
         [
           shopNo,
           s.marketName,
+          s.marketShopNumber ?? null,
           s.location,
           s.ward,
           s.areaSqft,
@@ -107,10 +108,10 @@ export const shopRepository = {
     }
     await pool.query(
       `UPDATE shops SET
-        market_name = $2, location = $3, ward = $4, area_sqft = $5, total_area_sqft = $6, built_up_area_sqft = $7, status = $8,
-        last_modified_by = $9, last_modified_date = now()
+        market_name = $2, market_shop_number = $3, location = $4, ward = $5, area_sqft = $6, total_area_sqft = $7, built_up_area_sqft = $8, status = $9,
+        last_modified_by = $10, last_modified_date = now()
        WHERE shop_no = $1`,
-      [shopNo, s.marketName, s.location, s.ward, s.areaSqft, s.totalAreaSqft ?? null, s.builtUpAreaSqft ?? null, s.status, actorDisplayName],
+      [shopNo, s.marketName, s.marketShopNumber ?? null, s.location, s.ward, s.areaSqft, s.totalAreaSqft ?? null, s.builtUpAreaSqft ?? null, s.status, actorDisplayName],
     );
   },
 };

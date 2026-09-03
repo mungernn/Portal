@@ -55,8 +55,8 @@ export default function ShopsBulkUploadPage() {
       <main className="mx-auto max-w-2xl px-6 py-10">
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Bulk Upload Shops</h1>
         <p className="mb-6 text-sm text-slate-500">
-          Upload shop and current-tenancy data in one CSV. A row with no Holder Name is created as a vacant shop; a row with one
-          also creates its agreement. Existing shop numbers are skipped, not overwritten.
+          Upload shop and current-tenancy data in one CSV. Shop number is derived automatically from Market Name and the
+          within-market serial number - it isn&apos;t a column you fill in. Existing shop numbers are skipped, not overwritten.
         </p>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
@@ -64,30 +64,38 @@ export default function ShopsBulkUploadPage() {
             <summary className="cursor-pointer font-semibold text-slate-700">Expected CSV columns (matched by header name)</summary>
             <p className="mt-2 font-medium text-slate-700">Shop details</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
-              <li>Shop No - required, must be unique</li>
-              <li>Market Name</li>
-              <li>Location - required</li>
-              <li>Ward</li>
+              <li>
+                Market Name and Stall Serial Number within market - both required. Shop number is generated as{" "}
+                <span className="font-mono">{"{market code}-{serial number}"}</span> (e.g. market &quot;Private Bus Stand&quot;
+                + serial &quot;15&quot; → <span className="font-mono">PBSM-15</span>). The serial doesn&apos;t need to be
+                numeric - &quot;Test1&quot; or &quot;44A&quot; work fine.
+              </li>
+              <li>Status - Vacant or Occupied. Anything else (including blank) defaults to Occupied, the safe default.</li>
+              <li>Location (falls back to Market Name if blank), Ward</li>
               <li>Area Sqft, Total Area Sqft, Built Up Area Sqft</li>
             </ul>
-            <p className="mt-3 font-medium text-slate-700">Tenancy (leave Holder Name blank for a vacant shop)</p>
+            <p className="mt-3 font-medium text-slate-700">Tenancy (only read for rows marked Occupied)</p>
             <ul className="mt-1 list-inside list-disc space-y-0.5">
               <li>
-                Holder Name and Base Monthly Rent - if a Holder Name is present the shop is marked occupied, but these two
-                values are <strong>not</strong> applied to the agreement directly - they&apos;re recorded as a pending-review
-                note instead, since there was no clarity on which of possibly several conflicting name/rent sources should be
-                treated as official. Someone reviews and confirms these on the shop before any demand can be generated.
+                Agreement Rent and Demand Register Rent are <strong>not</strong> applied directly as the agreement&apos;s
+                official rent - they&apos;re recorded as a pending-review note instead, since there was no clarity on which
+                conflicting source should be treated as official. Same for Agreement Holder Name / Demand Register Holder
+                Name - neither is applied as the official holder name. Someone reviews and confirms these on the shop before
+                any demand can be generated.
               </li>
-              <li>Agreement Number, Agreement Holder Name, Demand Register Holder Name, Agreement Rent, Demand Register Rent - reference values only, all optional</li>
-              <li>Holder Relation Type (S/O, D/O, W/O, C/O), Holder Relation Name, Holder Mobile, Holder Address, ID Proof Number, Business Name</li>
+              <li>Agreement number, Holder Relation Type (S/O, D/O, W/O, C/O), Holder Relation Name, Holder Mobile, Holder Address, ID Proof Number, Business Name</li>
               <li>
-                <strong>Rent Pre-2019, Rent 2019-20, Rent 2020-21 Onwards</strong> - fill in only ONE of these three; the system
-                derives the other two automatically (25% increase at 2019-20, a further 50% from 2020-21)
+                <strong>Rent Pre-2019, Rent 2019-20, Rent 2020-21 (or Rent 2020-21 Onwards)</strong> - fill in only ONE of
+                these three; the system derives the other two automatically (25% increase at 2019-20, a further 50% from
+                2020-21)
               </li>
-              <li>Agreement Start Date, Agreement End Date (yyyy-mm-dd)</li>
+              <li>Agreement Start Date, Agreement End Date - accepts either dd.mm.yyyy (e.g. 31.03.2026) or yyyy-mm-dd</li>
               <li>Security Deposit, Misc Cost, Misc Cost Reason, Misc Rebate, Misc Rebate Reason</li>
-              <li>Joint Holder Name, Joint Holder Relation, Joint Holder ID Proof Number, Notes</li>
-              <li>Rent Paid Till Month (yyyy-mm) - important for calculating what&apos;s currently pending</li>
+              <li>Joint Holder Name, Joint Holder Relation, Joint Holder ID Proof Number, Comments (or Notes)</li>
+              <li>
+                Rent Paid Till Month - accepts either &quot;March 2026&quot; or yyyy-mm - important for calculating
+                what&apos;s currently pending
+              </li>
             </ul>
           </details>
 

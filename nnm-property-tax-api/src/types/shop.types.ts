@@ -1,6 +1,7 @@
 export interface ShopRow {
   shop_no: string;
   market_name: string | null;
+  market_shop_number: string | null;
   location: string;
   ward: string | null;
   area_sqft: string | null;
