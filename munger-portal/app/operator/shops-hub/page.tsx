@@ -1,21 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Receipt, Pencil, Sparkles } from "lucide-react";
+import { Receipt, Sparkles } from "lucide-react";
 import { OperatorHeader } from "@/components/operator-header";
 import { useOperatorGuard } from "@/lib/use-operator-guard";
 
 const options = [
   {
-    title: "Rent Collection",
-    description: "Search a shop by number, generate a demand, and collect payment.",
+    title: "Shop List / Rent Collection / Edit",
+    description: "Browse all shops or search by number - collect rent, edit agreement details, or issue a notice.",
     icon: Receipt,
-    href: "/operator/shops",
-  },
-  {
-    title: "Update Shop / Agreement",
-    description: "Search a shop and edit its existing agreement — holder, rent, terms.",
-    icon: Pencil,
     href: "/operator/shops",
   },
   {
