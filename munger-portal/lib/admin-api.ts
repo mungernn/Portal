@@ -572,3 +572,16 @@ export async function rejectCancellationRequest(id: number, notes: string): Prom
   const data: { request: CancellationRequestSummary } = await res.json();
   return data.request;
 }
+
+/** Commissioner only - renumbers a holding to a fresh, auto-assigned number in its own series, for correcting a number that was accidentally reused before the original holding was migrated in. */
+export async function renumberHolding(holdingNo: string): Promise<{ newHoldingNo: string }> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/${encodeURIComponent(holdingNo)}/renumber`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not renumber this holding.");
+  }
+  return res.json();
+}
