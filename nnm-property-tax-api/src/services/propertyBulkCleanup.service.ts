@@ -29,7 +29,7 @@ export async function listSpacedHoldings(): Promise<SpacedHoldingPreview[]> {
   }>(
     `SELECT
        p.holding_no, p.owner_name, p.created_date,
-       (SELECT COUNT(*) FROM transactions WHERE holding_no = p.holding_no) AS payments,
+       (SELECT COUNT(*) FROM transactions WHERE holding_no = p.holding_no AND cancelled = FALSE) AS payments,
        (SELECT COUNT(*) FROM demand_notices WHERE holding_no = p.holding_no) AS demands
      FROM properties p
      WHERE p.holding_no LIKE '% %'
@@ -53,8 +53,9 @@ export interface BulkDeleteResult {
  * Deletes every holding whose holding_no currently contains a space,
  * in one pass - see listSpacedHoldings for why these accumulated.
  * Same safety rule as the single-holding delete: a holding with an
- * actual payment on file is skipped, not deleted, for case-by-case
- * review; an issued-but-unpaid demand notice does not block deletion.
+ * ACTIVE (non-cancelled) payment on file is skipped, not deleted, for
+ * case-by-case review; a cancelled receipt doesn't count, and an
+ * issued-but-unpaid demand notice does not block deletion.
  */
 export async function bulkDeleteSpacedHoldings(actorDisplayName: string): Promise<BulkDeleteResult> {
   const { rows } = await pool.query<{ holding_no: string }>(`SELECT holding_no FROM properties WHERE holding_no LIKE '% %'`);
@@ -62,15 +63,16 @@ export async function bulkDeleteSpacedHoldings(actorDisplayName: string): Promis
   const result: BulkDeleteResult = { deleted: [], skipped: [] };
 
   for (const { holding_no: holdingNo } of rows) {
-    const { rows: paymentRows } = await pool.query<{ count: string }>(`SELECT COUNT(*) FROM transactions WHERE holding_no = $1`, [holdingNo]);
+    const { rows: paymentRows } = await pool.query<{ count: string }>(`SELECT COUNT(*) FROM transactions WHERE holding_no = $1 AND cancelled = FALSE`, [holdingNo]);
     if (Number(paymentRows[0]!.count) > 0) {
-      result.skipped.push({ holdingNo, reason: `Has ${paymentRows[0]!.count} payment(s) on file - needs case-by-case review, not deleted.` });
+      result.skipped.push({ holdingNo, reason: `Has ${paymentRows[0]!.count} active payment(s) on file - needs case-by-case review, not deleted.` });
       continue;
     }
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query(`DELETE FROM transactions WHERE holding_no = $1`, [holdingNo]);
       await client.query(`DELETE FROM demand_notices WHERE holding_no = $1`, [holdingNo]);
       await client.query(`DELETE FROM floors WHERE holding_no = $1`, [holdingNo]);
       await client.query(`DELETE FROM tax_history_stages WHERE holding_no = $1`, [holdingNo]);
