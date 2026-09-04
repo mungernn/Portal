@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { useAdminGuard } from "@/lib/use-admin-guard";
-import { renumberHolding, fixHoldingNoSpaces, type SpaceRemovalResult } from "@/lib/admin-api";
+import { renumberHolding, renameHolding, deletePropertyHolding, fixHoldingNoSpaces, type SpaceRemovalResult } from "@/lib/admin-api";
 
 /** Commissioner-only holding renumber - for correcting a holding accidentally created under a number that turned out to already belong to a different, not-yet-migrated holding. */
 export default function PropertiesManagePage() {
@@ -16,6 +16,58 @@ export default function PropertiesManagePage() {
   const [spaceFixResult, setSpaceFixResult] = useState<SpaceRemovalResult | null>(null);
   const [spaceFixError, setSpaceFixError] = useState<string | null>(null);
   const [spaceFixRunning, setSpaceFixRunning] = useState(false);
+
+  const [renameFrom, setRenameFrom] = useState("");
+  const [renameTo, setRenameTo] = useState("");
+  const [renameResult, setRenameResult] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
+
+  const [deleteHoldingNo, setDeleteHoldingNo] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteResult, setDeleteResult] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  async function handleRename() {
+    const from = renameFrom.trim();
+    const to = renameTo.trim();
+    if (!from || !to) return;
+    if (!window.confirm(`Rename holding ${from} to ${to}? This moves all its floors, tax history, demand notices, and payment receipts to the new number. This cannot be undone.`)) {
+      return;
+    }
+    setRenameError(null);
+    setRenameResult(null);
+    setRenameSubmitting(true);
+    try {
+      const res = await renameHolding(from, to);
+      setRenameResult(`Renamed ${from} to ${res.newHoldingNo}.`);
+      setRenameFrom("");
+      setRenameTo("");
+    } catch (err) {
+      setRenameError(err instanceof Error ? err.message : "Could not rename this holding.");
+    } finally {
+      setRenameSubmitting(false);
+    }
+  }
+
+  async function handleDelete() {
+    const trimmed = deleteHoldingNo.trim();
+    if (!trimmed || deleteConfirmation.trim() !== trimmed) return;
+    setDeleteError(null);
+    setDeleteResult(null);
+    setDeleteSubmitting(true);
+    try {
+      await deletePropertyHolding(trimmed, deleteConfirmation.trim());
+      setDeleteResult(`Deleted holding ${trimmed}.`);
+      setDeleteHoldingNo("");
+      setDeleteConfirmation("");
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Could not delete this holding.");
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }
 
   async function handleFixSpaces() {
     if (!window.confirm("Fix holding numbers with a stray space (e.g. \"MUNG- 12345\" → \"MUNG-12345\")? This only touches holding_no, never the old holding number. This cannot be undone.")) {
@@ -114,6 +166,102 @@ export default function PropertiesManagePage() {
               {submitting ? "Renumbering…" : "Renumber"}
             </button>
           </div>
+        </div>
+
+        <h2 className="mb-1 mt-8 text-lg font-semibold text-slate-900">Rename Holding to a Specific Number</h2>
+        <p className="mb-6 text-sm text-slate-500">
+          For correcting a data-entry mistake where a holding was given the wrong number entirely (e.g. a typo like
+          &quot;MUNG-14582&quot; that should have been &quot;MUNG-14882&quot;) - unlike Renumber above, you choose the exact
+          target number.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Current holding number</label>
+              <input
+                value={renameFrom}
+                onChange={(e) => setRenameFrom(e.target.value)}
+                placeholder="e.g. MUNG- 14582"
+                className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600">New holding number</label>
+              <input
+                value={renameTo}
+                onChange={(e) => setRenameTo(e.target.value)}
+                placeholder="e.g. MUNG-14882"
+                className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+              />
+            </div>
+            <button
+              onClick={handleRename}
+              disabled={renameSubmitting || !renameFrom.trim() || !renameTo.trim()}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md bg-nnm-blue px-4 py-2.5 text-sm font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+            >
+              <RefreshCw className="h-4 w-4" />
+              {renameSubmitting ? "Renaming…" : "Rename"}
+            </button>
+          </div>
+          {renameError && (
+            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {renameError}
+            </div>
+          )}
+          {renameResult && (
+            <div role="status" className="mt-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {renameResult}
+            </div>
+          )}
+        </div>
+
+        <h2 className="mb-1 mt-8 text-lg font-semibold text-slate-900">Delete a Holding</h2>
+        <p className="mb-6 text-sm text-slate-500">
+          For a duplicate or wrongly-entered holding with materially incorrect data - not for a holding that&apos;s
+          actually been assessed. An issued-but-unpaid demand notice doesn&apos;t block deletion (it&apos;s removed along
+          with everything else); an actual payment on file does. Type the holding number to confirm.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Holding number to delete</label>
+              <input
+                value={deleteHoldingNo}
+                onChange={(e) => setDeleteHoldingNo(e.target.value)}
+                placeholder="e.g. MUNG-11608"
+                className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-slate-600">Type the holding number to confirm</label>
+              <input
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+              />
+            </div>
+            <button
+              onClick={handleDelete}
+              disabled={deleteSubmitting || !deleteHoldingNo.trim() || deleteConfirmation.trim() !== deleteHoldingNo.trim()}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+            >
+              Delete
+            </button>
+          </div>
+          {deleteError && (
+            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {deleteError}
+            </div>
+          )}
+          {deleteResult && (
+            <div role="status" className="mt-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {deleteResult}
+            </div>
+          )}
         </div>
 
         <h2 className="mb-1 mt-8 text-lg font-semibold text-slate-900">Fix Holding Numbers With a Stray Space</h2>

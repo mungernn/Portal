@@ -107,6 +107,37 @@ export async function renumberHolding(oldHoldingNo: string, actorDisplayName: st
   }
 }
 
+/**
+ * Renames a holding to a SPECIFIC target number the caller supplies -
+ * unlike renumberHolding above, which auto-assigns the next available
+ * number in the holding's own series. For correcting a genuine
+ * data-entry mistake (e.g. a legacy record imported as "MUNG-14582"
+ * that should actually have been "MUNG-14882"), not for routine
+ * renumbering.
+ */
+export async function renameHoldingTo(oldHoldingNo: string, newHoldingNo: string, actorDisplayName: string): Promise<{ newHoldingNo: string }> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const { rows } = await client.query<{ holding_no: string }>(`SELECT holding_no FROM properties WHERE holding_no = $1 FOR UPDATE`, [oldHoldingNo]);
+    if (rows.length === 0) throw ApiError.notFound(`Holding ${oldHoldingNo} not found.`);
+
+    const conflict = await client.query(`SELECT 1 FROM properties WHERE holding_no = $1`, [newHoldingNo]);
+    if (conflict.rows.length > 0) throw ApiError.badRequest(`Holding ${newHoldingNo} already exists - can't rename to a number already in use.`);
+
+    await moveHoldingNo(client, oldHoldingNo, newHoldingNo, actorDisplayName);
+
+    await client.query("COMMIT");
+    return { newHoldingNo };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export interface SpaceRemovalResult {
   fixed: { from: string; to: string }[];
   skipped: { holdingNo: string; reason: string }[];

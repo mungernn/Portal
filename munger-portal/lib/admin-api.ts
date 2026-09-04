@@ -586,6 +586,33 @@ export async function renumberHolding(holdingNo: string): Promise<{ newHoldingNo
   return res.json();
 }
 
+/** Renames a holding to a specific caller-supplied target number (e.g. fixing a data-entry typo) - unlike renumberHolding, which auto-assigns the next available number. */
+export async function renameHolding(holdingNo: string, newHoldingNo: string): Promise<{ newHoldingNo: string }> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/${encodeURIComponent(holdingNo)}/rename`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ newHoldingNo }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not rename this holding.");
+  }
+  return res.json();
+}
+
+/** Deletes a property holding entirely. Blocked server-side if it has any real payment or demand-notice history. */
+export async function deletePropertyHolding(holdingNo: string, confirmationPhrase: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/${encodeURIComponent(holdingNo)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+    body: JSON.stringify({ confirmationPhrase }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this holding.");
+  }
+}
+
 export interface PropertyBulkImportResult {
   propertiesCreated: number;
   floorsCreated: number;
