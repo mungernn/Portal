@@ -21,6 +21,7 @@ const propertySaveSchema = z.object({
   khesraNo: z.string().nullish(),
   surveySheetNo: z.string().nullish(),
   khataNo: z.string().nullish(),
+  aadhaarNumber: z.string().regex(/^[0-9]{12}$/, "Aadhaar number must be exactly 12 digits").nullish(),
   ownerName: z.string().min(1),
   relationType: z.enum(["S/O", "D/O", "W/O", "C/O"]).nullish(),
   relationName: z.string().nullish(),

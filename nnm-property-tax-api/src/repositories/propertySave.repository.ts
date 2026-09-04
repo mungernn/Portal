@@ -12,7 +12,7 @@ export const propertySaveRepository = {
     if (isNew) {
       await pool.query(
         `INSERT INTO properties (
-          holding_no, old_holding_no, old_pid, khesra_no, survey_sheet_no, khata_no, owner_name, relation_type, relation_name,
+          holding_no, old_holding_no, old_pid, khesra_no, survey_sheet_no, khata_no, aadhaar_number, owner_name, relation_type, relation_name,
           mobile_no, area_sqft, address, ward, zone, pincode, assessment_year, road_type,
           vacant_area_sqft, rain_water_harvesting, arrear_tax,
           solid_waste_charge_type, solid_waste_months, solid_waste_charge,
@@ -24,8 +24,8 @@ export const propertySaveRepository = {
           created_by, created_date, last_modified_by, last_modified_date
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-          $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,
-          $40, now(), $40, now()
+          $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,
+          $41, now(), $41, now()
         )`,
         [
           holdingNo,
@@ -34,6 +34,7 @@ export const propertySaveRepository = {
           p.khesraNo,
           p.surveySheetNo,
           p.khataNo,
+          p.aadhaarNumber,
           p.ownerName,
           p.relationType,
           p.relationName,
@@ -75,16 +76,16 @@ export const propertySaveRepository = {
 
     await pool.query(
       `UPDATE properties SET
-        old_holding_no = $2, old_pid = $3, khesra_no = $4, survey_sheet_no = $5, khata_no = $6, owner_name = $7, relation_type = $8, relation_name = $9,
-        mobile_no = $10, area_sqft = $11, address = $12, ward = $13, zone = $14, pincode = $15,
-        assessment_year = $16, road_type = $17, vacant_area_sqft = $18, rain_water_harvesting = $19,
-        arrear_tax = $20, solid_waste_charge_type = $21, solid_waste_months = $22, solid_waste_charge = $23,
-        penal_charge = $24, water_charge = $25, boring_charge = $26, form_fee = $27,
-        misc_cost = $28, misc_cost_reason = $29, misc_rebate = $30, misc_rebate_reason = $31,
-        penalty = $32, outstanding_demand = $33,
-        arv = $34, tax_payable = $35, holding_creation_year = $36, tax_paid_till_year = $37,
-        present_holding_name = $38, present_category = $39,
-        last_modified_by = $40, last_modified_date = now()
+        old_holding_no = $2, old_pid = $3, khesra_no = $4, survey_sheet_no = $5, khata_no = $6, aadhaar_number = $7, owner_name = $8, relation_type = $9, relation_name = $10,
+        mobile_no = $11, area_sqft = $12, address = $13, ward = $14, zone = $15, pincode = $16,
+        assessment_year = $17, road_type = $18, vacant_area_sqft = $19, rain_water_harvesting = $20,
+        arrear_tax = $21, solid_waste_charge_type = $22, solid_waste_months = $23, solid_waste_charge = $24,
+        penal_charge = $25, water_charge = $26, boring_charge = $27, form_fee = $28,
+        misc_cost = $29, misc_cost_reason = $30, misc_rebate = $31, misc_rebate_reason = $32,
+        penalty = $33, outstanding_demand = $34,
+        arv = $35, tax_payable = $36, holding_creation_year = $37, tax_paid_till_year = $38,
+        present_holding_name = $39, present_category = $40,
+        last_modified_by = $41, last_modified_date = now()
       WHERE holding_no = $1`,
       [
         holdingNo,
@@ -93,6 +94,7 @@ export const propertySaveRepository = {
         p.khesraNo,
         p.surveySheetNo,
         p.khataNo,
+        p.aadhaarNumber,
         p.ownerName,
         p.relationType,
         p.relationName,

@@ -5,6 +5,7 @@ export interface PropertyRow {
   khesra_no: string | null;
   survey_sheet_no: string | null;
   khata_no: string | null;
+  aadhaar_number: string | null;
   owner_name: string;
   relation_type: string | null;
   relation_name: string | null;

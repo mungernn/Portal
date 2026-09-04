@@ -26,6 +26,7 @@ export function PartiallyKnownForm({
   const [khesraNo, setKhesraNo] = useState("");
   const [surveySheetNo, setSurveySheetNo] = useState("");
   const [khataNo, setKhataNo] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [mobileNo, setMobileNo] = useState("");
   const [address, setAddress] = useState("");
@@ -75,6 +76,7 @@ export function PartiallyKnownForm({
         khesraNo: khesraNo || null,
         surveySheetNo: surveySheetNo || null,
         khataNo: khataNo || null,
+        aadhaarNumber: aadhaarNumber || null,
         ownerName,
         mobileNo: mobileNo || null,
         address,
@@ -166,6 +168,16 @@ export function PartiallyKnownForm({
           <div>
             <label className={labelClass}>Khata no. (optional)</label>
             <input value={khataNo} onChange={(e) => setKhataNo(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Owner&apos;s Aadhaar number (optional)</label>
+            <input
+              value={aadhaarNumber}
+              onChange={(e) => setAadhaarNumber(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              placeholder="12 digits - use 999999999999 for a trust/society/company"
+              inputMode="numeric"
+              className={inputClass}
+            />
           </div>
           <div>
             <label className={labelClass}>Owner name</label>

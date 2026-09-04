@@ -134,6 +134,7 @@ export async function saveNewEntryProperty(input: NewEntryPropertyInput, operato
       khesraNo: input.khesraNo ?? null,
       surveySheetNo: input.surveySheetNo ?? null,
       khataNo: input.khataNo ?? null,
+      aadhaarNumber: input.aadhaarNumber ?? null,
       ownerName: input.ownerName,
       relationType: input.relationType ?? null,
       relationName: input.relationName ?? null,

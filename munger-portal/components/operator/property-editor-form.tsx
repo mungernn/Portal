@@ -40,6 +40,7 @@ interface MasterFormState {
   khesraNo: string;
   surveySheetNo: string;
   khataNo: string;
+  aadhaarNumber: string;
   /** Current actual on-ground name/category of the holding — descriptive only, not used in tax calculation. */
   presentHoldingName: string;
   presentCategory: string;
@@ -75,6 +76,7 @@ function blankMaster(defaultFinancialYear: string): MasterFormState {
     khesraNo: "",
     surveySheetNo: "",
     khataNo: "",
+    aadhaarNumber: "",
     presentHoldingName: "",
     presentCategory: "",
     changeBasis: "",
@@ -209,6 +211,7 @@ export function PropertyEditorForm({
         khesraNo: master.khesraNo || null,
         surveySheetNo: master.surveySheetNo || null,
         khataNo: master.khataNo || null,
+        aadhaarNumber: master.aadhaarNumber || null,
         presentHoldingName: master.presentHoldingName || null,
         presentCategory: master.presentCategory || null,
         changeBasis: isEditing ? master.changeBasis : null,
@@ -471,6 +474,16 @@ export function PropertyEditorForm({
           <div>
             <label className={labelClass}>Khata no. (optional)</label>
             <input value={master.khataNo} onChange={(e) => updateMaster("khataNo", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Owner&apos;s Aadhaar number (optional)</label>
+            <input
+              value={master.aadhaarNumber}
+              onChange={(e) => updateMaster("aadhaarNumber", e.target.value.replace(/\D/g, "").slice(0, 12))}
+              placeholder="12 digits - use 999999999999 for a trust/society/company"
+              inputMode="numeric"
+              className={inputClass}
+            />
           </div>
           <div>
             <label className={labelClass}>Present name of holding (optional)</label>

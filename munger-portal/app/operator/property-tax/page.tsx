@@ -54,6 +54,7 @@ function mapToFormState(property: Record<string, unknown>, floors: Record<string
       khesraNo: str(property.khesra_no),
       surveySheetNo: str(property.survey_sheet_no),
       khataNo: str(property.khata_no),
+      aadhaarNumber: str(property.aadhaar_number),
       presentHoldingName: str(property.present_holding_name),
       presentCategory: str(property.present_category),
       changeBasis: "",

@@ -14,6 +14,7 @@ export interface PropertySaveInput {
   khesraNo?: string | null;
   surveySheetNo?: string | null;
   khataNo?: string | null;
+  aadhaarNumber?: string | null;
   ownerName: string;
   relationType?: "S/O" | "D/O" | "W/O" | "C/O" | null;
   relationName?: string | null;
