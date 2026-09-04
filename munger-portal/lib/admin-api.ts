@@ -654,3 +654,56 @@ export async function fixHoldingNoSpaces(): Promise<SpaceRemovalResult> {
   }
   return res.json();
 }
+
+export interface SpacedHoldingPreview {
+  holdingNo: string;
+  ownerName: string;
+  createdDate: string;
+  hasPayments: boolean;
+  hasDemands: boolean;
+}
+
+/** Preview of every holding whose holding_no currently contains a space - likely accidental duplicates from a re-uploaded bulk import. */
+export async function fetchSpacedHoldings(): Promise<SpacedHoldingPreview[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/spaced-holdings`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load spaced holdings.");
+  const data: { holdings: SpacedHoldingPreview[] } = await res.json();
+  return data.holdings;
+}
+
+export interface BulkDeleteResult {
+  deleted: string[];
+  skipped: { holdingNo: string; reason: string }[];
+}
+
+/** Bulk-deletes every holding whose holding_no currently contains a space. Skips (does not delete) any with an actual payment on file. */
+export async function bulkDeleteSpacedHoldings(): Promise<BulkDeleteResult> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/spaced-holdings/delete-all`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete these holdings.");
+  }
+  return res.json();
+}
+
+export interface DuplicateFloorsCleanupResult {
+  duplicateGroupsFound: number;
+  rowsDeleted: number;
+  affectedHoldings: string[];
+}
+
+/** Removes exact-duplicate floor rows left over from a re-uploaded bulk import. */
+export async function removeDuplicateFloors(): Promise<DuplicateFloorsCleanupResult> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/remove-duplicate-floors`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not remove duplicate floors.");
+  }
+  return res.json();
+}

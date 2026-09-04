@@ -154,7 +154,14 @@ export async function importPropertiesXlsx(fileBuffer: Buffer, actorDisplayName:
         continue;
       }
 
-      const existing = await pool.query(`SELECT 1 FROM properties WHERE holding_no = $1`, [holdingNo]);
+      // Space-normalized comparison, not exact-match: a holding
+      // originally imported as "MUNG- 12345" and later renamed to
+      // "MUNG-12345" (via the space-fix tool) must still be
+      // recognized as existing if this same source file is
+      // re-uploaded - an exact match would miss it (the stored value
+      // no longer matches the source string byte-for-byte) and
+      // silently create a duplicate holding.
+      const existing = await pool.query(`SELECT 1 FROM properties WHERE REPLACE(holding_no, ' ', '') = REPLACE($1, ' ', '')`, [holdingNo]);
       if (existing.rows.length > 0) {
         preExistingHoldings.add(holdingNo);
         result.errors.push({ sheet: "Master", row: excelRowNum, message: `Holding "${holdingNo}" already exists - skipped` });

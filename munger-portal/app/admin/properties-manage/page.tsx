@@ -4,7 +4,19 @@ import { useState } from "react";
 import { AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { useAdminGuard } from "@/lib/use-admin-guard";
-import { renumberHolding, renameHolding, deletePropertyHolding, fixHoldingNoSpaces, type SpaceRemovalResult } from "@/lib/admin-api";
+import {
+  renumberHolding,
+  renameHolding,
+  deletePropertyHolding,
+  fixHoldingNoSpaces,
+  fetchSpacedHoldings,
+  bulkDeleteSpacedHoldings,
+  removeDuplicateFloors,
+  type SpaceRemovalResult,
+  type SpacedHoldingPreview,
+  type BulkDeleteResult,
+  type DuplicateFloorsCleanupResult,
+} from "@/lib/admin-api";
 
 /** Commissioner-only holding renumber - for correcting a holding accidentally created under a number that turned out to already belong to a different, not-yet-migrated holding. */
 export default function PropertiesManagePage() {
@@ -28,6 +40,64 @@ export default function PropertiesManagePage() {
   const [deleteResult, setDeleteResult] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const [spacedList, setSpacedList] = useState<SpacedHoldingPreview[] | null>(null);
+  const [spacedListLoading, setSpacedListLoading] = useState(false);
+  const [spacedListError, setSpacedListError] = useState<string | null>(null);
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<BulkDeleteResult | null>(null);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
+  const [bulkDeleteRunning, setBulkDeleteRunning] = useState(false);
+
+  const [floorsCleanupResult, setFloorsCleanupResult] = useState<DuplicateFloorsCleanupResult | null>(null);
+  const [floorsCleanupError, setFloorsCleanupError] = useState<string | null>(null);
+  const [floorsCleanupRunning, setFloorsCleanupRunning] = useState(false);
+
+  async function handleLoadSpacedHoldings() {
+    setSpacedListError(null);
+    setSpacedListLoading(true);
+    try {
+      setSpacedList(await fetchSpacedHoldings());
+    } catch (err) {
+      setSpacedListError(err instanceof Error ? err.message : "Could not load spaced holdings.");
+    } finally {
+      setSpacedListLoading(false);
+    }
+  }
+
+  async function handleBulkDeleteSpaced() {
+    if (!spacedList || spacedList.length === 0) return;
+    if (!window.confirm(`Delete ${spacedList.length} holding(s) with a space in their number? Any with an actual payment on file will be skipped, not deleted. This cannot be undone.`)) {
+      return;
+    }
+    setBulkDeleteError(null);
+    setBulkDeleteResult(null);
+    setBulkDeleteRunning(true);
+    try {
+      const result = await bulkDeleteSpacedHoldings();
+      setBulkDeleteResult(result);
+      setSpacedList(null);
+    } catch (err) {
+      setBulkDeleteError(err instanceof Error ? err.message : "Could not delete these holdings.");
+    } finally {
+      setBulkDeleteRunning(false);
+    }
+  }
+
+  async function handleRemoveDuplicateFloors() {
+    if (!window.confirm("Remove exact-duplicate floor rows left over from a re-uploaded bulk import? This cannot be undone.")) {
+      return;
+    }
+    setFloorsCleanupError(null);
+    setFloorsCleanupResult(null);
+    setFloorsCleanupRunning(true);
+    try {
+      setFloorsCleanupResult(await removeDuplicateFloors());
+    } catch (err) {
+      setFloorsCleanupError(err instanceof Error ? err.message : "Could not remove duplicate floors.");
+    } finally {
+      setFloorsCleanupRunning(false);
+    }
+  }
 
   async function handleRename() {
     const from = renameFrom.trim();
@@ -262,6 +332,124 @@ export default function PropertiesManagePage() {
               {deleteResult}
             </div>
           )}
+        </div>
+
+        <h2 className="mb-1 mt-8 text-lg font-semibold text-slate-900">Clean Up an Accidental Re-upload</h2>
+        <p className="mb-6 text-sm text-slate-500">
+          If a bulk-import file was re-uploaded after some of its holdings were already space-fixed, the exact-match check
+          used at the time wouldn&apos;t have recognized them as already existing, and would have created fresh spaced
+          duplicates. Review and delete those here.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <button
+            onClick={handleLoadSpacedHoldings}
+            disabled={spacedListLoading}
+            className="inline-flex items-center gap-2 rounded-md border border-nnm-blue px-4 py-2.5 text-sm font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
+          >
+            {spacedListLoading ? "Loading…" : "Review Holdings With a Space"}
+          </button>
+
+          {spacedListError && (
+            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {spacedListError}
+            </div>
+          )}
+
+          {spacedList && (
+            <div className="mt-4">
+              {spacedList.length === 0 ? (
+                <p className="text-sm text-slate-400">No holdings with a space in their number - nothing to clean up.</p>
+              ) : (
+                <>
+                  <div className="mb-3 max-h-64 overflow-y-auto rounded-md border border-slate-200">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-left uppercase tracking-wide text-slate-400">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Holding No</th>
+                          <th className="px-3 py-2 font-medium">Owner</th>
+                          <th className="px-3 py-2 font-medium">Created</th>
+                          <th className="px-3 py-2 font-medium">Payments?</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {spacedList.map((h) => (
+                          <tr key={h.holdingNo} className="border-t border-slate-100">
+                            <td className="px-3 py-2 font-mono">{h.holdingNo}</td>
+                            <td className="px-3 py-2">{h.ownerName}</td>
+                            <td className="px-3 py-2">{new Date(h.createdDate).toLocaleDateString("en-IN")}</td>
+                            <td className="px-3 py-2">
+                              {h.hasPayments ? <span className="font-semibold text-red-600">Yes - will be skipped</span> : "No"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    onClick={handleBulkDeleteSpaced}
+                    disabled={bulkDeleteRunning}
+                    className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    {bulkDeleteRunning ? "Deleting…" : `Delete All ${spacedList.length} Holding(s) Above`}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
+          {bulkDeleteError && (
+            <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {bulkDeleteError}
+            </div>
+          )}
+          {bulkDeleteResult && (
+            <div className="mt-4 space-y-2">
+              <div role="status" className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Deleted {bulkDeleteResult.deleted.length} holding(s).
+              </div>
+              {bulkDeleteResult.skipped.length > 0 && (
+                <details className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  <summary className="cursor-pointer font-semibold">{bulkDeleteResult.skipped.length} skipped - needs case-by-case review</summary>
+                  <ul className="mt-2 space-y-1">
+                    {bulkDeleteResult.skipped.map((s, i) => (
+                      <li key={i}>
+                        <span className="font-mono">{s.holdingNo}</span>: {s.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 border-t border-slate-100 pt-6">
+            <p className="mb-3 text-sm text-slate-500">
+              Separately, a re-upload can also leave exact-duplicate floor rows behind on holdings that weren&apos;t
+              themselves duplicated.
+            </p>
+            <button
+              onClick={handleRemoveDuplicateFloors}
+              disabled={floorsCleanupRunning}
+              className="inline-flex items-center gap-2 rounded-md border border-nnm-blue px-4 py-2.5 text-sm font-semibold text-nnm-blue hover:bg-blue-50 disabled:opacity-60"
+            >
+              {floorsCleanupRunning ? "Cleaning…" : "Remove Duplicate Floor Rows"}
+            </button>
+            {floorsCleanupError && (
+              <div role="alert" className="mt-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {floorsCleanupError}
+              </div>
+            )}
+            {floorsCleanupResult && (
+              <div role="status" className="mt-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Removed {floorsCleanupResult.rowsDeleted} duplicate floor row(s) across {floorsCleanupResult.affectedHoldings.length} holding(s).
+              </div>
+            )}
+          </div>
         </div>
 
         <h2 className="mb-1 mt-8 text-lg font-semibold text-slate-900">Fix Holding Numbers With a Stray Space</h2>

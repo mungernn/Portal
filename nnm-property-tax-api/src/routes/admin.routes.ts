@@ -32,6 +32,7 @@ import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../contro
 import { deleteShopHandler } from "../controllers/shopDelete.controller";
 import { postRenumberHolding, postRenameHolding, postFixHoldingNoSpaces } from "../controllers/propertyRenumber.controller";
 import { deletePropertyHandler } from "../controllers/propertyDelete.controller";
+import { getSpacedHoldings, postDeleteSpacedHoldings, postRemoveDuplicateFloors } from "../controllers/propertyBulkCleanup.controller";
 import { uploadPropertiesXlsxHandler } from "../controllers/propertyBulkImport.controller";
 import { getShopsPendingPublication, postApproveShopPublication } from "../controllers/shopPublicationApproval.controller";
 import {
@@ -132,6 +133,9 @@ adminRouter.post("/properties/:holdingNo/renumber", requireAdminRole("commission
 adminRouter.post("/properties/:holdingNo/rename", requireAdminRole("commissioner"), postRenameHolding);
 adminRouter.delete("/properties/:holdingNo", requireAdminRole("commissioner"), deletePropertyHandler);
 adminRouter.post("/properties/fix-holding-no-spaces", requireAdminRole("commissioner"), postFixHoldingNoSpaces);
+adminRouter.get("/properties/spaced-holdings", requireAdminRole("commissioner"), getSpacedHoldings);
+adminRouter.post("/properties/spaced-holdings/delete-all", requireAdminRole("commissioner"), postDeleteSpacedHoldings);
+adminRouter.post("/properties/remove-duplicate-floors", requireAdminRole("commissioner"), postRemoveDuplicateFloors);
 adminRouter.post("/properties/bulk-upload", requireAdminRole("commissioner"), uploadPropertiesXlsxHandler);
 
 // Shop publication approval - gates a newly-entered shop from public
