@@ -42,11 +42,26 @@ const PROPERTY_COLUMNS = [
  * UPDATE.
  */
 async function moveHoldingNo(client: PoolClient, oldHoldingNo: string, newHoldingNo: string, actorDisplayName: string): Promise<void> {
+  // old_pid has a partial unique index (idx_properties_old_pid, WHERE
+  // old_pid IS NOT NULL) - copying the row below while the original
+  // still exists would insert a second row with the same non-null
+  // old_pid and violate it. The old row is about to be deleted
+  // anyway, so capture its old_pid, clear it on the old row (the
+  // index no longer applies to a NULL value), then set it explicitly
+  // on the new row via a parameter rather than the SELECT (which
+  // would otherwise pick up the now-cleared value) - nothing is
+  // actually lost, just reordered within the transaction.
+  const { rows: oldPidRows } = await client.query<{ old_pid: string | null }>(`SELECT old_pid FROM properties WHERE holding_no = $1`, [oldHoldingNo]);
+  const capturedOldPid = oldPidRows[0]?.old_pid ?? null;
+  await client.query(`UPDATE properties SET old_pid = NULL WHERE holding_no = $1`, [oldHoldingNo]);
+
   const colList = PROPERTY_COLUMNS.join(", ");
-  const selectCols = PROPERTY_COLUMNS.map((c) => (c === "last_modified_by" ? "$3" : c === "last_modified_date" ? "now()" : c)).join(", ");
+  const selectCols = PROPERTY_COLUMNS.map((c) =>
+    c === "last_modified_by" ? "$3" : c === "last_modified_date" ? "now()" : c === "old_pid" ? "$4" : c,
+  ).join(", ");
   await client.query(
     `INSERT INTO properties (holding_no, ${colList}) SELECT $1, ${selectCols} FROM properties WHERE holding_no = $2`,
-    [newHoldingNo, oldHoldingNo, actorDisplayName],
+    [newHoldingNo, oldHoldingNo, actorDisplayName, capturedOldPid],
   );
 
   // Hard foreign keys.
