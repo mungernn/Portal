@@ -22,10 +22,12 @@ const uploadBodySchema = z.object({
   fileDataBase64: z.string().min(1, "File data is required"),
 });
 
-// A phone photo comfortably fits in this - well below the 10mb JSON
-// body limit even after base64's ~33% size inflation, since photos
-// are uploaded one at a time, not batched.
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+// Hard server-side cap, matching the required storage limit - the
+// frontend compresses before upload to stay under this, but this
+// check is the actual enforcement (a bypassed/failed client-side
+// compression must never result in an oversized photo landing in the
+// database).
+const MAX_PHOTO_BYTES = 500 * 1024;
 
 /** POST /api/v1/attendance/assets/:id/photos - any fleet-edit role. One photo per call. */
 export const postUploadAssetPhoto = asyncHandler(async (req: Request, res: Response) => {
@@ -44,7 +46,7 @@ export const postUploadAssetPhoto = asyncHandler(async (req: Request, res: Respo
     throw ApiError.badRequest("Could not decode the uploaded photo.");
   }
   if (fileData.length === 0) throw ApiError.badRequest("The uploaded photo is empty.");
-  if (fileData.length > MAX_PHOTO_BYTES) throw ApiError.badRequest("This photo is too large (max 8MB).");
+  if (fileData.length > MAX_PHOTO_BYTES) throw ApiError.badRequest("This photo is too large (max 500KB) - please compress it before uploading.");
   if (!bodyParsed.data.mimeType.startsWith("image/")) throw ApiError.badRequest("Only image files are accepted here.");
 
   const photo = await assetPhotoRepository.create({
