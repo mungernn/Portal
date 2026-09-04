@@ -77,6 +77,8 @@ import {
   listAssetLogbookHandler,
   logAssetReadingHandler,
 } from "../controllers/asset.controller";
+import { getFleetRegistry, postBaselineSurvey, getBaselineSurvey, getBaselineSurveySummary } from "../controllers/assetBaselineSurvey.controller";
+import { postUploadAssetPhoto, getAssetPhotos, getAssetPhotoFile, deleteAssetPhotoHandler } from "../controllers/assetPhoto.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 import { loginRateLimiter } from "../middleware/loginRateLimiter";
 
@@ -227,6 +229,14 @@ attendanceRouter.post("/assistants/bulk-upload", requireAttendanceRole(["attenda
 const FLEET_EDIT_ROLES = ["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"] as const;
 attendanceRouter.get("/assets", requireAttendanceRole(), listAllAssetsHandler);
 attendanceRouter.post("/assets", requireAttendanceRole([...FLEET_EDIT_ROLES]), createAssetHandler);
+attendanceRouter.get("/fleet-registry", requireAttendanceRole(), getFleetRegistry);
+attendanceRouter.get("/assets/baseline-survey-summary", requireAttendanceRole(), getBaselineSurveySummary);
+attendanceRouter.get("/assets/:id/baseline-survey", requireAttendanceRole(), getBaselineSurvey);
+attendanceRouter.post("/assets/:id/baseline-survey", requireAttendanceRole([...FLEET_EDIT_ROLES]), postBaselineSurvey);
+attendanceRouter.post("/assets/:id/photos", requireAttendanceRole([...FLEET_EDIT_ROLES]), postUploadAssetPhoto);
+attendanceRouter.get("/assets/:id/photos", requireAttendanceRole(), getAssetPhotos);
+attendanceRouter.get("/asset-photos/:photoId/file", requireAttendanceRole(), getAssetPhotoFile);
+attendanceRouter.delete("/asset-photos/:photoId", requireAttendanceRole([...FLEET_EDIT_ROLES]), deleteAssetPhotoHandler);
 attendanceRouter.patch("/assets/:id/wards", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetWardsHandler);
 attendanceRouter.patch("/assets/:id/active", requireAttendanceRole([...FLEET_EDIT_ROLES]), setAssetActiveHandler);
 attendanceRouter.get("/assets/:id/maintenance-log", requireAttendanceRole(), listAssetMaintenanceLogHandler);

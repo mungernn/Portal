@@ -13,6 +13,34 @@ export interface AssetRow {
   active: boolean;
   created_at: string;
   tracking_type: "km" | "hours" | null;
+  // Baseline survey common/master fields (migration 049)
+  asset_category: string | null;
+  asset_type_detail: string | null;
+  excavator_class: string | null;
+  registration_number: string | null;
+  engine_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  variant: string | null;
+  year_of_manufacture: number | null;
+  date_of_purchase: string | null;
+  date_of_commissioning: string | null;
+  ownership_status: string | null;
+  owner: string | null;
+  current_service_provider: string | null;
+  present_location_yard: string | null;
+  department_section: string | null;
+  assigned_ward_zone: string | null;
+  fuel_energy_type: string | null;
+  operating_weight: string | null;
+  asset_length_mm: string | null;
+  asset_width_mm: string | null;
+  asset_height_mm: string | null;
+  technical_data: Record<string, unknown>;
+  meter_type: string | null;
+  meter_functional: boolean | null;
+  current_reading_date: string | null;
+  current_reading_verified_by: string | null;
 }
 
 export const assetRepository = {
@@ -105,5 +133,58 @@ export const assetRepository = {
       map.set(row.asset_id, existing);
     }
     return map;
+  },
+
+  /**
+   * Updates every Module 01/02/03 (Identification, Common Technical,
+   * Meter Readings) field in one call - this is what the baseline
+   * survey submission writes to, on top of the asset's existing
+   * basic fields (label, vehicle_number etc., set at initial creation
+   * and left alone here).
+   */
+  async updateBaselineDetails(id: number, b: Record<string, unknown>, client?: import("pg").PoolClient): Promise<AssetRow | null> {
+    const { rows } = await (client ?? pool).query<AssetRow>(
+      `UPDATE assets SET
+        asset_category = $2, asset_type_detail = $3, excavator_class = $4,
+        registration_number = $5, engine_number = $6, manufacturer = $7, model = $8, variant = $9,
+        year_of_manufacture = $10, date_of_purchase = $11, date_of_commissioning = $12,
+        ownership_status = $13, owner = $14, current_service_provider = $15,
+        present_location_yard = $16, department_section = $17, assigned_ward_zone = $18,
+        fuel_energy_type = $19, operating_weight = $20, asset_length_mm = $21, asset_width_mm = $22, asset_height_mm = $23,
+        technical_data = $24,
+        meter_type = $25, meter_functional = $26, current_reading_date = $27, current_reading_verified_by = $28
+      WHERE id = $1 RETURNING *`,
+      [
+        id,
+        b.assetCategory,
+        b.assetTypeDetail,
+        b.excavatorClass,
+        b.registrationNumber,
+        b.engineNumber,
+        b.manufacturer,
+        b.model,
+        b.variant,
+        b.yearOfManufacture,
+        b.dateOfPurchase,
+        b.dateOfCommissioning,
+        b.ownershipStatus,
+        b.owner,
+        b.currentServiceProvider,
+        b.presentLocationYard,
+        b.departmentSection,
+        b.assignedWardZone,
+        b.fuelEnergyType,
+        b.operatingWeight,
+        b.assetLengthMm,
+        b.assetWidthMm,
+        b.assetHeightMm,
+        JSON.stringify(b.technicalData ?? {}),
+        b.meterType,
+        b.meterFunctional,
+        b.currentReadingDate,
+        b.currentReadingVerifiedBy,
+      ],
+    );
+    return rows[0] ?? null;
   },
 };

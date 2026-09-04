@@ -64,6 +64,11 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
             <div>
               <b className="inline-block w-[140px]">Holding No</b> {receipt.holdingNo}
             </div>
+            {receipt.oldHoldingNo ? (
+              <div>
+                <b className="inline-block w-[140px]">Old Holding No</b> {receipt.oldHoldingNo}
+              </div>
+            ) : null}
             <div>
               <b className="inline-block w-[140px]">Owner Name</b> {receipt.ownerName}
             </div>

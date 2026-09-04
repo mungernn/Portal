@@ -1001,3 +1001,267 @@ export async function setStaffJobRoles(staffId: number, roleIds: number[]): Prom
     throw new Error(body.error || "Could not update roles.");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Fleet Baseline Survey - the comprehensive "opening entry" for each
+// asset's logbook. Field-definition registry drives the dynamic
+// survey form (select Asset Category -> Asset Type -> only relevant
+// technical fields appear); everything else (identification,
+// condition, safety, AMC, utilisation, defects) is common to every
+// asset type.
+// ---------------------------------------------------------------------------
+
+export interface FleetFieldDef {
+  key: string;
+  label: string;
+  type: "text" | "number" | "boolean" | "select" | "multiselect" | "textarea";
+  options?: string[];
+  unit?: string;
+}
+
+export interface FleetTechnicalModuleDef {
+  key: string;
+  label: string;
+  fields: FleetFieldDef[];
+  subsections?: { key: string; label: string; fields: FleetFieldDef[] }[];
+}
+
+export interface FleetRegistry {
+  assetCategories: string[];
+  assetTypesByCategory: Record<string, string[]>;
+  technicalModulesByAssetType: Record<string, string[]>;
+  technicalModules: Record<string, FleetTechnicalModuleDef>;
+  excavatorClasses: string[];
+  conditionComponentGroups: { group: string; components: string[] }[];
+  conditionScale: { value: number; label: string }[];
+  overallStatusOptions: string[];
+  safetyStatusOptions: string[];
+  amcDispositionOptions: { value: string; label: string }[];
+  deploymentStatusOptions: string[];
+  utilisationDataSourceOptions: string[];
+  maintenanceDataConfidenceOptions: string[];
+  defectSeverityOptions: string[];
+  defectPriorityOptions: string[];
+  ownershipStatusOptions: string[];
+  meterTypeOptions: string[];
+}
+
+export async function fetchFleetRegistry(): Promise<FleetRegistry> {
+  const res = await fetch(`${API_BASE_URL}/attendance/fleet-registry`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the fleet field registry.");
+  return res.json();
+}
+
+export interface FleetDefectInput {
+  component: string;
+  subComponent?: string | null;
+  description: string;
+  severity: "Critical" | "Major" | "Moderate" | "Minor";
+  safetyCritical?: boolean;
+  operationalDespiteDefect?: boolean;
+  repairPriority?: string | null;
+  recommendedAction?: string | null;
+  sparePartRequired?: string | null;
+  estimatedRepairCost?: number | null;
+  estimatedDowntime?: string | null;
+  repairRequiredBeforeDeployment?: boolean;
+}
+
+export interface BaselineSurveyInput {
+  assetCategory: string;
+  assetTypeDetail: string;
+  excavatorClass?: string | null;
+  registrationNumber?: string | null;
+  engineNumber?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  variant?: string | null;
+  yearOfManufacture?: number | null;
+  dateOfPurchase?: string | null;
+  dateOfCommissioning?: string | null;
+  ownershipStatus?: string | null;
+  owner?: string | null;
+  currentServiceProvider?: string | null;
+  presentLocationYard?: string | null;
+  departmentSection?: string | null;
+  assignedWardZone?: string | null;
+  fuelEnergyType?: string | null;
+  operatingWeight?: number | null;
+  assetLengthMm?: number | null;
+  assetWidthMm?: number | null;
+  assetHeightMm?: number | null;
+  technicalData?: Record<string, unknown>;
+  meterType?: string | null;
+  meterFunctional?: boolean | null;
+  currentReadingDate?: string | null;
+  currentReadingVerifiedBy?: string | null;
+  componentCondition?: Record<string, number>;
+  overallStatus?: string | null;
+  safetyStatus?: string | null;
+  administrativeDisposition?: string | null;
+  amcDisposition?: string | null;
+  deploymentStatus?: string | null;
+  utilisationData?: Record<string, unknown>;
+  utilisationDataSource?: string | null;
+  surveyNotes?: string | null;
+  defects?: FleetDefectInput[];
+}
+
+export async function submitBaselineSurvey(assetId: number, input: BaselineSurveyInput): Promise<unknown> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/baseline-survey`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not save this baseline survey.");
+  }
+  return res.json();
+}
+
+export interface AssetBaselineDetail {
+  id: number;
+  label: string;
+  asset_category: string | null;
+  asset_type_detail: string | null;
+  excavator_class: string | null;
+  registration_number: string | null;
+  chassis_number: string | null;
+  engine_number: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  variant: string | null;
+  year_of_manufacture: number | null;
+  date_of_purchase: string | null;
+  date_of_commissioning: string | null;
+  ownership_status: string | null;
+  owner: string | null;
+  current_service_provider: string | null;
+  present_location_yard: string | null;
+  department_section: string | null;
+  assigned_ward_zone: string | null;
+  fuel_energy_type: string | null;
+  operating_weight: string | null;
+  asset_length_mm: string | null;
+  asset_width_mm: string | null;
+  asset_height_mm: string | null;
+  technical_data: Record<string, unknown>;
+  meter_type: string | null;
+  meter_functional: boolean | null;
+  current_reading_date: string | null;
+  current_reading_verified_by: string | null;
+}
+
+export interface AssetBaselineSurveyRecord {
+  id: number;
+  survey_date: string;
+  surveyed_by: string;
+  component_condition: Record<string, number>;
+  overall_status: string | null;
+  safety_status: string | null;
+  administrative_disposition: string | null;
+  amc_disposition: string | null;
+  deployment_status: string | null;
+  utilisation_data: Record<string, unknown>;
+  utilisation_data_source: string | null;
+  notes: string | null;
+}
+
+export interface AssetDefectRecord {
+  id: number;
+  component: string;
+  sub_component: string | null;
+  description: string;
+  severity: string;
+  safety_critical: boolean;
+  repair_priority: string | null;
+  estimated_repair_cost: string | null;
+  repair_status: string;
+  logged_by: string;
+  logged_at: string;
+}
+
+export async function fetchBaselineSurvey(assetId: number): Promise<{ asset: AssetBaselineDetail; latestSurvey: AssetBaselineSurveyRecord | null; defects: AssetDefectRecord[] }> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/baseline-survey`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this asset's baseline survey.");
+  return res.json();
+}
+
+export interface AssetPhotoMeta {
+  id: number;
+  asset_id: number;
+  photo_type: string;
+  defect_id: number | null;
+  maintenance_log_id: number | null;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  uploaded_by: string;
+  uploaded_at: string;
+}
+
+export async function fetchAssetPhotos(assetId: number): Promise<AssetPhotoMeta[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/photos`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load photos for this asset.");
+  const data: { photos: AssetPhotoMeta[] } = await res.json();
+  return data.photos;
+}
+
+/** fileDataBase64 is the raw base64 content of the image (no data-URL prefix). */
+export async function uploadAssetPhoto(
+  assetId: number,
+  input: { photoType: string; fileName: string; mimeType: string; fileDataBase64: string; defectId?: number | null },
+): Promise<AssetPhotoMeta> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/${assetId}/photos`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not upload this photo.");
+  }
+  const data: { photo: AssetPhotoMeta } = await res.json();
+  return data.photo;
+}
+
+export async function deleteAssetPhoto(photoId: number): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/attendance/asset-photos/${photoId}`, { method: "DELETE", headers: authHeaders() });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not delete this photo.");
+  }
+}
+
+/** Fetches a photo's bytes as a Blob (the endpoint requires an auth header, so a plain <img src=...> URL won't work) - the caller creates an object URL from this for display. */
+export async function fetchAssetPhotoBlob(photoId: number): Promise<Blob> {
+  const res = await fetch(`${API_BASE_URL}/attendance/asset-photos/${photoId}/file`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load this photo.");
+  return res.blob();
+}
+
+export interface AssetSurveySummary {
+  id: number;
+  label: string;
+  asset_category: string | null;
+  asset_type_detail: string | null;
+  registration_number: string | null;
+  present_location_yard: string | null;
+  survey_id: number | null;
+  survey_date: string | null;
+  surveyed_by: string | null;
+  overall_status: string | null;
+  safety_status: string | null;
+  amc_disposition: string | null;
+  deployment_status: string | null;
+  open_defect_count: string;
+}
+
+/** Every active asset with its latest survey's key fields and open defect count - the fleet-wide survey progress view. */
+export async function fetchBaselineSurveySummary(): Promise<AssetSurveySummary[]> {
+  const res = await fetch(`${API_BASE_URL}/attendance/assets/baseline-survey-summary`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Could not load the fleet survey summary.");
+  const data: { assets: AssetSurveySummary[] } = await res.json();
+  return data.assets;
+}

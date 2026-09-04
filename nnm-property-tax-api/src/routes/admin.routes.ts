@@ -30,7 +30,7 @@ import {
 } from "../controllers/shopAgreement.controller";
 import { listAllShops, getPerSqftReport, uploadShopsCsvHandler } from "../controllers/shop.controller";
 import { deleteShopHandler } from "../controllers/shopDelete.controller";
-import { postRenumberHolding } from "../controllers/propertyRenumber.controller";
+import { postRenumberHolding, postFixHoldingNoSpaces } from "../controllers/propertyRenumber.controller";
 import { uploadPropertiesXlsxHandler } from "../controllers/propertyBulkImport.controller";
 import { getShopsPendingPublication, postApproveShopPublication } from "../controllers/shopPublicationApproval.controller";
 import {
@@ -128,6 +128,7 @@ adminRouter.get("/shops", listAllShops);
 adminRouter.post("/shops/bulk-upload", requireAdminRole("commissioner"), uploadShopsCsvHandler);
 adminRouter.delete("/shops/:shopNo", requireAdminRole("commissioner"), deleteShopHandler);
 adminRouter.post("/properties/:holdingNo/renumber", requireAdminRole("commissioner"), postRenumberHolding);
+adminRouter.post("/properties/fix-holding-no-spaces", requireAdminRole("commissioner"), postFixHoldingNoSpaces);
 adminRouter.post("/properties/bulk-upload", requireAdminRole("commissioner"), uploadPropertiesXlsxHandler);
 
 // Shop publication approval - gates a newly-entered shop from public

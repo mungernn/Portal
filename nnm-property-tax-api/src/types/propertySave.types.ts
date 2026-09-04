@@ -11,6 +11,9 @@ export interface FloorInput {
 export interface PropertySaveInput {
   oldHoldingNo?: string | null;
   oldPid?: string | null;
+  khesraNo?: string | null;
+  surveySheetNo?: string | null;
+  khataNo?: string | null;
   ownerName: string;
   relationType?: "S/O" | "D/O" | "W/O" | "C/O" | null;
   relationName?: string | null;

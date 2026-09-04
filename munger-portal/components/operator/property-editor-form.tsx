@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, CheckCircle2, Calculator, Clock, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Calculator, Clock, Plus, Hash } from "lucide-react";
 import { FloorRow, makeBlankFloor, type FloorFormState } from "./floor-row";
-import { sanitizeHoldingNoInput } from "@/lib/holding-no";
+import { sanitizeOldHoldingNoInput } from "@/lib/holding-no";
 import { FinancialYearSelect } from "./financial-year-select";
 import { saveProperty, createNewEntryProperty, previewPropertyTax, type FormOptions, type SaveError, type SavePropertyApiResult, type TaxPreviewResult } from "@/lib/operator-api";
 
@@ -37,6 +37,9 @@ interface MasterFormState {
   oldHoldingNo: string;
   /** A separate legacy system identifier, if any — not the same as the old holding number above. */
   oldPid: string;
+  khesraNo: string;
+  surveySheetNo: string;
+  khataNo: string;
   /** Current actual on-ground name/category of the holding — descriptive only, not used in tax calculation. */
   presentHoldingName: string;
   presentCategory: string;
@@ -69,6 +72,9 @@ function blankMaster(defaultFinancialYear: string): MasterFormState {
     miscRebateReason: "",
     oldHoldingNo: "",
     oldPid: "",
+    khesraNo: "",
+    surveySheetNo: "",
+    khataNo: "",
     presentHoldingName: "",
     presentCategory: "",
     changeBasis: "",
@@ -200,6 +206,9 @@ export function PropertyEditorForm({
         miscRebateReason: master.miscRebateReason || null,
         oldHoldingNo: master.oldHoldingNo || null,
         oldPid: master.oldPid || null,
+        khesraNo: master.khesraNo || null,
+        surveySheetNo: master.surveySheetNo || null,
+        khataNo: master.khataNo || null,
         presentHoldingName: master.presentHoldingName || null,
         presentCategory: master.presentCategory || null,
         changeBasis: isEditing ? master.changeBasis : null,
@@ -341,6 +350,21 @@ export function PropertyEditorForm({
         )}
       </div>
 
+      <div
+        className={`flex items-center gap-2 rounded-md border p-3 text-sm font-semibold ${
+          holdingNo ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"
+        }`}
+      >
+        <Hash className="h-4 w-4 shrink-0" />
+        {holdingNo ? (
+          <>
+            Assigned Holding Number: <span className="font-mono">{holdingNo}</span>
+          </>
+        ) : (
+          "Holding number to be assigned"
+        )}
+      </div>
+
       {error && (
         <div role="alert" className="flex items-start gap-2.5 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -422,7 +446,7 @@ export function PropertyEditorForm({
             <label className={labelClass}>Old MUNG- holding no. (optional)</label>
             <input
               value={master.oldHoldingNo}
-              onChange={(e) => updateMaster("oldHoldingNo", sanitizeHoldingNoInput(e.target.value))}
+              onChange={(e) => updateMaster("oldHoldingNo", sanitizeOldHoldingNoInput(e.target.value))}
               placeholder="Fill in if an old/original MUNG- number is later found for this holding"
               className={inputClass}
             />
@@ -435,6 +459,18 @@ export function PropertyEditorForm({
               placeholder="A separate legacy system identifier, if any"
               className={inputClass}
             />
+          </div>
+          <div>
+            <label className={labelClass}>Khesra no. (optional)</label>
+            <input value={master.khesraNo} onChange={(e) => updateMaster("khesraNo", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Survey sheet no. (optional)</label>
+            <input value={master.surveySheetNo} onChange={(e) => updateMaster("surveySheetNo", e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Khata no. (optional)</label>
+            <input value={master.khataNo} onChange={(e) => updateMaster("khataNo", e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Present name of holding (optional)</label>

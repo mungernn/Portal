@@ -12,7 +12,7 @@ export const propertySaveRepository = {
     if (isNew) {
       await pool.query(
         `INSERT INTO properties (
-          holding_no, old_holding_no, old_pid, owner_name, relation_type, relation_name,
+          holding_no, old_holding_no, old_pid, khesra_no, survey_sheet_no, khata_no, owner_name, relation_type, relation_name,
           mobile_no, area_sqft, address, ward, zone, pincode, assessment_year, road_type,
           vacant_area_sqft, rain_water_harvesting, arrear_tax,
           solid_waste_charge_type, solid_waste_months, solid_waste_charge,
@@ -24,13 +24,16 @@ export const propertySaveRepository = {
           created_by, created_date, last_modified_by, last_modified_date
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,
-          $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,
-          $37, now(), $37, now()
+          $21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,
+          $40, now(), $40, now()
         )`,
         [
           holdingNo,
           p.oldHoldingNo,
           p.oldPid,
+          p.khesraNo,
+          p.surveySheetNo,
+          p.khataNo,
           p.ownerName,
           p.relationType,
           p.relationName,
@@ -72,21 +75,24 @@ export const propertySaveRepository = {
 
     await pool.query(
       `UPDATE properties SET
-        old_holding_no = $2, old_pid = $3, owner_name = $4, relation_type = $5, relation_name = $6,
-        mobile_no = $7, area_sqft = $8, address = $9, ward = $10, zone = $11, pincode = $12,
-        assessment_year = $13, road_type = $14, vacant_area_sqft = $15, rain_water_harvesting = $16,
-        arrear_tax = $17, solid_waste_charge_type = $18, solid_waste_months = $19, solid_waste_charge = $20,
-        penal_charge = $21, water_charge = $22, boring_charge = $23, form_fee = $24,
-        misc_cost = $25, misc_cost_reason = $26, misc_rebate = $27, misc_rebate_reason = $28,
-        penalty = $29, outstanding_demand = $30,
-        arv = $31, tax_payable = $32, holding_creation_year = $33, tax_paid_till_year = $34,
-        present_holding_name = $35, present_category = $36,
-        last_modified_by = $37, last_modified_date = now()
+        old_holding_no = $2, old_pid = $3, khesra_no = $4, survey_sheet_no = $5, khata_no = $6, owner_name = $7, relation_type = $8, relation_name = $9,
+        mobile_no = $10, area_sqft = $11, address = $12, ward = $13, zone = $14, pincode = $15,
+        assessment_year = $16, road_type = $17, vacant_area_sqft = $18, rain_water_harvesting = $19,
+        arrear_tax = $20, solid_waste_charge_type = $21, solid_waste_months = $22, solid_waste_charge = $23,
+        penal_charge = $24, water_charge = $25, boring_charge = $26, form_fee = $27,
+        misc_cost = $28, misc_cost_reason = $29, misc_rebate = $30, misc_rebate_reason = $31,
+        penalty = $32, outstanding_demand = $33,
+        arv = $34, tax_payable = $35, holding_creation_year = $36, tax_paid_till_year = $37,
+        present_holding_name = $38, present_category = $39,
+        last_modified_by = $40, last_modified_date = now()
       WHERE holding_no = $1`,
       [
         holdingNo,
         p.oldHoldingNo,
         p.oldPid,
+        p.khesraNo,
+        p.surveySheetNo,
+        p.khataNo,
         p.ownerName,
         p.relationType,
         p.relationName,

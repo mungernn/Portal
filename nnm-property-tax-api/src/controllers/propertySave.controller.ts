@@ -18,6 +18,9 @@ const floorSchema = z.object({
 const propertySaveSchema = z.object({
   oldHoldingNo: z.string().nullish(),
   oldPid: z.string().nullish(),
+  khesraNo: z.string().nullish(),
+  surveySheetNo: z.string().nullish(),
+  khataNo: z.string().nullish(),
   ownerName: z.string().min(1),
   relationType: z.enum(["S/O", "D/O", "W/O", "C/O"]).nullish(),
   relationName: z.string().nullish(),

@@ -577,10 +577,11 @@ export async function rejectShopEditRequest(id: number, notes: string): Promise<
 }
 
 /** Commissioner only - blocked server-side if the shop has any real financial/legal history (rent payments, demand notices, or violation notices) on file. */
-export async function deleteShopAdmin(shopNo: string): Promise<void> {
+export async function deleteShopAdmin(shopNo: string, confirmationPhrase: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/admin/shops/${encodeURIComponent(shopNo)}`, {
     method: "DELETE",
     headers: authHeaders(),
+    body: JSON.stringify({ confirmationPhrase }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

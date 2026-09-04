@@ -89,6 +89,11 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
             <div>
               <b className="inline-block w-[130px]">Holding No</b> {str(p.holding_no)}
             </div>
+            {p.old_holding_no ? (
+              <div>
+                <b className="inline-block w-[130px]">Old Holding No</b> {str(p.old_holding_no)}
+              </div>
+            ) : null}
           </div>
           <div className="flex-1 space-y-0.5">
             <div>

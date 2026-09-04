@@ -1,4 +1,5 @@
 import { pool } from "../config/db";
+import type { PoolClient } from "pg";
 import { ApiError } from "../utils/ApiError";
 import { getNextNewHoldingNo, getNextPartiallyKnownHoldingNo } from "./holdingNumberSeries.service";
 import { NEW_HOLDING_NO_PREFIX, PARTIALLY_KNOWN_HOLDING_NO_PREFIX } from "../constants/taxRates";
@@ -32,6 +33,37 @@ const PROPERTY_COLUMNS = [
  * all inside one transaction, so nothing is left half-migrated if any
  * step fails.
  */
+/**
+ * The actual mechanics of moving a holding from one holding_no to
+ * another - shared by renumberHolding (auto-assigns the next number
+ * in the holding's own series) and the bulk space-removal fix below
+ * (moves to the same number with spaces stripped). See
+ * renumberHolding's own comment for why this can't just be a direct
+ * UPDATE.
+ */
+async function moveHoldingNo(client: PoolClient, oldHoldingNo: string, newHoldingNo: string, actorDisplayName: string): Promise<void> {
+  const colList = PROPERTY_COLUMNS.join(", ");
+  const selectCols = PROPERTY_COLUMNS.map((c) => (c === "last_modified_by" ? "$3" : c === "last_modified_date" ? "now()" : c)).join(", ");
+  await client.query(
+    `INSERT INTO properties (holding_no, ${colList}) SELECT $1, ${selectCols} FROM properties WHERE holding_no = $2`,
+    [newHoldingNo, oldHoldingNo, actorDisplayName],
+  );
+
+  // Hard foreign keys.
+  await client.query(`UPDATE floors SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE tax_history_stages SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE transactions SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE demand_notices SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE property_history SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE property_change_requests SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+
+  // Soft references (no FK, just a matching string).
+  await client.query(`UPDATE trade_license_applications SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+  await client.query(`UPDATE cancellation_requests SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
+
+  await client.query(`DELETE FROM properties WHERE holding_no = $1`, [oldHoldingNo]);
+}
+
 export async function renumberHolding(oldHoldingNo: string, actorDisplayName: string): Promise<{ newHoldingNo: string }> {
   const client = await pool.connect();
   try {
@@ -48,26 +80,7 @@ export async function renumberHolding(oldHoldingNo: string, actorDisplayName: st
             throw ApiError.badRequest(`Holding ${oldHoldingNo} doesn't match either known numbering series - can't auto-assign a new number.`);
           })();
 
-    const colList = PROPERTY_COLUMNS.join(", ");
-    const selectCols = PROPERTY_COLUMNS.map((c) => (c === "last_modified_by" ? "$3" : c === "last_modified_date" ? "now()" : c)).join(", ");
-    await client.query(
-      `INSERT INTO properties (holding_no, ${colList}) SELECT $1, ${selectCols} FROM properties WHERE holding_no = $2`,
-      [newHoldingNo, oldHoldingNo, actorDisplayName],
-    );
-
-    // Hard foreign keys.
-    await client.query(`UPDATE floors SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE tax_history_stages SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE transactions SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE demand_notices SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE property_history SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE property_change_requests SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-
-    // Soft references (no FK, just a matching string).
-    await client.query(`UPDATE trade_license_applications SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-    await client.query(`UPDATE cancellation_requests SET holding_no = $1 WHERE holding_no = $2`, [newHoldingNo, oldHoldingNo]);
-
-    await client.query(`DELETE FROM properties WHERE holding_no = $1`, [oldHoldingNo]);
+    await moveHoldingNo(client, oldHoldingNo, newHoldingNo, actorDisplayName);
 
     await client.query("COMMIT");
     return { newHoldingNo };
@@ -77,4 +90,62 @@ export async function renumberHolding(oldHoldingNo: string, actorDisplayName: st
   } finally {
     client.release();
   }
+}
+
+export interface SpaceRemovalResult {
+  fixed: { from: string; to: string }[];
+  skipped: { holdingNo: string; reason: string }[];
+}
+
+/**
+ * One-time bulk fix for holdings imported with a stray space in
+ * holding_no (e.g. "MUNG- 12345" from the bulk backup import) - moves
+ * each to the same number with every space removed ("MUNG-12345"),
+ * which is what actually made these unsearchable (the search/lookup
+ * path expects an exact match, and typing the number without the
+ * space - the only way anyone would realistically type it - never
+ * matched the stored value).
+ *
+ * Deliberately only touches holding_no (the primary identifier used
+ * for search/routing) - NOT old_holding_no, which is a separate,
+ * purely-reference field where a space causes no functional problem
+ * and isn't part of this fix.
+ *
+ * Skips (rather than fails outright) any holding whose space-stripped
+ * form would collide with another existing holding_no, since that
+ * would need a human decision, not an automatic one - reported back
+ * so it can be resolved individually via the regular renumber tool.
+ */
+export async function removeSpacesFromHoldingNumbers(actorDisplayName: string): Promise<SpaceRemovalResult> {
+  const { rows } = await pool.query<{ holding_no: string }>(`SELECT holding_no FROM properties WHERE holding_no LIKE '% %' ORDER BY holding_no`);
+
+  const result: SpaceRemovalResult = { fixed: [], skipped: [] };
+
+  for (const { holding_no: oldHoldingNo } of rows) {
+    const newHoldingNo = oldHoldingNo.replace(/\s+/g, "");
+    if (newHoldingNo === oldHoldingNo) continue;
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const conflict = await client.query(`SELECT 1 FROM properties WHERE holding_no = $1`, [newHoldingNo]);
+      if (conflict.rows.length > 0) {
+        await client.query("ROLLBACK");
+        result.skipped.push({ holdingNo: oldHoldingNo, reason: `"${newHoldingNo}" (space-stripped) already exists as a separate holding - needs manual review.` });
+        continue;
+      }
+
+      await moveHoldingNo(client, oldHoldingNo, newHoldingNo, actorDisplayName);
+      await client.query("COMMIT");
+      result.fixed.push({ from: oldHoldingNo, to: newHoldingNo });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      result.skipped.push({ holdingNo: oldHoldingNo, reason: err instanceof Error ? err.message : String(err) });
+    } finally {
+      client.release();
+    }
+  }
+
+  return result;
 }

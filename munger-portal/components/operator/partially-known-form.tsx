@@ -23,6 +23,9 @@ export function PartiallyKnownForm({
 
   const [oldHoldingNo, setOldHoldingNo] = useState("");
   const [oldPid, setOldPid] = useState("");
+  const [khesraNo, setKhesraNo] = useState("");
+  const [surveySheetNo, setSurveySheetNo] = useState("");
+  const [khataNo, setKhataNo] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [mobileNo, setMobileNo] = useState("");
   const [address, setAddress] = useState("");
@@ -69,6 +72,9 @@ export function PartiallyKnownForm({
         holdingEntryMode: "partiallyKnown",
         oldHoldingNo,
         oldPid: oldPid || null,
+        khesraNo: khesraNo || null,
+        surveySheetNo: surveySheetNo || null,
+        khataNo: khataNo || null,
         ownerName,
         mobileNo: mobileNo || null,
         address,
@@ -148,6 +154,18 @@ export function PartiallyKnownForm({
               placeholder="Fill in if later matched to an existing digitized MUNG- record"
               className={inputClass}
             />
+          </div>
+          <div>
+            <label className={labelClass}>Khesra no. (optional)</label>
+            <input value={khesraNo} onChange={(e) => setKhesraNo(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Survey sheet no. (optional)</label>
+            <input value={surveySheetNo} onChange={(e) => setSurveySheetNo(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Khata no. (optional)</label>
+            <input value={khataNo} onChange={(e) => setKhataNo(e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Owner name</label>

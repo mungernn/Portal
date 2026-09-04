@@ -609,3 +609,21 @@ export async function uploadPropertiesXlsx(fileDataBase64: string): Promise<Prop
   }
   return res.json();
 }
+
+export interface SpaceRemovalResult {
+  fixed: { from: string; to: string }[];
+  skipped: { holdingNo: string; reason: string }[];
+}
+
+/** Commissioner only. One-time bulk fix for holdings imported with a stray space in holding_no. */
+export async function fixHoldingNoSpaces(): Promise<SpaceRemovalResult> {
+  const res = await fetch(`${API_BASE_URL}/admin/properties/fix-holding-no-spaces`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not fix holding numbers.");
+  }
+  return res.json();
+}

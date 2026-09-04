@@ -131,6 +131,9 @@ export async function saveNewEntryProperty(input: NewEntryPropertyInput, operato
     {
       oldHoldingNo: trimmedOldHoldingNo,
       oldPid: trimmedOldPid,
+      khesraNo: input.khesraNo ?? null,
+      surveySheetNo: input.surveySheetNo ?? null,
+      khataNo: input.khataNo ?? null,
       ownerName: input.ownerName,
       relationType: input.relationType ?? null,
       relationName: input.relationName ?? null,

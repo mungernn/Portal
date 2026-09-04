@@ -2,6 +2,9 @@ export interface PropertyRow {
   holding_no: string;
   old_holding_no: string | null;
   old_pid: string | null;
+  khesra_no: string | null;
+  survey_sheet_no: string | null;
+  khata_no: string | null;
   owner_name: string;
   relation_type: string | null;
   relation_name: string | null;
