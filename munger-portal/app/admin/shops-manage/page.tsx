@@ -76,8 +76,8 @@ export default function ShopsManagePage() {
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Manage Shops</h1>
         <p className="mb-6 text-sm text-slate-500">
           Delete a shop entered in error - a duplicate, wrongly-numbered, or test-only entry. Blocked automatically if the
-          shop has any rent payments or demand notices on file, since those are real municipal financial records. Requires
-          typing the shop number as confirmation.
+          shop has any active rent payments on file. A demand notice - cancelled or not - doesn&apos;t block deletion.
+          Requires typing the shop number as confirmation.
         </p>
 
         <div className="mb-5 flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2">

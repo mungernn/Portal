@@ -4,12 +4,17 @@ import { shopRepository } from "../repositories/shop.repository";
 
 /**
  * Deletes a shop entirely, including its agreement and every
- * administrative record tied to it - but ONLY if the shop has no real
- * FINANCIAL history on file (rent payments actually collected, or
- * demand notices issued - both represent money that changed hands or
- * was formally sought, and shouldn't be erasable). Violation notices
- * are administrative/enforcement records, not financial transactions,
- * so they no longer block deletion - a shop created purely to test
+ * administrative record tied to it - but ONLY if the shop has no
+ * ACTIVE rent payments on file (real money collected and not since
+ * cancelled - an official municipal financial record that must never
+ * be silently erased). A cancelled payment doesn't count toward this
+ * - once formally voided, it no longer represents money the
+ * corporation is holding. An issued demand notice does NOT block
+ * deletion either way (cancelled or not) - it's cascade-deleted along
+ * with everything else, since a notice on its own, paid or not,
+ * doesn't represent money that changed hands. Violation notices are
+ * administrative/enforcement records, not financial transactions, so
+ * they don't block deletion either - a shop created purely to test
  * the notice-issuing workflow can be cleaned up along with its test
  * notices. This is meant for correcting data-entry mistakes (a
  * duplicate, wrongly-numbered, or test-only shop), not for removing
@@ -28,19 +33,14 @@ export async function deleteShopCompletely(shopNo: string, confirmationPhrase: s
     throw ApiError.badRequest(`Confirmation phrase doesn't match. Type the shop number "${shopNo}" exactly to confirm deletion.`);
   }
 
-  const { rows: blockCheck } = await pool.query<{ payments: string; demands: string }>(
-    `SELECT
-       (SELECT COUNT(*) FROM shop_rent_payments WHERE shop_no = $1) AS payments,
-       (SELECT COUNT(*) FROM shop_rent_demands WHERE shop_no = $1) AS demands`,
+  const { rows: blockCheck } = await pool.query<{ payments: string }>(
+    `SELECT (SELECT COUNT(*) FROM shop_rent_payments WHERE shop_no = $1 AND cancelled = FALSE) AS payments`,
     [shopNo],
   );
-  const { payments, demands } = blockCheck[0]!;
-  if (Number(payments) > 0 || Number(demands) > 0) {
-    const parts: string[] = [];
-    if (Number(payments) > 0) parts.push(`${payments} rent payment(s)`);
-    if (Number(demands) > 0) parts.push(`${demands} demand notice(s)`);
+  const { payments } = blockCheck[0]!;
+  if (Number(payments) > 0) {
     throw ApiError.badRequest(
-      `Cannot delete shop ${shopNo} - it has ${parts.join(", ")} on file. These are real municipal financial records and can't be erased.`,
+      `Cannot delete shop ${shopNo} - it has ${payments} active rent payment(s) on file. These are real municipal financial records and can't be erased.`,
     );
   }
 
@@ -65,6 +65,12 @@ export async function deleteShopCompletely(shopNo: string, confirmationPhrase: s
       [shopNo],
     );
     await client.query(`DELETE FROM shop_violation_notices WHERE shop_no = $1`, [shopNo]);
+    // Once we've confirmed no ACTIVE payment exists, any remaining
+    // rows in these two tables must be cancelled/unpaid - safe to
+    // remove now, and necessary: leaving them behind would otherwise
+    // violate their foreign key into shops when the DELETE below runs.
+    await client.query(`DELETE FROM shop_rent_payments WHERE shop_no = $1`, [shopNo]);
+    await client.query(`DELETE FROM shop_rent_demands WHERE shop_no = $1`, [shopNo]);
     await client.query(`DELETE FROM shop_agreements WHERE shop_no = $1`, [shopNo]);
     await client.query(`DELETE FROM shops WHERE shop_no = $1`, [shopNo]);
     await client.query("COMMIT");

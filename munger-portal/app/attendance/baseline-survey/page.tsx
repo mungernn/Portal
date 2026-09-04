@@ -14,6 +14,7 @@ import {
   fetchBaselineSurvey,
   type AssetSummary,
   type FleetRegistry,
+  type FleetFieldDef,
   type FleetDefectInput,
 } from "@/lib/attendance-api";
 
@@ -393,32 +394,19 @@ function BaselineSurveyPageInner() {
                   <h2 className={sectionTitleClass}>{mod.label}</h2>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {mod.fields.map((f) => (
-                      <div key={f.key}>
-                        <label className={labelClass}>
-                          {f.label}
-                          {f.unit ? ` (${f.unit})` : ""}
-                        </label>
-                        {f.type === "boolean" ? (
-                          <select
-                            value={technicalData[f.key] === true ? "yes" : technicalData[f.key] === false ? "no" : ""}
-                            onChange={(e) => updateTechnical(f.key, e.target.value === "" ? undefined : e.target.value === "yes")}
-                            className={inputClass}
-                          >
-                            <option value="">- Select -</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                          </select>
-                        ) : (
-                          <input
-                            type={f.type === "number" ? "number" : "text"}
-                            value={(technicalData[f.key] as string) ?? ""}
-                            onChange={(e) => updateTechnical(f.key, f.type === "number" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)}
-                            className={inputClass}
-                          />
-                        )}
-                      </div>
+                      <TechnicalField key={f.key} field={f} value={technicalData[f.key]} onChange={(v) => updateTechnical(f.key, v)} />
                     ))}
                   </div>
+                  {mod.subsections?.map((sub) => (
+                    <div key={sub.key} className="mt-4 border-t border-slate-100 pt-4">
+                      <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{sub.label}</h3>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {sub.fields.map((f) => (
+                          <TechnicalField key={f.key} field={f} value={technicalData[f.key]} onChange={(v) => updateTechnical(f.key, v)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </section>
               );
             })}
@@ -691,6 +679,64 @@ function BaselineSurveyPageInner() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/** Renders one technical-module field, dispatching on its type - boolean/select/multiselect get a dropdown, everything else a plain text/number input. */
+function TechnicalField({ field, value, onChange }: { field: FleetFieldDef; value: unknown; onChange: (v: unknown) => void }) {
+  return (
+    <div>
+      <label className={labelClass}>
+        {field.label}
+        {field.unit ? ` (${field.unit})` : ""}
+      </label>
+      {field.type === "boolean" ? (
+        <select
+          value={value === true ? "yes" : value === false ? "no" : ""}
+          onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value === "yes")}
+          className={inputClass}
+        >
+          <option value="">- Select -</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      ) : field.type === "select" ? (
+        <select value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)} className={inputClass}>
+          <option value="">- Select -</option>
+          {field.options?.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ) : field.type === "multiselect" ? (
+        <div className="flex flex-wrap gap-2">
+          {field.options?.map((o) => {
+            const selected = Array.isArray(value) && (value as string[]).includes(o);
+            return (
+              <button
+                key={o}
+                type="button"
+                onClick={() => {
+                  const current = Array.isArray(value) ? (value as string[]) : [];
+                  onChange(selected ? current.filter((x) => x !== o) : [...current, o]);
+                }}
+                className={`rounded-full border px-3 py-1 text-xs ${selected ? "border-nnm-blue bg-blue-50 text-nnm-blue" : "border-slate-300 text-slate-600"}`}
+              >
+                {o}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <input
+          type={field.type === "number" ? "number" : "text"}
+          value={(value as string) ?? ""}
+          onChange={(e) => onChange(field.type === "number" ? (e.target.value === "" ? undefined : Number(e.target.value)) : e.target.value)}
+          className={inputClass}
+        />
+      )}
     </div>
   );
 }
