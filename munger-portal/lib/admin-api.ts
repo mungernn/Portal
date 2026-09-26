@@ -1829,6 +1829,13 @@ export async function fetchAllCollectionIssues(): Promise<CollectionIssue[]> {
 // City Manager generates from a Tax Collector's reported collection issue.
 // ---------------------------------------------------------------------------
 
+export type NoticeLanguage = "en" | "hi";
+
+export const NOTICE_LANGUAGE_LABELS: Record<NoticeLanguage, string> = {
+  en: "English",
+  hi: "हिन्दी (Hindi)",
+};
+
 export interface CollectionIssueNotice {
   id: number;
   collection_issue_id: number;
@@ -1836,6 +1843,7 @@ export interface CollectionIssueNotice {
   holding_no: string;
   demand_no: string | null;
   issue_type: CollectionIssueType;
+  language: NoticeLanguage;
   generated_by_username: string;
   generated_by_display_name: string;
   generated_at: string;
@@ -1851,13 +1859,14 @@ export interface GeneratedCollectionIssueNotice {
   bodyText: string;
   noticeDate: string;
   complianceDays: number;
+  language: NoticeLanguage;
 }
 
-export async function generateCollectionIssueNotice(collectionIssueId: number): Promise<GeneratedCollectionIssueNotice> {
+export async function generateCollectionIssueNotice(collectionIssueId: number, language: NoticeLanguage = "en"): Promise<GeneratedCollectionIssueNotice> {
   const res = await fetch(`${API_BASE_URL}/admin/collection-issues/${collectionIssueId}/generate-notice`, {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({}),
+    body: JSON.stringify({ language }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

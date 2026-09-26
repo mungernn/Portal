@@ -1,5 +1,6 @@
 import { pool } from "../config/db";
 import type { CollectionIssueType } from "../types/collectionIssue.types";
+import type { NoticeLanguage } from "../types/collectionIssueNotice.types";
 
 export interface CollectionIssueNoticeRow {
   id: number;
@@ -8,6 +9,7 @@ export interface CollectionIssueNoticeRow {
   holding_no: string;
   demand_no: string | null;
   issue_type: CollectionIssueType;
+  language: NoticeLanguage;
   generated_by_username: string;
   generated_by_display_name: string;
   generated_at: Date;
@@ -26,15 +28,25 @@ export const collectionIssueNoticeRepository = {
     holdingNo: string;
     demandNo: string | null;
     issueType: CollectionIssueType;
+    language: NoticeLanguage;
     generatedByUsername: string;
     generatedByDisplayName: string;
   }): Promise<CollectionIssueNoticeRow> {
     const { rows } = await pool.query<CollectionIssueNoticeRow>(
       `INSERT INTO collection_issue_notices (
-        collection_issue_id, notice_no, holding_no, demand_no, issue_type, generated_by_username, generated_by_display_name
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        collection_issue_id, notice_no, holding_no, demand_no, issue_type, language, generated_by_username, generated_by_display_name
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       RETURNING *`,
-      [input.collectionIssueId, input.noticeNo, input.holdingNo, input.demandNo, input.issueType, input.generatedByUsername, input.generatedByDisplayName],
+      [
+        input.collectionIssueId,
+        input.noticeNo,
+        input.holdingNo,
+        input.demandNo,
+        input.issueType,
+        input.language,
+        input.generatedByUsername,
+        input.generatedByDisplayName,
+      ],
     );
     return rows[0]!;
   },

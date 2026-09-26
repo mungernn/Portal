@@ -9,9 +9,11 @@ import {
   fetchCollectionIssueNotices,
   generateCollectionIssueNotice,
   COLLECTION_ISSUE_TYPE_LABELS,
+  NOTICE_LANGUAGE_LABELS,
   type CollectionIssue,
   type CollectionIssueNotice,
   type GeneratedCollectionIssueNotice,
+  type NoticeLanguage,
 } from "@/lib/admin-api";
 import { CollectionIssueNoticeView } from "@/components/admin/collection-issue-notice-view";
 
@@ -24,6 +26,7 @@ export default function CollectionIssuesPage() {
   const [priorNoticesById, setPriorNoticesById] = useState<Record<number, CollectionIssueNotice[]>>({});
   const [generatingId, setGeneratingId] = useState<number | null>(null);
   const [openNotice, setOpenNotice] = useState<GeneratedCollectionIssueNotice | null>(null);
+  const [languageById, setLanguageById] = useState<Record<number, NoticeLanguage>>({});
 
   useEffect(() => {
     if (!admin) return;
@@ -40,7 +43,7 @@ export default function CollectionIssuesPage() {
     setGeneratingId(issueId);
     setError(null);
     try {
-      const result = await generateCollectionIssueNotice(issueId);
+      const result = await generateCollectionIssueNotice(issueId, languageById[issueId] ?? "en");
       setOpenNotice(result);
       const updated = await fetchCollectionIssueNotices(issueId);
       setPriorNoticesById((m) => ({ ...m, [issueId]: updated }));
@@ -123,19 +126,33 @@ export default function CollectionIssuesPage() {
                       </p>
                     </div>
                     {canGenerate && (
-                      <button
-                        onClick={() => handleGenerate(i.id)}
-                        disabled={generatingId === i.id}
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
-                      >
-                        <ScrollText className="h-3.5 w-3.5" />
-                        {generatingId === i.id ? "Generating…" : "Generate Notice"}
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <select
+                          value={languageById[i.id] ?? "en"}
+                          onChange={(e) => setLanguageById((m) => ({ ...m, [i.id]: e.target.value as NoticeLanguage }))}
+                          className="rounded-md border border-slate-300 px-2 py-1.5 text-xs outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1"
+                        >
+                          {Object.entries(NOTICE_LANGUAGE_LABELS).map(([code, label]) => (
+                            <option key={code} value={code}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleGenerate(i.id)}
+                          disabled={generatingId === i.id}
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white hover:bg-nnm-blue-dark disabled:opacity-60"
+                        >
+                          <ScrollText className="h-3.5 w-3.5" />
+                          {generatingId === i.id ? "Generating…" : "Generate Notice"}
+                        </button>
+                      </div>
                     )}
                   </div>
                   {prior.length > 0 && (
                     <p className="mt-2 text-xs text-slate-400">
-                      {prior.length} notice{prior.length === 1 ? "" : "s"} already generated - most recent: {prior[0]!.notice_no}
+                      {prior.length} notice{prior.length === 1 ? "" : "s"} already generated - most recent: {prior[0]!.notice_no} (
+                      {NOTICE_LANGUAGE_LABELS[prior[0]!.language]})
                     </p>
                   )}
                 </div>

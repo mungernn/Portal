@@ -8,6 +8,7 @@ import type { AdminTokenPayload } from "../types/admin.types";
 import type { CollectionIssueNoticeRow } from "../repositories/collectionIssueNotice.repository";
 import type { PropertyRow } from "../types/property.types";
 import type { CollectionIssueRow, CollectionIssueType } from "../types/collectionIssue.types";
+import type { NoticeLanguage } from "../types/collectionIssueNotice.types";
 
 const NOTICE_TYPE_CODE: Record<CollectionIssueType, string> = {
   refused_to_pay: "RTP",
@@ -29,9 +30,15 @@ function money(v: string | number): string {
   return Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatDate(d: Date): string {
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+function formatDate(d: Date, language: NoticeLanguage): string {
+  return d.toLocaleDateString(language === "hi" ? "hi-IN" : "en-IN", { day: "2-digit", month: "long", year: "numeric" });
 }
+
+/** Fallback phrases substituted into the body when a value is missing - these get filled INTO the template text, so they need their own translation rather than following the template's language automatically. */
+const FALLBACK_PHRASES: Record<NoticeLanguage, { demandNotGenerated: string; noRemarks: string }> = {
+  en: { demandNotGenerated: "Not yet generated", noRemarks: "No further remarks recorded." },
+  hi: { demandNotGenerated: "अभी जारी नहीं की गई", noRemarks: "कोई अतिरिक्त टिप्पणी दर्ज नहीं है।" },
+};
 
 /** Substitutes {placeholder} tokens in a template body with the actual case details. */
 function fillTemplate(
@@ -60,17 +67,23 @@ export interface GeneratedCollectionIssueNotice {
   bodyText: string;
   noticeDate: string;
   complianceDays: number;
+  language: NoticeLanguage;
 }
 
 /**
  * Generates one of the six standard legal notice formats for a
- * Tax Collector's reported collection issue - City Manager only.
- * Picks the most relevant demand notice for the holding (the first
- * still-unsettled one if any, otherwise the most recent one overall)
- * so the generated notice's demand figures and the attached demand
- * notice are always for the same outstanding demand.
+ * Tax Collector's reported collection issue, in the requested
+ * language (English or Hindi) - City Manager only. Picks the most
+ * relevant demand notice for the holding (the first still-unsettled
+ * one if any, otherwise the most recent one overall) so the
+ * generated notice's demand figures and the attached demand notice
+ * are always for the same outstanding demand.
  */
-export async function generateCollectionIssueNotice(collectionIssueId: number, admin: AdminTokenPayload): Promise<GeneratedCollectionIssueNotice> {
+export async function generateCollectionIssueNotice(
+  collectionIssueId: number,
+  admin: AdminTokenPayload,
+  language: NoticeLanguage = "en",
+): Promise<GeneratedCollectionIssueNotice> {
   const issue = await collectionIssueRepository.findById(collectionIssueId);
   if (!issue) throw ApiError.notFound("Collection issue not found.");
 
@@ -85,19 +98,21 @@ export async function generateCollectionIssueNotice(collectionIssueId: number, a
   }
 
   const template = COLLECTION_ISSUE_NOTICE_TEMPLATES[issue.issue_type];
+  const text = template.text[language];
   const now = new Date();
   const seq = await collectionIssueNoticeRepository.getNextNoticeSeq();
   const noticeNo = formatNoticeNo(seq, issue.issue_type, now);
 
-  const bodyText = fillTemplate(template.body, {
+  const fallback = FALLBACK_PHRASES[language];
+  const bodyText = fillTemplate(text.body, {
     ownerName: property.owner_name,
     holdingNo: property.holding_no,
     address: property.address,
     ward: property.ward ?? "-",
-    demandNo: demandNotice?.demand_no ?? "Not yet generated",
+    demandNo: demandNotice?.demand_no ?? fallback.demandNotGenerated,
     totalAmountDemanded: demandNotice ? money(demandNotice.total_amount_demanded) : "0.00",
-    issueNotes: issue.notes ?? "No further remarks recorded.",
-    reportedDate: formatDate(issue.reported_at),
+    issueNotes: issue.notes ?? fallback.noRemarks,
+    reportedDate: formatDate(issue.reported_at, language),
     complianceDays: template.complianceDays,
   });
 
@@ -107,6 +122,7 @@ export async function generateCollectionIssueNotice(collectionIssueId: number, a
     holdingNo: issue.holding_no,
     demandNo: demandNotice?.demand_no ?? null,
     issueType: issue.issue_type,
+    language,
     generatedByUsername: admin.username,
     generatedByDisplayName: admin.displayName,
   });
@@ -116,11 +132,12 @@ export async function generateCollectionIssueNotice(collectionIssueId: number, a
     property,
     issue,
     demandNotice,
-    title: template.title,
-    legalBasis: template.legalBasis,
+    title: text.title,
+    legalBasis: text.legalBasis,
     bodyText,
-    noticeDate: formatDate(now),
+    noticeDate: formatDate(now, language),
     complianceDays: template.complianceDays,
+    language,
   };
 }
 
