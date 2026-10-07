@@ -44,6 +44,8 @@ export interface PrintableReceiptHistory {
   taxCollectorName: string | null;
   tvNumber: string | null;
   tvDate: string | null;
+  /** Set only for public online payments: when the payer ticked the declaration (dd-mm-yyyy HH:MM). */
+  onlineDeclarationAcceptedAt: string | null;
   // Frozen at the moment of payment (migration 024) - not
   // reconstructed later by joining to the demand notice, which was
   // fragile (see that migration's comment). Null only for
@@ -114,6 +116,9 @@ export async function getReceiptForReprint(receiptNo: string): Promise<Printable
     tvNumber: txn.tv_number,
     tvDate: txn.tv_date
       ? `${String(txn.tv_date.getDate()).padStart(2, "0")}-${String(txn.tv_date.getMonth() + 1).padStart(2, "0")}-${txn.tv_date.getFullYear()}`
+      : null,
+    onlineDeclarationAcceptedAt: txn.online_declaration_accepted_at
+      ? new Date(txn.online_declaration_accepted_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).replace(/\//g, "-").replace(",", "")
       : null,
     // Read directly from the frozen snapshot stored at payment time
     // (migration 024) - no longer reconstructed by joining to the

@@ -1,6 +1,7 @@
 "use client";
 
 import { HindiTaxTerms } from "./hindi-tax-terms";
+import { DeclarationAcceptedOnReceipt } from "../online-declaration";
 import { useRef } from "react";
 import { Printer } from "lucide-react";
 import type { ReceiptData } from "@/lib/payment-api";
@@ -369,12 +370,7 @@ export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; o
 
         <HindiTaxTerms />
 
-        <div className="mt-2.5 rounded border border-slate-300 bg-slate-50 p-2.5 text-[9.5px] leading-snug text-slate-600">
-          I/We understand that after payment of online holding tax, I/We must submit the duly filled in
-          self-assessment form physically at Municipal Corporation office Munger and get the holding tax receipt
-          duly issued by Municipal Corporation Munger for the tax amount paid by me. I/We am/are fully responsible
-          in case I/We wrongly pay holding tax for a holding not in my name and I/We shall not reclaim the same.
-        </div>
+        {receipt.onlineDeclarationAcceptedAt && <DeclarationAcceptedOnReceipt acceptedAt={receipt.onlineDeclarationAcceptedAt} />}
       </div>
     </div>
   );

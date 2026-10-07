@@ -30,7 +30,12 @@ export async function initiateOnlinePayment(
   holdingNo: string,
   amount: number,
   taxCollectorCode: string | null,
+  declarationAccepted: boolean,
 ): Promise<InitiateResult> {
+  if (!declarationAccepted) {
+    throw ApiError.badRequest("Please tick the declaration to continue with the payment.");
+  }
+
   if (!env.ONLINE_PAYMENT_ENABLED) {
     throw ApiError.badRequest(
       "Online payment is temporarily unavailable. Please pay at the Nagar Nigam office counter.",

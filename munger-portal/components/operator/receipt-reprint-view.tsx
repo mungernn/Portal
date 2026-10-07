@@ -1,5 +1,6 @@
 "use client";
 
+import { DeclarationAcceptedOnReceipt } from "../online-declaration";
 import { useRef } from "react";
 import { Printer, X } from "lucide-react";
 import type { PrintableReceiptHistory } from "@/lib/operator-api";
@@ -258,6 +259,8 @@ export function ReceiptReprintView({ receipt, onClose }: { receipt: PrintableRec
           </span>
         </div>
         <p className="mt-1.5 text-[10.5px] italic text-slate-600">{receipt.amountInWords}</p>
+
+        {receipt.onlineDeclarationAcceptedAt && <DeclarationAcceptedOnReceipt acceptedAt={receipt.onlineDeclarationAcceptedAt} />}
 
         <p className="mt-6 text-[10px] text-slate-500">
           This is a reprint of a computer generated receipt, exactly as originally issued. Collected by{" "}

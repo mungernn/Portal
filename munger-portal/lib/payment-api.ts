@@ -50,6 +50,8 @@ export interface ReceiptData {
   taxCollectorName: string | null;
   tvNumber: string | null;
   tvDate: string | null;
+  /** Set only for public online payments - when the payer ticked the declaration. */
+  onlineDeclarationAcceptedAt?: string | null;
   arrearStagesPaid: ArrearStagePaidView[];
   property: Record<string, string | number | boolean | null>;
   floors: unknown[];
