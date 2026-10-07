@@ -12,9 +12,11 @@ import { parseYearStartOrNull } from "../utils/assessmentYear";
 import { num } from "../utils/num";
 import { ApiError } from "../utils/ApiError";
 import { assertNotDisputed } from "./propertyDispute.service";
+import { generateDemandNotice } from "./demandNotice.service";
 import { buildVerificationUrl } from "../utils/verificationSignature";
 import { formatYmdToDmy } from "../utils/formatYmdToDmy";
 import type { PaymentInput, PaymentResult } from "../types/payment.types";
+import type { DemandNoticeResult } from "../types/demandNotice.types";
 import type { FrozenFloorBreakdown } from "../types/property.types";
 
 function formatDocNumber(n: string | number, type: "Payment" | "Demand", date: Date): string {
@@ -354,6 +356,19 @@ export async function submitPayment(
   const dateStr = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${now.getFullYear()}`;
   const formattedReceiptNo = formatDocNumber(receiptNo, "Payment", now);
 
+  // A part payment settles its notice but leaves the remaining years unpaid: right away raise the demand notice for
+  // those (remaining arrears + current year + other charges) so the owner can verify what is still pending against
+  // his name. The payment is already committed - if this fails it is reported, never rolled back.
+  let followUpNotice: DemandNoticeResult | null = null;
+  let followUpNoticeError: string | null = null;
+  if (isPart) {
+    try {
+      followUpNotice = await generateDemandNotice(holdingNo, collectedBy, undefined, formattedReceiptNo);
+    } catch (err) {
+      followUpNoticeError = err instanceof Error ? err.message : "Could not generate the balance demand notice.";
+    }
+  }
+
   // Recompute tax fresh for the receipt body (never trusted from stored columns).
   const calc = calculateTax(property, floors);
   const solidWasteCharge = calculateSolidWasteCharge(property);
@@ -382,6 +397,8 @@ export async function submitPayment(
     // date on the receipt, rather than echoing the raw input back.
     tvDate: tvDate ? formatYmdToDmy(tvDate) : null,
     arrearStagesPaid: clearance.stages,
+    followUpNotice,
+    followUpNoticeError,
     // Override the stored (possibly stale) solid_waste_charge column with
     // the value just recomputed above — same "never trusted from stored
     // columns" principle as the tax figures a few lines up. Was previously

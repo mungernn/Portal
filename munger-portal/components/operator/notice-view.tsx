@@ -104,6 +104,33 @@ export function NoticeView({
           </div>
         )}
 
+        {t.balanceAfterPartPaymentReceipt && (
+          <div className="mt-2.5 rounded border border-green-500 bg-green-50 px-3 py-2 text-[11px] text-green-900">
+            <b>BALANCE DEMAND AFTER PART PAYMENT.</b> Part payment has been received vide Receipt No {t.balanceAfterPartPaymentReceipt}. This
+            notice shows the dues that remain pending against this holding.
+          </div>
+        )}
+
+        {/* Period being cleared: arrear years (one year, or first to last) and the current year */}
+        {(t.arrearsPeriod || t.currentYear) && (
+          <div className="mt-2.5 rounded border border-slate-400 px-3 py-2 text-[11px]">
+            <div>
+              <b>Tax arrears being cleared:</b>{" "}
+              {t.arrearsPeriod
+                ? t.arrearsPeriod.fromYear === t.arrearsPeriod.toYear
+                  ? `${t.arrearsPeriod.fromYear} (1 year)`
+                  : `${t.arrearsPeriod.fromYear} to ${t.arrearsPeriod.toYear} (${t.arrearsPeriod.years} years)`
+                : "None - no earlier year is pending"}
+            </div>
+            {t.currentYear && (
+              <div>
+                <b>Current year being cleared:</b>{" "}
+                {t.currentYear.included ? t.currentYear.year : `${t.currentYear.year} - not included in this part payment (will be demanded separately)`}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Not-a-receipt banner */}
         <div className="mt-2.5 rounded border-2 border-red-700 bg-red-50 px-3 py-2.5 text-center text-[13px] font-bold text-red-700">
           THIS IS NOT THE PAYMENT RECEIPT. KINDLY COLLECT THE PAYMENT RECEIPT WHEN YOU PAY THE TAX.

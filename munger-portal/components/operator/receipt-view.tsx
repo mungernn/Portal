@@ -2,10 +2,11 @@
 
 import { HindiTaxTerms } from "./hindi-tax-terms";
 import { DeclarationAcceptedOnReceipt } from "../online-declaration";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Printer } from "lucide-react";
 import type { ReceiptData } from "@/lib/payment-api";
 import { DocumentVerificationQR } from "./document-verification-qr";
+import { NoticeView } from "./notice-view";
 import { printElementInNewWindow } from "@/lib/print-in-new-window";
 
 function money(v: string | number | undefined | null): string {
@@ -19,11 +20,32 @@ function str(v: unknown): string {
 
 export function ReceiptView({ receipt, onNewPayment }: { receipt: ReceiptData; onNewPayment: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [showBalanceNotice, setShowBalanceNotice] = useState(false);
   const p = receipt.property;
   const calc = receipt.taxCalc;
 
+  // After a part payment the balance demand notice (remaining years) is generated automatically - show it on request.
+  if (showBalanceNotice && receipt.followUpNotice) {
+    return <NoticeView notice={receipt.followUpNotice} onClose={() => setShowBalanceNotice(false)} closeLabel="Back to receipt" />;
+  }
+
   return (
     <div>
+      {receipt.followUpNotice && (
+        <div className="no-print mb-4 rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-900">
+          <b>Part payment received.</b> A demand notice for the remaining dues (₹{money(receipt.followUpNotice.totals.grandTotal)}, Demand No{" "}
+          {receipt.followUpNotice.formattedDemandNo}) has been generated so the owner can verify what is still pending.{" "}
+          <button onClick={() => setShowBalanceNotice(true)} className="font-semibold text-nnm-blue underline">
+            View / print balance demand notice
+          </button>
+        </div>
+      )}
+      {receipt.followUpNoticeError && (
+        <div role="alert" className="no-print mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          Part payment received, but the balance demand notice could not be generated automatically ({receipt.followUpNoticeError}). Generate it
+          from the property page.
+        </div>
+      )}
       <div className="no-print mb-4 flex items-center justify-between">
         <button
           onClick={() => printRef.current && printElementInNewWindow(printRef.current)}

@@ -3,7 +3,7 @@ import { demandNoticeRepository } from "../repositories/demandNotice.repository"
 import { cancellationRequestRepository } from "../repositories/cancellationRequest.repository";
 import { calculateTax } from "./taxCalculation.service";
 import { calculateRebateOrLateFee, calculateSolidWasteCharge } from "./charges.service";
-import { summarizeArrears, computePartPaymentOptions, type PartPaymentOption } from "./arrears.service";
+import { summarizeArrears, computePartPaymentOptions, pendingArrearsPeriod, type PartPaymentOption } from "./arrears.service";
 import { parseYearStartOrNull } from "../utils/assessmentYear";
 import { num } from "../utils/num";
 import { ApiError } from "../utils/ApiError";
@@ -65,7 +65,13 @@ export async function getPartPaymentOptions(holdingNo: string): Promise<{ paidTi
  * (solid waste, water, ...) are left for the next full notice; paying it advances tax_paid_till_year
  * to the last year covered.
  */
-export async function generateDemandNotice(holdingNo: string, generatedBy: string, partYears?: number): Promise<DemandNoticeResult> {
+export async function generateDemandNotice(
+  holdingNo: string,
+  generatedBy: string,
+  partYears?: number,
+  /** Formatted receipt no. of the part payment this notice follows - makes it the balance notice for the remaining years. */
+  followsPartPaymentReceipt?: string,
+): Promise<DemandNoticeResult> {
   const property = await propertyRepository.findByHoldingNo(holdingNo);
   if (!property) {
     throw ApiError.notFound(`Property not found for Holding No: ${holdingNo}`);
@@ -156,6 +162,8 @@ export async function generateDemandNotice(holdingNo: string, generatedBy: strin
   const reminderLabel = reminderNumber > 0 ? `${ordinal(reminderNumber)} Reminder` : null;
   const previousUnsettledDemandNosFormatted = previousUnsettled.map((n) => formatDocNumber(n.demand_no, "Demand", n.notice_date));
 
+  const arrearsPeriod = part ? { fromYear: part.fromYear, toYear: part.toYear, years: part.years } : pendingArrearsPeriod(property, stages);
+
   const totals: DemandNoticeTotals = {
     currentTaxBase: part ? "0.00" : netCurrentBeforeTiming.toFixed(2),
     // Plinth-area/rain-water rebate - already subtracted into
@@ -172,6 +180,10 @@ export async function generateDemandNotice(holdingNo: string, generatedBy: strin
     otherCharges: otherCharges.toFixed(2),
     grandTotal: grandTotal.toFixed(2),
     ...(part ? { partPayment: { years: part.years, fromYear: part.fromYear, toYear: part.toYear } } : {}),
+    // The period of arrears being cleared and the current year (and whether it is cleared by THIS notice).
+    ...(arrearsPeriod ? { arrearsPeriod } : {}),
+    ...(property.assessment_year ? { currentYear: { year: property.assessment_year, included: !part } } : {}),
+    ...(followsPartPaymentReceipt ? { balanceAfterPartPaymentReceipt: followsPartPaymentReceipt } : {}),
   };
 
   await demandNoticeRepository.insertDemandNotice({

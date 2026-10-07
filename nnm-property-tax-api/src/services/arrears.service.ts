@@ -216,3 +216,34 @@ export function computePartPaymentOptions(property: PropertyRow, stages: TaxHist
   }
   return options;
 }
+
+export interface ArrearsPeriod {
+  fromYear: string; // first pending arrear year, e.g. "2019-2020"
+  toYear: string; // last pending arrear year (same as fromYear when only one year is pending)
+  years: number;
+}
+
+/**
+ * The years of arrears a full demand covers: from the first unpaid year (the year after tax_paid_till_year) to
+ * the last completed year, limited to years that have tax data on file. Null when there are no pending arrears
+ * or they cannot be determined.
+ */
+export function pendingArrearsPeriod(property: PropertyRow, stages: TaxHistoryStageRow[]): ArrearsPeriod | null {
+  const taxPaidTillYear = parseYearStartOrNull(property.tax_paid_till_year);
+  const holdingCreationYear = parseYearStartOrNull(property.holding_creation_year);
+  const lastYear = getCurrentAssessmentYearStartNum() - 1;
+  if (taxPaidTillYear === null || holdingCreationYear === null) return null;
+  const pendingStart = Math.max(taxPaidTillYear + 1, holdingCreationYear);
+  if (pendingStart > lastYear) return null;
+  let first: number | null = null;
+  let last: number | null = null;
+  let years = 0;
+  for (let y = pendingStart; y <= lastYear; y++) {
+    if (!stages.some((s) => s.start_year_used <= y && y <= s.closing_year)) continue;
+    if (first === null) first = y;
+    last = y;
+    years++;
+  }
+  if (first === null || last === null) return null;
+  return { fromYear: yearLabel(first), toYear: yearLabel(last), years };
+}
