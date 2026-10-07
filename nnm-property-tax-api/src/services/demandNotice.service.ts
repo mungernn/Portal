@@ -382,11 +382,13 @@ export async function listDemandNoticeHistory(holdingNo: string): Promise<Demand
 export interface BulkGenerateResult {
   processed: number;
   errors: { holdingNo: string; message: string }[];
-  generated: { holdingNo: string; formattedDemandNo: string; grandTotal: string }[];
+  generated: { holdingNo: string; formattedDemandNo: string; grandTotal: string; reminderLabel: string | null }[];
 }
 
 /**
- * Port of bulkGenerateMissingDemandNotices() from Code.gs. Unlike the
+ * Port of bulkGenerateMissingDemandNotices() from Code.gs, extended: besides holdings that never had a notice, it also
+ * raises a fresh notice for any holding with dues whose live notice was not generated in the current month (the late fee
+ * grows each month, so last month's amount is stale). See findHoldingNosNeedingDemandNotice. Unlike the
  * source (which self-limits to ~5 minutes to stay under Apps Script's
  * 6-minute execution cap and expects to be re-run for a large backlog),
  * this runs straight through in one call — Node/Postgres has no
@@ -403,14 +405,14 @@ export interface BulkGenerateResult {
  * the same demand number already assigned here.
  */
 export async function bulkGenerateMissingDemandNotices(generatedBy: string): Promise<BulkGenerateResult> {
-  const holdingNos = await demandNoticeRepository.findHoldingNosMissingDemandNotice();
+  const holdingNos = await demandNoticeRepository.findHoldingNosNeedingDemandNotice();
 
   const result: BulkGenerateResult = { processed: 0, errors: [], generated: [] };
 
   for (const holdingNo of holdingNos) {
     try {
       const notice = await generateDemandNotice(holdingNo, generatedBy);
-      result.generated.push({ holdingNo, formattedDemandNo: notice.formattedDemandNo, grandTotal: notice.totals.grandTotal });
+      result.generated.push({ holdingNo, formattedDemandNo: notice.formattedDemandNo, grandTotal: notice.totals.grandTotal, reminderLabel: notice.reminderLabel });
       result.processed++;
     } catch (err) {
       result.errors.push({ holdingNo, message: err instanceof Error ? err.message : String(err) });

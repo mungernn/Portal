@@ -189,10 +189,10 @@ export async function revertChangeRequest(id: number, comment: string): Promise<
 export interface BulkGenerateResult {
   processed: number;
   errors: { holdingNo: string; message: string }[];
-  generated: { holdingNo: string; formattedDemandNo: string; grandTotal: string }[];
+  generated: { holdingNo: string; formattedDemandNo: string; grandTotal: string; reminderLabel?: string | null }[];
 }
 
-/** POST /api/v1/admin/demand-notices/bulk-generate — every holding with Floors data but no demand notice yet. */
+/** POST /api/v1/admin/demand-notices/bulk-generate — every holding with dues and floor data that has no live demand notice from the current month. */
 export async function bulkGenerateDemandNotices(): Promise<BulkGenerateResult> {
   const res = await fetch(`${API_BASE_URL}/admin/demand-notices/bulk-generate`, {
     method: "POST",
