@@ -652,6 +652,14 @@ export interface PropertyBulkImportResult {
   errors: { sheet: string; row: number; message: string }[];
 }
 
+/** Plain-language reason when the server's reply carries no message (e.g. a proxy rejecting the request). */
+function uploadFailureMessage(status: number): string {
+  if (status === 413) return "The file is too large for the server to accept (error 413). Ask the administrator to raise the upload size limit on the web server, or upload a smaller file.";
+  if (status === 502 || status === 503 || status === 504) return `The server did not respond in time (error ${status}). Please wait a minute and try again; if it keeps happening, tell the administrator.`;
+  if (status === 401 || status === 403) return `You are not allowed to do this, or your login has expired (error ${status}). Please sign in again.`;
+  return `Could not upload this file (error ${status}).`;
+}
+
 /**
  * Commissioner / Tax Daroga / City Manager. fileDataBase64 is the raw base64 content of the .xlsx file (no data-URL prefix).
  * The file is NOT imported - it is parked for review by Tax Daroga / City Manager.
@@ -664,7 +672,7 @@ export async function uploadPropertiesXlsx(fileDataBase64: string, dataSourceNam
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Could not upload this file.");
+    throw new Error(body.error || uploadFailureMessage(res.status));
   }
   return res.json();
 }
@@ -763,7 +771,7 @@ export async function uploadMigratedHoldingsXlsx(fileDataBase64: string): Promis
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || "Could not upload this file.");
+    throw new Error(body.error || uploadFailureMessage(res.status));
   }
   return res.json();
 }

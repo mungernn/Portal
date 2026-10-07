@@ -151,12 +151,6 @@ export function NoticeView({
             <div>
               <b className="inline-block w-[150px]">Holding No</b> {str(p.holding_no)}
             </div>
-            <div>
-              <b className="inline-block w-[150px]">Old Holding No</b> {str(p.old_holding_no)}
-            </div>
-            <div>
-              <b className="inline-block w-[150px]">Old PID</b> {str(p.old_pid)}
-            </div>
           </div>
           <div className="flex-1 space-y-0.5">
             <div>
@@ -169,7 +163,10 @@ export function NoticeView({
               <b className="inline-block w-[150px]">Assessment Year</b> {str(p.assessment_year)}
             </div>
             <div>
-              <b className="inline-block w-[150px]">Ground Floor Built-up Area</b> {calc.vacant.groundFloorBuiltArea} sqft
+              <b className="inline-block w-[150px]">Old Holding No</b> {str(p.old_holding_no)}
+            </div>
+            <div>
+              <b className="inline-block w-[150px]">Old PID</b> {str(p.old_pid)}
             </div>
             <div>
               <b className="inline-block w-[150px]">Vacant Area (declared)</b> {calc.vacant.declaredArea} sqft
