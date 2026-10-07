@@ -36,6 +36,11 @@ export function NoticeView({
   const p = notice.property;
   const calc = notice.taxCalc;
   const t = notice.totals;
+  const arrearsLabel = t.arrearsPeriod
+    ? t.arrearsPeriod.fromYear === t.arrearsPeriod.toYear
+      ? t.arrearsPeriod.fromYear
+      : `${t.arrearsPeriod.fromYear} to ${t.arrearsPeriod.toYear}`
+    : "";
   // Present only on a reprint (see DemandNoticeReprintData) - absent on
   // a freshly-generated notice, which by definition is none of these yet.
   const status = "cancelled" in notice ? notice : null;
@@ -108,26 +113,6 @@ export function NoticeView({
           <div className="mt-2.5 rounded border border-green-500 bg-green-50 px-3 py-2 text-[11px] text-green-900">
             <b>BALANCE DEMAND AFTER PART PAYMENT.</b> Part payment has been received vide Receipt No {t.balanceAfterPartPaymentReceipt}. This
             notice shows the dues that remain pending against this holding.
-          </div>
-        )}
-
-        {/* Period being cleared: arrear years (one year, or first to last) and the current year */}
-        {(t.arrearsPeriod || t.currentYear) && (
-          <div className="mt-2.5 rounded border border-slate-400 px-3 py-2 text-[11px]">
-            <div>
-              <b>Tax arrears being cleared:</b>{" "}
-              {t.arrearsPeriod
-                ? t.arrearsPeriod.fromYear === t.arrearsPeriod.toYear
-                  ? `${t.arrearsPeriod.fromYear} (1 year)`
-                  : `${t.arrearsPeriod.fromYear} to ${t.arrearsPeriod.toYear} (${t.arrearsPeriod.years} years)`
-                : "None - no earlier year is pending"}
-            </div>
-            {t.currentYear && (
-              <div>
-                <b>Current year being cleared:</b>{" "}
-                {t.currentYear.included ? t.currentYear.year : `${t.currentYear.year} - not included in this part payment (will be demanded separately)`}
-              </div>
-            )}
           </div>
         )}
 
@@ -328,7 +313,7 @@ export function NoticeView({
           <tbody>
             <tr>
               <td colSpan={5} className="border-x border-slate-400 p-1.5">
-                <b>A. Tax Amount — Current Year</b>
+                <b>A. Tax Amount — Current Year{t.currentYear ? ` (${t.currentYear.year})` : ""}</b>
               </td>
               <td className="border-x border-slate-400 p-1.5 text-right">
                 <b>{t.currentTaxBase}</b>
@@ -355,7 +340,7 @@ export function NoticeView({
             {Number(t.yearWiseArrears) > 0 && (
               <tr>
                 <td colSpan={5} className="border-x border-slate-400 p-1.5">
-                  <b>B. Tax Amount — Previous Years (Outstanding Demand, before penalty)</b>
+                  <b>B. Tax Amount — Previous Years{arrearsLabel ? ` (${arrearsLabel})` : ""} (Outstanding Demand, before penalty)</b>
                 </td>
                 <td className="border-x border-slate-400 p-1.5 text-right">
                   <b>{t.arrearsBaseTax}</b>
@@ -365,7 +350,7 @@ export function NoticeView({
             {Number(t.penalty) > 0 && (
               <tr>
                 <td colSpan={5} className="border-x border-slate-400 p-1.5 pl-6 italic text-slate-500">
-                  — Penalty (late fee on arrears above, computed per pending year)
+                  — Penalty (late fee on arrears{arrearsLabel ? ` ${arrearsLabel}` : ""} above, computed per pending year)
                 </td>
                 <td className="border-x border-slate-400 p-1.5 text-right italic text-slate-500">{t.penalty}</td>
               </tr>
