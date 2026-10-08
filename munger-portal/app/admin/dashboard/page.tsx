@@ -98,6 +98,10 @@ export default function AdminDashboardPage() {
   const showTaxCollectorPage = admin.role === "tax_collector";
   const showReportPropertyDiscrepancy = admin.role === "tax_collector";
   const showMyDiscrepancyReports = admin.role === "tax_collector";
+  const showUnsurveyedHouseEntry = admin.role === "tax_collector";
+  const showNoticeReceivingUpload = admin.role === "tax_collector";
+  const showUnsurveyedHouses = ["tax_collector", "tax_daroga", "city_manager", "deputy_commissioner", "commissioner"].includes(admin.role);
+  const showNoticeReceivingCopies = showUnsurveyedHouses;
   const DISCREPANCY_CHAIN_ROLES = ["tax_surveyor", "tax_daroga", "city_manager", "deputy_commissioner", "commissioner"];
   const showPropertyDiscrepancyRequests = DISCREPANCY_CHAIN_ROLES.includes(admin.role);
   const showResurveyFlags = admin.role === "tax_daroga" || admin.role === "commissioner";
@@ -121,7 +125,7 @@ export default function AdminDashboardPage() {
   const propertyGroupVisible =
     showMutationApprovals || showCancellationRequests || showBulkDemandNotices || showAllPropertyChanges || showRenumberHolding || showBulkUploadProperties ||
     showMigratedHoldingsBulkUpload || showMigratedHoldingsAssign || showMigratedHoldingsSurveyor || showMigratedHoldingsMySurveys || showInitiateSurvey || showTaxCollectorPage ||
-    showReportPropertyDiscrepancy || showMyDiscrepancyReports || showPropertyDiscrepancyRequests || showResurveyFlags || showCollectionIssues || showSolidWasteApprovals || showTaxCollectorAssignments || showRevertAuditTrail ||
+    showReportPropertyDiscrepancy || showMyDiscrepancyReports || showUnsurveyedHouseEntry || showNoticeReceivingUpload || showUnsurveyedHouses || showNoticeReceivingCopies || showPropertyDiscrepancyRequests || showResurveyFlags || showCollectionIssues || showSolidWasteApprovals || showTaxCollectorAssignments || showRevertAuditTrail ||
     showPropertyWiseReport || showDisputedHoldings || showHoldingImportReview;
 
   const showShopAgreementApprovals = !isTradeLicenseNodal && !isGisOnlyRole && !isNarrowlyScopedRole;
@@ -336,6 +340,46 @@ export default function AdminDashboardPage() {
                   </span>
                   <h3 className="mb-1.5 text-base font-semibold text-slate-900">Report Property Discrepancy</h3>
                   <p className="text-sm text-slate-500">Found something that doesn&apos;t match the records? Submit the corrected details for review.</p>
+                </Link>
+              )}
+
+              {showUnsurveyedHouseEntry && (
+                <Link href="/admin/unsurveyed-house-entry" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <Home className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">House Not in Records</h3>
+                  <p className="text-sm text-slate-500">Record a house that is in neither the holding database nor the MUNG-MIG data - GPS, photo, ward, address, landmark.</p>
+                </Link>
+              )}
+
+              {showNoticeReceivingUpload && (
+                <Link href="/admin/notice-receiving-upload" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <FileText className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Upload Notice Receiving Copy</h3>
+                  <p className="text-sm text-slate-500">Photograph and upload the signed copy of a printed demand notice (up to 2 per notice).</p>
+                </Link>
+              )}
+
+              {showUnsurveyedHouses && (
+                <Link href="/admin/unsurveyed-houses" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <List className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Houses Not Yet Surveyed</h3>
+                  <p className="text-sm text-slate-500">Read-only list of houses found on the ground that are not in the demand register.</p>
+                </Link>
+              )}
+
+              {showNoticeReceivingCopies && (
+                <Link href="/admin/notice-receiving-copies" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <Receipt className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Notice Receiving Copies</h3>
+                  <p className="text-sm text-slate-500">Read-only list of signed demand notice copies uploaded by Tax Collectors.</p>
                 </Link>
               )}
 

@@ -1748,8 +1748,8 @@ export interface PropertyDiscrepancyApproval {
 }
 
 /** The holding photo the Tax Collector attached at submission. */
-export async function fetchDiscrepancyPhotoBlobUrl(id: number): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/admin/property-discrepancy-requests/${id}/photo`, { headers: authHeaders() });
+export async function fetchDiscrepancyPhotoBlobUrl(id: number, kind: "holding" | "receipt" | "aadhaar" = "holding"): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/admin/property-discrepancy-requests/${id}/photo/${kind}`, { headers: authHeaders() });
   if (!res.ok) throw new Error("Could not load this photo.");
   const blob = await res.blob();
   return URL.createObjectURL(blob);

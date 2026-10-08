@@ -151,6 +151,16 @@ import {
   getTradeLicenseStats,
 } from "../controllers/tradeLicenseApplication.controller";
 import { requireAdmin, requireAdminRole } from "../middleware/requireAdmin";
+import {
+  searchMigratedHoldingsHandler,
+  createUnsurveyedHouseHandler,
+  listUnsurveyedHousesHandler,
+  getUnsurveyedHousePhotoHandler,
+  listNoticesForReceivingHandler,
+  uploadReceivingCopyHandler,
+  listReceivingCopiesHandler,
+  getReceivingCopyPhotoHandler,
+} from "../controllers/collectorField.controller";
 import { listDisputedHandler, getDisputeStatusHandler, flagDisputedHandler, clearDisputedHandler } from "../controllers/propertyDispute.controller";
 import { getStreetlightReportHandler } from "../controllers/streetlightReport.controller";
 import {
@@ -395,6 +405,18 @@ adminRouter.get("/tax-collectors-with-assignment", requireAdminRole("commissione
 adminRouter.get("/city-managers", requireAdminRole("commissioner"), listCityManagersHandler);
 adminRouter.post("/tax-collectors/:username/assign-city-manager", requireAdminRole("commissioner"), assignCityManagerHandler);
 adminRouter.post("/tax-collectors/:username/wards", requireAdminRole("commissioner"), setTaxCollectorWardsHandler);
+// Tax Collector field work (see migration 113 and collectorField.controller.ts): find a house in the MUNG-MIG- data,
+// record a house found in neither database, and upload the signed receiving copy of a printed demand notice.
+// Viewing is read-only; receiving copies can never be changed or removed.
+const requireFieldViewRole = requireAdminRole("tax_collector", "tax_daroga", "city_manager", "deputy_commissioner", "commissioner");
+adminRouter.get("/migrated-holdings/search", requireAdminRole("tax_collector"), searchMigratedHoldingsHandler);
+adminRouter.post("/unsurveyed-houses", requireAdminRole("tax_collector"), createUnsurveyedHouseHandler);
+adminRouter.get("/unsurveyed-houses", requireFieldViewRole, listUnsurveyedHousesHandler);
+adminRouter.get("/unsurveyed-houses/:id/photo", requireFieldViewRole, getUnsurveyedHousePhotoHandler);
+adminRouter.get("/receiving-copies/notices/:holdingNo", requireAdminRole("tax_collector"), listNoticesForReceivingHandler);
+adminRouter.post("/receiving-copies/notices/:demandNo", requireAdminRole("tax_collector"), uploadReceivingCopyHandler);
+adminRouter.get("/receiving-copies", requireFieldViewRole, listReceivingCopiesHandler);
+adminRouter.get("/receiving-copies/:id/photo", requireFieldViewRole, getReceivingCopyPhotoHandler);
 adminRouter.post("/migrated-holdings/:holdingNo/assign", assignToSurveyorHandler);
 adminRouter.get("/migrated-holdings/my-assignments", listMyAssignmentsHandler);
 adminRouter.post("/migrated-holdings/:holdingNo/assign-surveyor", assignToTaxSurveyorHandler);
