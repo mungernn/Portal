@@ -21,10 +21,17 @@ import {
 } from "../controllers/demandNotice.controller";
 import { postPreviewTax } from "../controllers/taxPreview.controller";
 import { postRequestCancellation } from "../controllers/cancellationRequest.controller";
+import { collectorHoldingParam, collectorDemandNoticeParam, collectorReceiptParam } from "../middleware/collectorWardGuard";
 import { requireOperator } from "../middleware/requireOperator";
 import { requireOperatorOrAdmin } from "../middleware/requireOperatorOrAdmin";
 
 export const propertyRouter = Router();
+
+// A Tax Collector can only reach holdings (and their demand notices and
+// receipts) in the wards assigned to them.
+propertyRouter.param("holdingNo", collectorHoldingParam);
+propertyRouter.param("demandNo", collectorDemandNoticeParam);
+propertyRouter.param("receiptNo", collectorReceiptParam);
 
 // GET /api/v1/properties/next-holding-no?mode=new|partiallyKnown — MUST
 // come before GET /:holdingNo below, or Express would treat

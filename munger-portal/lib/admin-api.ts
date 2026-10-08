@@ -1008,6 +1008,10 @@ export async function fetchPropertyForCollector(holdingNo: string): Promise<TaxC
     const body = await res.json().catch(() => ({}));
     return { found: false, message: body.error || "No matching holding found." };
   }
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "This holding is not in a ward assigned to you.");
+  }
   if (!res.ok) throw new Error("Could not load this holding.");
   return res.json();
 }

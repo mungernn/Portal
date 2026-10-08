@@ -1,3 +1,4 @@
+import { collectorHoldingParam, collectorDemandNoticeParam } from "../middleware/collectorWardGuard";
 import { Router } from "express";
 import { listOperators, setOperatorActive } from "../controllers/adminOperators.controller";
 import {
@@ -431,6 +432,8 @@ adminRouter.get("/migrated-holdings/search", requireAdminRole("tax_collector"), 
 adminRouter.post("/unsurveyed-houses", requireAdminRole("tax_collector"), createUnsurveyedHouseHandler);
 adminRouter.get("/unsurveyed-houses", requireFieldViewRole, listUnsurveyedHousesHandler);
 adminRouter.get("/unsurveyed-houses/:id/photo", requireFieldViewRole, getUnsurveyedHousePhotoHandler);
+adminRouter.param("holdingNo", collectorHoldingParam);
+adminRouter.param("demandNo", collectorDemandNoticeParam);
 adminRouter.get("/receiving-copies/notices/:holdingNo", requireAdminRole("tax_collector"), listNoticesForReceivingHandler);
 adminRouter.post("/receiving-copies/notices/:demandNo", requireAdminRole("tax_collector"), uploadReceivingCopyHandler);
 adminRouter.get("/receiving-copies", requireFieldViewRole, listReceivingCopiesHandler);

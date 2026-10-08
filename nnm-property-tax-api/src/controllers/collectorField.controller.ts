@@ -5,6 +5,7 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { holdingNoSchema } from "../utils/holdingNoSchema";
 import { MIGRATED_HOLDING_NO_PREFIX } from "../constants/taxRates";
+import { collectorWardScope, wardAllowed } from "../middleware/collectorWardGuard";
 import { collectorFieldRepository } from "../repositories/collectorField.repository";
 import { addReceivingCopy, recordUnsurveyedHouse, resolvePhotoFile } from "../services/collectorField.service";
 
@@ -32,9 +33,16 @@ export const searchMigratedHoldingsHandler = asyncHandler(async (req: Request, r
   const like = `%${parsed.data.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const params: unknown[] = [`${MIGRATED_HOLDING_NO_PREFIX}%`, like];
   let wardClause = "";
+  // A collector only sees MIG records in their own wards; any ward filter they
+  // type is narrowed to those wards.
+  const scope = (await collectorWardScope(req.admin)) ?? [];
   if (parsed.data.ward) {
+    if (!wardAllowed(scope, parsed.data.ward)) throw new ApiError(403, "That ward is not assigned to you.");
     params.push(parsed.data.ward);
     wardClause = `AND p.ward = $${params.length}`;
+  } else {
+    params.push(scope);
+    wardClause = `AND p.ward = ANY($${params.length}::text[])`;
   }
   const { rows } = await pool.query(
     `SELECT p.holding_no, p.old_holding_no, p.owner_name, p.address, p.ward, s.status AS survey_status,
@@ -74,6 +82,8 @@ const unsurveyedHouseSchema = z.object({
 export const createUnsurveyedHouseHandler = asyncHandler(async (req: Request, res: Response) => {
   const parsed = unsurveyedHouseSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid input", parsed.error.flatten().fieldErrors);
+  const scope = (await collectorWardScope(req.admin)) ?? [];
+  if (!wardAllowed(scope, parsed.data.ward)) throw new ApiError(403, "You can only record houses in the wards assigned to you.");
   const row = await recordUnsurveyedHouse(parsed.data, req.admin!);
   res.status(201).json({ house: row });
 });
