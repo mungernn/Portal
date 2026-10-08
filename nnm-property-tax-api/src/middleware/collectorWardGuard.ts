@@ -32,7 +32,30 @@ export async function assertCollectorMayAccessHolding(admin: { role: string; use
   if (scope === null) return;
   const { rows } = await pool.query<{ ward: string | null }>(`SELECT ward FROM properties WHERE holding_no = $1`, [holdingNo]);
   if (rows.length === 0) return;
-  if (!wardAllowed(scope, rows[0]?.ward)) throw new ApiError(403, NOT_YOUR_WARD);
+  if (!wardAllowed(scope, rows[0]?.ward)) throw await notYourWardError(rows[0]?.ward);
+}
+
+/**
+ * The refusal tells the collector (and the taxpayer standing in front of
+ * them) which ward the holding is in and who the Tax Collector(s) of that
+ * ward are, so the taxpayer can be pointed to the right person.
+ */
+async function notYourWardError(ward: string | null | undefined): Promise<ApiError> {
+  const wardNo = (ward ?? "").trim();
+  if (wardNo === "") return new ApiError(403, `${NOT_YOUR_WARD} No ward is recorded for this holding.`, { ward: null, collectors: [] });
+  const { rows } = await pool.query<{ display_name: string; tax_collector_code: string | null }>(
+    `SELECT a.display_name, a.tax_collector_code
+       FROM tax_collector_login_wards w
+       JOIN admins a ON a.username = w.tax_collector_username
+      WHERE w.ward = $1 AND a.role = 'tax_collector' AND a.active
+      ORDER BY a.display_name`,
+    [wardNo],
+  );
+  const collectors = rows.map((r) => ({ name: r.display_name, code: r.tax_collector_code }));
+  const who = collectors.length > 0
+    ? `Tax Collector for Ward ${wardNo}: ${collectors.map((c) => (c.code ? `${c.name} (${c.code})` : c.name)).join(", ")}.`
+    : `No Tax Collector is assigned to Ward ${wardNo} yet.`;
+  return new ApiError(403, `This holding is in Ward ${wardNo}, not in a ward assigned to you. ${who}`, { ward: wardNo, collectors });
 }
 
 /** Reads the caller from the bearer token without failing - the route's own auth middleware still decides whether the request is allowed at all. */
