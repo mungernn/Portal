@@ -125,9 +125,11 @@ let rebatePct = 0;
   // notice discussion this was corrected from (a 196 sqft hut on a 5444
   // sqft plot was incorrectly getting a 100% exemption that also wiped
   // out its vacant-land tax, under the old built-area-only check).
-  if (totalBuiltArea > 0 && totalPlotArea < PLINTH_AREA_REBATE_THRESHOLD) {
+  // The relief is given ONLY to holdings in a slum area; a non-slum
+  // holding below 250 sqft pays full tax.
+  if (property.is_slum && totalBuiltArea > 0 && totalPlotArea < PLINTH_AREA_REBATE_THRESHOLD) {
     rebatePct = PLINTH_AREA_REBATE_PCT;
-    rebateReason.push("Total plot area < 250 sqft (100% exempt)");
+    rebateReason.push("Slum area holding with total plot area < 250 sqft (100% exempt)");
   } else if (property.rain_water_harvesting) {
     rebatePct += RAIN_WATER_REBATE_PCT;
     rebateReason.push("Rain water harvesting (5%)");

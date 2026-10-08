@@ -33,6 +33,8 @@ export interface PropertyRow {
   solid_waste_charge: string;
   /** Registered as a Bulk Waste Generator (SPCB) - solid waste user charge is not levied (migration 098). */
   is_bwg: boolean;
+  /** Holding is in a slum area (migration 115). The below-250-sqft relief applies only to slum holdings. */
+  is_slum: boolean;
   penal_charge: string;
   water_charge: string;
   boring_charge: string;

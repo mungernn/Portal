@@ -65,6 +65,7 @@ const DETAIL_FIELDS: [string, string][] = [
   ["rain_water_harvesting", "Rain water harvesting"],
   ["solar_rooftop", "Solar rooftop"],
   ["is_bwg", "Bulk waste generator"],
+  ["is_slum", "Slum area holding"],
   ["latitude", "Latitude"],
   ["longitude", "Longitude"],
 ];

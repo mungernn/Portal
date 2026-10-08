@@ -8,5 +8,6 @@ export interface TaxPreviewInput {
   solidWasteChargeType?: string | null;
   solidWasteMonths?: number;
   isBwg?: boolean;
+  isSlum?: boolean;
   floors: FloorInput[];
 }

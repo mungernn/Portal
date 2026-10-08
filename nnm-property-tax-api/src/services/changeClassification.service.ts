@@ -64,7 +64,11 @@ export function classifyPropertyChange(
       );
     });
 
-  if (areaChanged || floorsStructurallyChanged) {
+  // Marking a holding as slum / non-slum switches the below-250-sqft relief on or
+  // off, so it changes the tax materially.
+  const slumChanged = Boolean(input.isSlum ?? existingProperty.is_slum) !== Boolean(existingProperty.is_slum);
+
+  if (areaChanged || floorsStructurallyChanged || slumChanged) {
     return "significant";
   }
 

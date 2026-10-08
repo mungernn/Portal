@@ -151,6 +151,7 @@ export default function PropertyWiseReportDetailPage() {
                 <div><dt className="text-xs text-slate-400">Assessment Year</dt><dd>{str(p.assessment_year)}</dd></div>
                 <div><dt className="text-xs text-slate-400">Rain Water Harvesting</dt><dd>{p.rain_water_harvesting ? "Yes" : "No"}</dd></div>
                 <div><dt className="text-xs text-slate-400">Solar Rooftop</dt><dd>{p.solar_rooftop ? "Yes" : "No"}</dd></div>
+                <div><dt className="text-xs text-slate-400">Slum Area</dt><dd>{p.is_slum ? "Yes" : "No"}</dd></div>
               </dl>
 
               {report.floors && report.floors.length > 0 && (

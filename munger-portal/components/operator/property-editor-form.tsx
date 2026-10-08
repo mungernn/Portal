@@ -28,6 +28,7 @@ interface MasterFormState {
   solidWasteChargeType: string;
   solidWasteMonths: string;
   isBwg: boolean;
+  isSlum: boolean;
   holdingCreationYear: string;
   taxPaidTillYear: string;
   miscCost: string;
@@ -67,6 +68,7 @@ function blankMaster(defaultFinancialYear: string): MasterFormState {
     solidWasteChargeType: "",
     solidWasteMonths: "12",
     isBwg: false,
+    isSlum: false,
     holdingCreationYear: defaultFinancialYear,
     taxPaidTillYear: "",
     miscCost: "",
@@ -157,6 +159,7 @@ export function PropertyEditorForm({
         solidWasteChargeType: master.solidWasteChargeType || null,
         solidWasteMonths: Number(master.solidWasteMonths) || 12,
         isBwg: master.isBwg,
+        isSlum: master.isSlum,
         floors: floors.map((f) => ({
           floorLabel: f.floorLabel,
           buildupSqft: Number(f.buildupSqft) || 0,
@@ -204,6 +207,7 @@ export function PropertyEditorForm({
         solidWasteChargeType: master.solidWasteChargeType || null,
         solidWasteMonths: Number(master.solidWasteMonths) || 12,
         isBwg: master.isBwg,
+        isSlum: master.isSlum,
         holdingCreationYear: master.holdingCreationYear,
         taxPaidTillYear: master.taxPaidTillYear || null,
         miscCost: Number(master.miscCost) || 0,
@@ -644,6 +648,20 @@ export function PropertyEditorForm({
               Registered as a Bulk Waste Generator (BWG) on the SPCB website
               <span className="block text-xs text-slate-400">
                 The owner manages their own waste, so no solid waste user charge is added to the amount payable.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-slate-700 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={master.isSlum}
+              onChange={(e) => updateMaster("isSlum", e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-slate-300"
+            />
+            <span>
+              Holding is in a slum area
+              <span className="block text-xs text-slate-400">
+                The 100% tax relief for holdings below 250 sq ft is given only to slum-area holdings. Leave unchecked for all others.
               </span>
             </span>
           </label>
