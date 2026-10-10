@@ -1,3 +1,4 @@
+import { normalizeWard } from "../utils/ward";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { pool } from "../config/db";
@@ -16,7 +17,7 @@ const VIEW_ALL_ROLES = ["tax_daroga", "city_manager", "deputy_commissioner", "co
 // Houses found in the MUNG-MIG- data
 // ---------------------------------------------------------------------------
 
-const migSearchSchema = z.object({ q: z.string().trim().min(3, "Type at least 3 letters.").max(100), ward: z.string().trim().max(16).optional() });
+const migSearchSchema = z.object({ q: z.string().trim().min(3, "Type at least 3 letters.").max(100), ward: z.string().trim().max(16).transform(normalizeWard).optional() });
 
 /**
  * GET /api/v1/admin/migrated-holdings/search?q=&ward= - Tax Collector.
@@ -65,7 +66,7 @@ export const searchMigratedHoldingsHandler = asyncHandler(async (req: Request, r
 // ---------------------------------------------------------------------------
 
 const unsurveyedHouseSchema = z.object({
-  ward: z.string().trim().min(1, "Ward is required.").max(16),
+  ward: z.string().trim().min(1, "Ward is required.").max(16).transform(normalizeWard),
   locality: z.string().trim().min(2, "Locality is required.").max(255),
   address: z.string().trim().min(3, "Address is required.").max(1000),
   houseNo: z.string().trim().max(64).optional(),
@@ -91,7 +92,7 @@ export const createUnsurveyedHouseHandler = asyncHandler(async (req: Request, re
 /** GET /api/v1/admin/unsurveyed-houses - read-only. Tax Daroga, City Manager, DMC, Commissioner see all; a Tax Collector sees only their own entries. */
 export const listUnsurveyedHousesHandler = asyncHandler(async (req: Request, res: Response) => {
   const admin = req.admin!;
-  const ward = typeof req.query.ward === "string" && req.query.ward.trim() ? req.query.ward.trim() : undefined;
+  const ward = typeof req.query.ward === "string" && req.query.ward.trim() ? normalizeWard(req.query.ward) : undefined;
   const houses = await collectorFieldRepository.listUnsurveyedHouses({
     ward,
     recordedBy: VIEW_ALL_ROLES.includes(admin.role) ? undefined : admin.username,

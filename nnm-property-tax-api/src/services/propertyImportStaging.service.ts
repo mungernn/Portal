@@ -1,3 +1,4 @@
+import { normalizeWard } from "../utils/ward";
 import ExcelJS from "exceljs";
 import { pool } from "../config/db";
 import { ApiError } from "../utils/ApiError";
@@ -236,7 +237,7 @@ export async function listStagedHoldings(batchId: number, f: StagedListFilter) {
   else if (f.issues === "clean") where.push("jsonb_array_length(issues) = 0");
   if (f.review === "reviewed") where.push("reviewed_at IS NOT NULL");
   else if (f.review === "unreviewed") where.push("reviewed_at IS NULL");
-  if (f.ward) { params.push(f.ward); where.push(`ward = $${params.length}`); }
+  if (f.ward) { params.push(normalizeWard(f.ward)); where.push(`ward = $${params.length}`); }
   if (f.search) { params.push(`%${f.search.replace(/[%_]/g, "")}%`); where.push(`(holding_no ILIKE $${params.length} OR owner_name ILIKE $${params.length})`); }
   const w = where.join(" AND ");
   const total = Number((await pool.query(`SELECT COUNT(*) AS n FROM property_import_staging WHERE ${w}`, params)).rows[0].n);

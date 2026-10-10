@@ -1,3 +1,4 @@
+import { normalizeWard } from "../utils/ward";
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { pool } from "../config/db";
@@ -20,8 +21,8 @@ export async function collectorWardScope(admin: { role: string; username: string
 }
 
 export function wardAllowed(scope: string[], ward: string | null | undefined): boolean {
-  const w = (ward ?? "").trim();
-  return w !== "" && scope.includes(w);
+  const w = normalizeWard(ward);
+  return w !== "" && scope.map(normalizeWard).includes(w);
 }
 
 const NOT_YOUR_WARD = "This holding is not in a ward assigned to you.";

@@ -1,3 +1,4 @@
+import { normalizeWard } from "../utils/ward";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExcelJS from "exceljs";
@@ -22,7 +23,7 @@ const reportQuerySchema = z.object({
   period: z.enum(["daily", "weekly", "monthly", "annual"]).default("daily"),
   from: dateString.optional(),
   to: dateString.optional(),
-  ward: z.string().trim().max(16).optional(),
+  ward: z.string().trim().max(16).transform((w) => (w === "(no ward)" ? w : normalizeWard(w))).optional(),
   collector: z.string().trim().max(100).optional(),
 });
 
@@ -107,7 +108,7 @@ export const listAgencyWardsHandler = asyncHandler(async (_req: Request, res: Re
 
 /** GET /api/v1/admin/agency/wards/:ward/holdings - the pending holding numbers in a ward. */
 export const listAgencyWardHoldingsHandler = asyncHandler(async (req: Request, res: Response) => {
-  const ward = z.string().trim().min(1).max(16).safeParse(req.params.ward);
+  const ward = z.string().trim().min(1).max(16).transform((w) => (w === "(no ward)" ? w : normalizeWard(w))).safeParse(req.params.ward);
   if (!ward.success) throw ApiError.badRequest("Invalid ward");
   res.status(200).json({ holdingNos: await listPendingHoldingNos(ward.data) });
 });
