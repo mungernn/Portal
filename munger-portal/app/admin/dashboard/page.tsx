@@ -99,7 +99,7 @@ export default function AdminDashboardPage() {
   const showTaxCollectorPage = admin.role === "tax_collector";
   const showReportPropertyDiscrepancy = admin.role === "tax_collector";
   const showMyDiscrepancyReports = admin.role === "tax_collector";
-  const showAgencyReports = ["agency_project_manager", "commissioner", "deputy_commissioner", "city_manager"].includes(admin.role);
+  const showAgencyReports = ["agency_project_manager", "commissioner", "deputy_commissioner", "city_manager", "tax_daroga", "tax_collector"].includes(admin.role);
   const showAgencyNotices = admin.role === "agency_team_leader";
   const showUnsurveyedHouseEntry = admin.role === "tax_collector";
   const showNoticeReceivingUpload = admin.role === "tax_collector";

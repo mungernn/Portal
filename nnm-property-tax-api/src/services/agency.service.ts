@@ -16,6 +16,8 @@ export interface ReportFilters {
   ward?: string;
   /** Tax Collector login username. */
   collector?: string;
+  /** When set, the report covers only these wards (a Tax Collector sees just their assigned wards). */
+  wardScope?: string[];
 }
 
 interface Tally {
@@ -99,6 +101,10 @@ async function runDataset(cfg: DatasetConfig, f: ReportFilters, allWards: string
     params.push(f.ward);
     filterSql += ` AND ${cfg.ward} = $${params.length}`;
   }
+  if (f.wardScope) {
+    params.push(f.wardScope);
+    filterSql += ` AND ${cfg.ward} = ANY($${params.length}::text[])`;
+  }
   if (f.collector) {
     if (!cfg.collUser) {
       // A collector filter makes no sense for a dataset without that dimension.
@@ -171,17 +177,26 @@ async function runDataset(cfg: DatasetConfig, f: ReportFilters, allWards: string
   };
 }
 
-export async function listReportFilterOptions(): Promise<{ wards: string[]; collectors: { username: string; name: string; code: string | null }[] }> {
+export async function listReportFilterOptions(wardScope?: string[]): Promise<{ wards: string[]; collectors: { username: string; name: string; code: string | null }[] }> {
   const [w, c] = await Promise.all([
     pool.query<{ ward: string }>(`SELECT DISTINCT btrim(ward) AS ward FROM properties WHERE ward IS NOT NULL AND btrim(ward) <> ''`),
     pool.query<{ username: string; display_name: string; tax_collector_code: string | null }>(
       `SELECT username, display_name, tax_collector_code FROM admins WHERE role = 'tax_collector' AND active = TRUE ORDER BY display_name`,
     ),
   ]);
-  return {
-    wards: w.rows.map((r) => r.ward).sort(compareWards),
-    collectors: c.rows.map((r) => ({ username: r.username, name: r.display_name, code: r.tax_collector_code })),
-  };
+  let wards = w.rows.map((r) => r.ward);
+  let collectors = c.rows.map((r) => ({ username: r.username, name: r.display_name, code: r.tax_collector_code }));
+  if (wardScope) {
+    // Only the viewer's own wards, and only the collectors who work in them.
+    wards = wards.filter((x) => wardScope.includes(x));
+    const { rows } = await pool.query<{ tax_collector_username: string }>(
+      `SELECT DISTINCT tax_collector_username FROM tax_collector_login_wards WHERE ward = ANY($1::text[])`,
+      [wardScope],
+    );
+    const inScope = new Set(rows.map((r) => r.tax_collector_username));
+    collectors = collectors.filter((x) => inScope.has(x.username));
+  }
+  return { wards: wards.sort(compareWards), collectors };
 }
 
 export interface AgencyReport {
@@ -201,7 +216,7 @@ export interface AgencyReport {
 }
 
 export async function buildAgencyReport(f: ReportFilters): Promise<AgencyReport> {
-  const { wards, collectors } = await listReportFilterOptions();
+  const { wards, collectors } = await listReportFilterOptions(f.wardScope);
   const collList = collectors.map((c) => ({ username: c.username, name: c.name }));
 
   const configs: Record<string, DatasetConfig> = {

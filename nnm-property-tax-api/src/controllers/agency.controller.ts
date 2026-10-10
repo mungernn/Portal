@@ -1,4 +1,5 @@
 import { normalizeWard } from "../utils/ward";
+import { collectorWardScope, wardAllowed } from "../middleware/collectorWardGuard";
 import type { Request, Response } from "express";
 import { z } from "zod";
 import ExcelJS from "exceljs";
@@ -27,7 +28,7 @@ const reportQuerySchema = z.object({
   collector: z.string().trim().max(100).optional(),
 });
 
-function parseFilters(query: unknown): ReportFilters {
+async function parseFilters(query: unknown, admin: { role: string; username: string } | undefined): Promise<ReportFilters> {
   const parsed = reportQuerySchema.safeParse(query);
   if (!parsed.success) throw ApiError.badRequest(parsed.error.issues[0]?.message ?? "Invalid filters", parsed.error.flatten().fieldErrors);
   const d = parsed.data;
@@ -37,17 +38,20 @@ function parseFilters(query: unknown): ReportFilters {
   if (from > to) throw ApiError.badRequest("'From' date is after 'To' date.");
   // Guard the database: at most ~6 years in one report.
   if ((Date.parse(to) - Date.parse(from)) / 86400000 > 366 * 6) throw ApiError.badRequest("Choose a range of 6 years or less.");
-  return { period: d.period, from, to, ward: d.ward || undefined, collector: d.collector || undefined };
+  // A Tax Collector's report covers only the wards assigned to them.
+  const wardScope = (await collectorWardScope(admin)) ?? undefined;
+  if (wardScope && d.ward && !wardAllowed(wardScope, d.ward)) throw new ApiError(403, "That ward is not assigned to you.");
+  return { period: d.period, from, to, ward: d.ward || undefined, collector: d.collector || undefined, wardScope };
 }
 
 /** GET /api/v1/admin/agency/report-filters - the ward and Tax Collector choices for the report filters. */
-export const getReportFilterOptionsHandler = asyncHandler(async (_req: Request, res: Response) => {
-  res.status(200).json(await listReportFilterOptions());
+export const getReportFilterOptionsHandler = asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json(await listReportFilterOptions((await collectorWardScope(req.admin)) ?? undefined));
 });
 
 /** GET /api/v1/admin/agency/reports - Agency Project Manager (and senior officers). Everything is bucketed in Indian time; the year is the April-March financial year. */
 export const getAgencyReportHandler = asyncHandler(async (req: Request, res: Response) => {
-  res.status(200).json(await buildAgencyReport(parseFilters(req.query)));
+  res.status(200).json(await buildAgencyReport(await parseFilters(req.query, req.admin)));
 });
 
 function datasetRows(name: string, d: DatasetReport, labels: { count: string; amount?: string; count2?: string }) {
@@ -66,7 +70,7 @@ function datasetRows(name: string, d: DatasetReport, labels: { count: string; am
 
 /** GET /api/v1/admin/agency/reports/export - the same report as an Excel workbook. */
 export const exportAgencyReportHandler = asyncHandler(async (req: Request, res: Response) => {
-  const filters = parseFilters(req.query);
+  const filters = await parseFilters(req.query, req.admin);
   const report: AgencyReport = await buildAgencyReport(filters);
 
   const workbook = new ExcelJS.Workbook();
