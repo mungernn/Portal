@@ -28,7 +28,7 @@ const staffIdParamSchema = z.object({ staffId: z.coerce.number().int().positive(
 export const postMarkStaffIn = asyncHandler(async (req: Request, res: Response) => {
   const parsed = staffIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid staff id");
-  const record = await guardManualMark(req.attendanceUser!, parsed.data.staffId, "in", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
+  const record = await guardManualMark(req.attendanceUser!, { type: "staff", id: parsed.data.staffId }, "in", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markStaffIn(req.attendanceUser!, parsed.data.staffId);
   await record();
   res.status(200).json({ success: true, ...result });
@@ -48,7 +48,7 @@ export const postMarkStaffAbsent = asyncHandler(async (req: Request, res: Respon
 export const postMarkStaffOut = asyncHandler(async (req: Request, res: Response) => {
   const parsed = staffIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid staff id");
-  const record = await guardManualMark(req.attendanceUser!, parsed.data.staffId, "out", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
+  const record = await guardManualMark(req.attendanceUser!, { type: "staff", id: parsed.data.staffId }, "out", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markStaffOut(req.attendanceUser!, parsed.data.staffId);
   await record();
   res.status(200).json({ success: true, ...result });

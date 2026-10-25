@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, LogIn, LogOut, UserX, Truck } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, LogOut, UserX, Truck, ScanFace } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
+import { FaceCaptureDialog } from "@/components/attendance/face-capture-dialog";
+import { fetchFaceConfig } from "@/lib/face-attendance-api";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { fetchWardAssistantsToday, markAssistantIn, markAssistantAbsent, markAssistantOut, type WardAssistantToday } from "@/lib/attendance-api";
 
@@ -30,6 +32,9 @@ export default function DriverSupervisorAssistantAttendancePage() {
   const [assistants, setAssistants] = useState<WardAssistantToday[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  // Face attendance: enrolled workers are marked through the camera (face match + head-turn liveness).
+  const [faceEnabled, setFaceEnabled] = useState(false);
+  const [faceFor, setFaceFor] = useState<{ row: WardAssistantToday; purpose: "in" | "out" } | null>(null);
 
   async function loadAssistants() {
     if (!user?.wardId) return;
@@ -44,11 +49,17 @@ export default function DriverSupervisorAssistantAttendancePage() {
   useEffect(() => {
     if (!user) return;
     loadAssistants();
+    fetchFaceConfig().then((c) => setFaceEnabled(c.enabled));
     // user is stable after the guard resolves - intentionally not re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   async function handleMarkIn(assistantId: number) {
+    const fw = assistants?.find((x) => x.assistantId === assistantId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ row: fw, purpose: "in" });
+      return;
+    }
     setActingId(assistantId);
     setError(null);
     try {
@@ -75,6 +86,11 @@ export default function DriverSupervisorAssistantAttendancePage() {
   }
 
   async function handleMarkOut(assistantId: number) {
+    const fw = assistants?.find((x) => x.assistantId === assistantId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ row: fw, purpose: "out" });
+      return;
+    }
     setActingId(assistantId);
     setError(null);
     try {
@@ -127,6 +143,11 @@ export default function DriverSupervisorAssistantAttendancePage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">{a.name}</span>
                     {statusBadge(a.status)}
+                    {faceEnabled && a.faceEnrolled && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-nnm-blue">
+                        <ScanFace className="h-3 w-3" /> Face
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
                     {a.shiftName ?? "No shift assigned"}
@@ -180,6 +201,26 @@ export default function DriverSupervisorAssistantAttendancePage() {
           </div>
         )}
       </main>
+
+      {faceFor && (
+        <FaceCaptureDialog
+          person={{ type: "assistant", id: faceFor.row.assistantId }}
+          staffName={faceFor.row.name}
+          purpose={faceFor.purpose}
+          onClose={() => {
+            setFaceFor(null);
+            void loadAssistants();
+          }}
+          onDone={() => {
+            setFaceFor(null);
+            void loadAssistants();
+          }}
+          onManual={async (reason) => {
+            if (faceFor.purpose === "in") await markAssistantIn(faceFor.row.assistantId, reason);
+            else await markAssistantOut(faceFor.row.assistantId, reason);
+          }}
+        />
+      )}
     </div>
   );
 }

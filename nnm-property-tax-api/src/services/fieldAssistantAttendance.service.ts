@@ -7,6 +7,7 @@ import { assetRepository } from "../repositories/asset.repository";
 import { istDateString, istTimeString, istShiftStartToday } from "../utils/istDate";
 import { isTotoLabel } from "../utils/totoVehicle";
 import { ApiError } from "../utils/ApiError";
+import { enrolledIds } from "./faceAttendance.service";
 import type { AttendanceTokenPayload } from "../types/attendance.types";
 
 export type AssistantWardFilter = "all" | "excludeToto" | "totoOnly";
@@ -20,6 +21,8 @@ export interface WardAssistantToday {
   inTime: string | null;
   outTime: string | null;
   status: string | null;
+  /** Face enrolled - with face attendance on, Mark In/Out goes through the camera. */
+  faceEnrolled: boolean;
 }
 
 export async function getWardAssistantsToday(wardId: number, filter: AssistantWardFilter = "all"): Promise<WardAssistantToday[]> {
@@ -35,6 +38,7 @@ export async function getWardAssistantsToday(wardId: number, filter: AssistantWa
 
   const shifts = await attendanceShiftRepository.listAll();
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
+  const enrolled = await enrolledIds("assistant", wardId);
 
   return assistants.map((a) => {
     const rec = byAssistantId.get(a.id);
@@ -48,6 +52,7 @@ export async function getWardAssistantsToday(wardId: number, filter: AssistantWa
       inTime: rec?.in_time ? istTimeString(rec.in_time) : null,
       outTime: rec?.out_time ? istTimeString(rec.out_time) : null,
       status: rec?.status ?? null,
+      faceEnrolled: enrolled.has(Number(a.id)),
     };
   });
 }
@@ -66,7 +71,7 @@ async function isAssistantToto(assistant: FieldAssistantRow): Promise<boolean> {
  * other assistant stays with the driver_supervisor. attendance_admin is
  * unrestricted, matching the pre-existing behavior for that role.
  */
-async function assertWardAccess(user: AttendanceTokenPayload, assistant: FieldAssistantRow): Promise<void> {
+export async function assertWardAccess(user: AttendanceTokenPayload, assistant: FieldAssistantRow): Promise<void> {
   if (user.role === "attendance_admin") return;
 
   const toto = await isAssistantToto(assistant);

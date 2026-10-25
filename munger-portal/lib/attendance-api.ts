@@ -162,6 +162,8 @@ export interface WardDriverToday {
   inTime: string | null;
   outTime: string | null;
   status: string | null;
+  /** Face enrolled - with face attendance on, Mark In/Out goes through the camera (see face-capture-dialog). */
+  faceEnrolled?: boolean;
 }
 
 export async function fetchWardDriversToday(wardId: number): Promise<WardDriverToday[]> {
@@ -171,10 +173,11 @@ export async function fetchWardDriversToday(wardId: number): Promise<WardDriverT
   return data.drivers;
 }
 
-export async function markDriverIn(driverId: number): Promise<{ inTime: string; status: string }> {
+export async function markDriverIn(driverId: number, overrideReason?: string): Promise<{ inTime: string; status: string }> {
   const res = await fetch(`${API_BASE_URL}/attendance/drivers/${driverId}/mark-in`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(overrideReason ? { overrideReason } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -196,10 +199,11 @@ export async function markDriverAbsent(driverId: number, informed: boolean): Pro
   return res.json();
 }
 
-export async function markDriverOut(driverId: number): Promise<{ outTime: string }> {
+export async function markDriverOut(driverId: number, overrideReason?: string): Promise<{ outTime: string }> {
   const res = await fetch(`${API_BASE_URL}/attendance/drivers/${driverId}/mark-out`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(overrideReason ? { overrideReason } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -221,6 +225,8 @@ export interface WardAssistantToday {
   inTime: string | null;
   outTime: string | null;
   status: string | null;
+  /** Face enrolled - with face attendance on, Mark In/Out goes through the camera (see face-capture-dialog). */
+  faceEnrolled?: boolean;
 }
 
 export async function fetchWardAssistantsToday(wardId: number): Promise<WardAssistantToday[]> {
@@ -230,10 +236,11 @@ export async function fetchWardAssistantsToday(wardId: number): Promise<WardAssi
   return data.assistants;
 }
 
-export async function markAssistantIn(assistantId: number): Promise<{ inTime: string; status: string }> {
+export async function markAssistantIn(assistantId: number, overrideReason?: string): Promise<{ inTime: string; status: string }> {
   const res = await fetch(`${API_BASE_URL}/attendance/assistants/${assistantId}/mark-in`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(overrideReason ? { overrideReason } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -255,10 +262,11 @@ export async function markAssistantAbsent(assistantId: number, informed: boolean
   return res.json();
 }
 
-export async function markAssistantOut(assistantId: number): Promise<{ outTime: string }> {
+export async function markAssistantOut(assistantId: number, overrideReason?: string): Promise<{ outTime: string }> {
   const res = await fetch(`${API_BASE_URL}/attendance/assistants/${assistantId}/mark-out`, {
     method: "POST",
     headers: authHeaders(),
+    body: JSON.stringify(overrideReason ? { overrideReason } : {}),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

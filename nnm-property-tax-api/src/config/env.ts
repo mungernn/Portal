@@ -55,6 +55,10 @@ const envSchema = z.object({
   FACE_YAW_SIGN: z.coerce.number().int().min(-1).max(1).default(0),
   // Punch photos are deleted after this many days (the attendance record and match scores stay).
   FACE_PHOTO_RETENTION_DAYS: z.coerce.number().int().min(7).default(90),
+  // Enrolment: similarity (0-1) needed between the face on the worker's Aadhaar card photo and the live photo.
+  // Card photos are old and printed, so this is lower than FACE_MATCH_THRESHOLD. Below it the enrolment is
+  // flagged for the APSWMO instead of becoming active.
+  FACE_AADHAAR_MATCH_THRESHOLD: z.coerce.number().min(0).max(1).default(0.7),
 
 });
 

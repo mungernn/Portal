@@ -115,8 +115,11 @@ import {
   getFacePunchPhoto,
   postFaceReview,
   getFaceSummary,
+  getFaceEnrolmentLog,
+  getFaceEnrolmentLogPhotos,
+  postFaceEnrolmentReview,
 } from "../controllers/faceAttendance.controller";
-import { FACE_ENROL_ROLES, FACE_MARK_ROLES, FACE_REVIEW_ROLES } from "../services/faceAttendance.service";
+import { FACE_ENROL_APPROVE_ROLES, FACE_ENROL_ROLES, FACE_MARK_ROLES, FACE_REVIEW_ROLES } from "../services/faceAttendance.service";
 import { loginRateLimiter } from "../middleware/loginRateLimiter";
 
 export const attendanceRouter = Router();
@@ -323,13 +326,20 @@ attendanceRouter.get(
   getAttendanceDashboardSummaryHandler,
 );
 
-// --- Face-verified attendance (Safai field staff). See faceAttendance.service.ts. ---
+// --- Face-verified attendance (Safai staff, drivers, assistants). See faceAttendance.service.ts. ---
 attendanceRouter.get("/face/config", requireAttendanceRole(), getFaceConfig);
 attendanceRouter.post("/face/challenge", requireAttendanceRole([...new Set([...FACE_MARK_ROLES, ...FACE_ENROL_ROLES])]), postFaceChallenge);
 attendanceRouter.post("/face/punch", requireAttendanceRole(FACE_MARK_ROLES), postFacePunch);
 attendanceRouter.post("/face/enrol", requireAttendanceRole(FACE_ENROL_ROLES), postFaceEnrol);
+// Worker given as /:type/:id (staff | driver | assistant); the older /:staffId form still means Safai staff.
+attendanceRouter.delete("/face/enrolment/:type/:id", requireAttendanceRole(FACE_ENROL_ROLES), deleteFaceEnrolment);
+attendanceRouter.get("/face/enrolment/:type/:id/photo", requireAttendanceRole(FACE_REVIEW_ROLES), getFaceEnrolmentPhoto);
 attendanceRouter.delete("/face/enrolment/:staffId", requireAttendanceRole(FACE_ENROL_ROLES), deleteFaceEnrolment);
 attendanceRouter.get("/face/enrolment/:staffId/photo", requireAttendanceRole(FACE_REVIEW_ROLES), getFaceEnrolmentPhoto);
+// Enrolment log (every enrolment ever made, with its Aadhaar check) and APSWMO approval of flagged ones.
+attendanceRouter.get("/face/enrolment-log", requireAttendanceRole(FACE_REVIEW_ROLES), getFaceEnrolmentLog);
+attendanceRouter.get("/face/enrolment-log/:id/photos", requireAttendanceRole(FACE_REVIEW_ROLES), getFaceEnrolmentLogPhotos);
+attendanceRouter.post("/face/enrolment-log/:id/review", requireAttendanceRole(FACE_ENROL_APPROVE_ROLES), postFaceEnrolmentReview);
 attendanceRouter.get("/face/ward/:wardId/enrolments", requireAttendanceRole(FACE_ENROL_ROLES), getWardFaceEnrolments);
 attendanceRouter.get("/face/review", requireAttendanceRole(FACE_REVIEW_ROLES), getFaceReview);
 attendanceRouter.get("/face/review/:id/photo", requireAttendanceRole(FACE_REVIEW_ROLES), getFacePunchPhoto);

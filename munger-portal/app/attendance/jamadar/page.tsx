@@ -28,7 +28,7 @@ import {
 } from "@/lib/attendance-api";
 import { blobToBase64, shrinkPhoto } from "@/lib/upload-limits";
 import { FaceCaptureDialog } from "@/components/attendance/face-capture-dialog";
-import { fetchFaceConfig } from "@/lib/face-attendance-api";
+import { fetchFaceConfig, type FacePerson } from "@/lib/face-attendance-api";
 import { ScanFace } from "lucide-react";
 
 const STRINGS = {
@@ -165,7 +165,7 @@ export default function JamadarAttendancePage() {
   const [actingId, setActingId] = useState<number | null>(null);
   // Face attendance: enrolled workers are marked through the camera (face match + head-turn liveness).
   const [faceEnabled, setFaceEnabled] = useState(false);
-  const [faceFor, setFaceFor] = useState<{ staffId: number; name: string; purpose: "in" | "out" } | null>(null);
+  const [faceFor, setFaceFor] = useState<{ person: FacePerson; name: string; nameHi: string | null; purpose: "in" | "out" } | null>(null);
 
   // Toto vehicle drivers/assistants - marked by the ward Jamadar only (every
   // other vehicle type stays with the Driver Supervisor).
@@ -243,7 +243,7 @@ export default function JamadarAttendancePage() {
   async function handleMarkIn(staffId: number) {
     const fw = needsFace(staffId);
     if (fw) {
-      setFaceFor({ staffId, name: fw.name, purpose: "in" });
+      setFaceFor({ person: { type: "staff", id: staffId }, name: fw.name, nameHi: fw.nameHi, purpose: "in" });
       return;
     }
     setActingId(staffId);
@@ -274,7 +274,7 @@ export default function JamadarAttendancePage() {
   async function handleMarkOut(staffId: number) {
     const fw = needsFace(staffId);
     if (fw) {
-      setFaceFor({ staffId, name: fw.name, purpose: "out" });
+      setFaceFor({ person: { type: "staff", id: staffId }, name: fw.name, nameHi: fw.nameHi, purpose: "out" });
       return;
     }
     setActingId(staffId);
@@ -290,6 +290,11 @@ export default function JamadarAttendancePage() {
   }
 
   async function handleMarkTotoDriverIn(driverId: number) {
+    const fw = totoDrivers?.find((x) => x.driverId === driverId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ person: { type: "driver", id: driverId }, name: fw.name, nameHi: fw.nameHi, purpose: "in" });
+      return;
+    }
     setTotoActingDriverId(driverId);
     setTotoError(null);
     try {
@@ -316,6 +321,11 @@ export default function JamadarAttendancePage() {
   }
 
   async function handleMarkTotoDriverOut(driverId: number) {
+    const fw = totoDrivers?.find((x) => x.driverId === driverId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ person: { type: "driver", id: driverId }, name: fw.name, nameHi: fw.nameHi, purpose: "out" });
+      return;
+    }
     setTotoActingDriverId(driverId);
     setTotoError(null);
     try {
@@ -329,6 +339,11 @@ export default function JamadarAttendancePage() {
   }
 
   async function handleMarkTotoAssistantIn(assistantId: number) {
+    const fw = totoAssistants?.find((x) => x.assistantId === assistantId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ person: { type: "assistant", id: assistantId }, name: fw.name, nameHi: fw.nameHi, purpose: "in" });
+      return;
+    }
     setTotoActingAssistantId(assistantId);
     setTotoError(null);
     try {
@@ -355,6 +370,11 @@ export default function JamadarAttendancePage() {
   }
 
   async function handleMarkTotoAssistantOut(assistantId: number) {
+    const fw = totoAssistants?.find((x) => x.assistantId === assistantId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ person: { type: "assistant", id: assistantId }, name: fw.name, nameHi: fw.nameHi, purpose: "out" });
+      return;
+    }
     setTotoActingAssistantId(assistantId);
     setTotoError(null);
     try {
@@ -617,6 +637,11 @@ export default function JamadarAttendancePage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">{lang === "hi" ? (d.nameHi || transliterateName(d.name)) : d.name}</span>
                     {statusBadge(d.status, lang)}
+                    {faceEnabled && d.faceEnrolled && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-nnm-blue">
+                        <ScanFace className="h-3 w-3" /> {s.faceBadge}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
                     {d.vehicleNumber ?? s.noVehicleNumber}
@@ -688,6 +713,11 @@ export default function JamadarAttendancePage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">{lang === "hi" ? (a.nameHi || transliterateName(a.name)) : a.name}</span>
                     {statusBadge(a.status, lang)}
+                    {faceEnabled && a.faceEnrolled && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-nnm-blue">
+                        <ScanFace className="h-3 w-3" /> {s.faceBadge}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
                     {a.shiftName ?? s.noShift}
@@ -744,20 +774,26 @@ export default function JamadarAttendancePage() {
 
       {faceFor && (
         <FaceCaptureDialog
-          staffId={faceFor.staffId}
-          staffName={lang === "hi" ? (workers?.find((w) => w.staffId === faceFor.staffId)?.nameHi || transliterateName(faceFor.name)) : faceFor.name}
+          person={faceFor.person}
+          staffName={lang === "hi" ? (faceFor.nameHi || transliterateName(faceFor.name)) : faceFor.name}
           purpose={faceFor.purpose}
           onClose={() => {
             setFaceFor(null);
             void loadWorkers();
+            void loadTotoDrivers();
+            void loadTotoAssistants();
           }}
           onDone={() => {
             setFaceFor(null);
             void loadWorkers();
+            void loadTotoDrivers();
+            void loadTotoAssistants();
           }}
           onManual={async (reason) => {
-            if (faceFor.purpose === "in") await markStaffIn(faceFor.staffId, reason);
-            else await markStaffOut(faceFor.staffId, reason);
+            const { person, purpose } = faceFor;
+            if (person.type === "staff") await (purpose === "in" ? markStaffIn(person.id, reason) : markStaffOut(person.id, reason));
+            else if (person.type === "driver") await (purpose === "in" ? markDriverIn(person.id, reason) : markDriverOut(person.id, reason));
+            else await (purpose === "in" ? markAssistantIn(person.id, reason) : markAssistantOut(person.id, reason));
           }}
         />
       )}

@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, LogIn, LogOut, UserX, Users, BookOpen } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, LogOut, UserX, Users, BookOpen, ScanFace } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
+import { FaceCaptureDialog } from "@/components/attendance/face-capture-dialog";
+import { fetchFaceConfig } from "@/lib/face-attendance-api";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { useAttendanceLang, type AttendanceLang } from "@/lib/attendance-i18n";
 import { transliterateName } from "@/lib/hindi-name-transliterate";
@@ -95,6 +97,9 @@ export default function DriverSupervisorAttendancePage() {
   const [drivers, setDrivers] = useState<WardDriverToday[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actingId, setActingId] = useState<number | null>(null);
+  // Face attendance: enrolled workers are marked through the camera (face match + head-turn liveness).
+  const [faceEnabled, setFaceEnabled] = useState(false);
+  const [faceFor, setFaceFor] = useState<{ row: WardDriverToday; purpose: "in" | "out" } | null>(null);
 
   async function loadDrivers() {
     if (!user?.wardId) return;
@@ -109,11 +114,17 @@ export default function DriverSupervisorAttendancePage() {
   useEffect(() => {
     if (!user) return;
     loadDrivers();
+    fetchFaceConfig().then((c) => setFaceEnabled(c.enabled));
     // user is stable after the guard resolves - intentionally not re-running on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   async function handleMarkIn(driverId: number) {
+    const fw = drivers?.find((x) => x.driverId === driverId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ row: fw, purpose: "in" });
+      return;
+    }
     setActingId(driverId);
     setError(null);
     try {
@@ -140,6 +151,11 @@ export default function DriverSupervisorAttendancePage() {
   }
 
   async function handleMarkOut(driverId: number) {
+    const fw = drivers?.find((x) => x.driverId === driverId);
+    if (faceEnabled && fw?.faceEnrolled) {
+      setFaceFor({ row: fw, purpose: "out" });
+      return;
+    }
     setActingId(driverId);
     setError(null);
     try {
@@ -198,6 +214,11 @@ export default function DriverSupervisorAttendancePage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900">{lang === "hi" ? (d.nameHi || transliterateName(d.name)) : d.name}</span>
                     {statusBadge(d.status, lang)}
+                    {faceEnabled && d.faceEnrolled && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-nnm-blue">
+                        <ScanFace className="h-3 w-3" /> {lang === "hi" ? "चेहरा" : "Face"}
+                      </span>
+                    )}
                   </div>
                   <div className="mt-0.5 text-xs text-slate-400">
                     {d.vehicleNumber ?? s.noVehicle}
@@ -253,6 +274,26 @@ export default function DriverSupervisorAttendancePage() {
           </div>
         )}
       </main>
+
+      {faceFor && (
+        <FaceCaptureDialog
+          person={{ type: "driver", id: faceFor.row.driverId }}
+          staffName={(lang === "hi" ? (faceFor.row.nameHi || transliterateName(faceFor.row.name)) : faceFor.row.name)}
+          purpose={faceFor.purpose}
+          onClose={() => {
+            setFaceFor(null);
+            void loadDrivers();
+          }}
+          onDone={() => {
+            setFaceFor(null);
+            void loadDrivers();
+          }}
+          onManual={async (reason) => {
+            if (faceFor.purpose === "in") await markDriverIn(faceFor.row.driverId, reason);
+            else await markDriverOut(faceFor.row.driverId, reason);
+          }}
+        />
+      )}
     </div>
   );
 }

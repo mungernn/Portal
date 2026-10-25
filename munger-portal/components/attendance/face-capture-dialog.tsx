@@ -1,9 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, CheckCircle2, Loader2, RefreshCw, SwitchCamera, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Camera, CheckCircle2, CreditCard, ImageUp, Loader2, RefreshCw, SwitchCamera, X, XCircle } from "lucide-react";
 import { useAttendanceLang } from "@/lib/attendance-i18n";
-import { createFaceChallenge, submitFaceEnrol, submitFacePunch, type FaceChallenge, type FacePurpose } from "@/lib/face-attendance-api";
+import {
+  createFaceChallenge,
+  submitFaceEnrol,
+  submitFacePunch,
+  type FaceChallenge,
+  type FacePerson,
+  type FacePurpose,
+} from "@/lib/face-attendance-api";
 
 const STRINGS = {
   en: {
@@ -13,8 +20,16 @@ const STRINGS = {
     starting: "Starting camera...",
     cameraError: "Could not open the camera. Allow camera permission for this site (and for the app).",
     consentText:
-      "I have explained to the worker that their face photo will be used only for attendance, kept by Nagar Nigam Munger, and deleted when they leave service, and the worker has agreed.",
+      "I have explained to the worker that their face photo and a photo of their Aadhaar card will be used only for attendance, kept by Nagar Nigam Munger, and the face data deleted when they leave service, and the worker has agreed.",
     consentNext: "Worker agrees - continue",
+    aadhaarTitle: "Photo of the worker's Aadhaar card",
+    aadhaarHint:
+      "Photograph the side with the worker's photo, flat and in good light, filling the frame. Cover the first 8 digits of the Aadhaar number with a finger or paper - only the last 4 digits should be visible.",
+    aadhaarTake: "Take photo of Aadhaar card",
+    aadhaarPick: "Choose from gallery",
+    aadhaarRetake: "Retake",
+    aadhaarNext: "Continue to face photos",
+    aadhaarBadFile: "Could not read that image. Take the photo again.",
     step1: "Step 1 of 2: Ask the worker to look straight at the camera.",
     step2Left: "Step 2 of 2: Ask the worker to turn their head to THEIR LEFT.",
     step2Right: "Step 2 of 2: Ask the worker to turn their head to THEIR RIGHT.",
@@ -24,6 +39,11 @@ const STRINGS = {
     verifiedIn: "Face verified - marked IN",
     verifiedOut: "Face verified - marked OUT",
     enrolled: "Face enrolled",
+    aadhaarMatched: "Aadhaar photo matched",
+    flaggedTitle: "Saved - waiting for APSWMO approval",
+    flaggedMismatch: "The face on the Aadhaar card did not match the worker's face",
+    flaggedNoFace: "No clear face could be found on the Aadhaar card photo",
+    flaggedNext: "The enrolment has been sent to the APSWMO. Until it is approved, this worker is marked the old way.",
     notVerified: "Not verified",
     tryAgain: "Try again",
     manual: "Mark manually instead",
@@ -40,8 +60,16 @@ const STRINGS = {
     starting: "कैमरा शुरू हो रहा है...",
     cameraError: "कैमरा नहीं खुल सका। इस साइट (और ऐप) को कैमरा अनुमति दें।",
     consentText:
-      "मैंने कर्मचारी को समझा दिया है कि उसके चेहरे की फ़ोटो केवल हाज़िरी के लिए उपयोग होगी, नगर निगम मुंगेर के पास रहेगी, और सेवा छोड़ने पर हटा दी जाएगी, और कर्मचारी सहमत है।",
+      "मैंने कर्मचारी को समझा दिया है कि उसके चेहरे की फ़ोटो और आधार कार्ड की फ़ोटो केवल हाज़िरी के लिए उपयोग होगी, नगर निगम मुंगेर के पास रहेगी, और सेवा छोड़ने पर चेहरे का डेटा हटा दिया जाएगा, और कर्मचारी सहमत है।",
     consentNext: "कर्मचारी सहमत है - आगे बढ़ें",
+    aadhaarTitle: "कर्मचारी के आधार कार्ड की फ़ोटो",
+    aadhaarHint:
+      "कर्मचारी की फ़ोटो वाली तरफ़ की फ़ोटो लें - कार्ड सीधा रखें, अच्छी रोशनी में, पूरे फ्रेम में। आधार संख्या के पहले 8 अंक उंगली या कागज़ से ढक दें - केवल अंतिम 4 अंक दिखें।",
+    aadhaarTake: "आधार कार्ड की फ़ोटो लें",
+    aadhaarPick: "गैलरी से चुनें",
+    aadhaarRetake: "फिर से लें",
+    aadhaarNext: "चेहरे की फ़ोटो पर आगे बढ़ें",
+    aadhaarBadFile: "यह फ़ोटो पढ़ी नहीं जा सकी। फिर से फ़ोटो लें।",
     step1: "चरण 1/2: कर्मचारी को सीधे कैमरे की ओर देखने को कहें।",
     step2Left: "चरण 2/2: कर्मचारी को अपना सिर अपनी बाईं ओर घुमाने को कहें।",
     step2Right: "चरण 2/2: कर्मचारी को अपना सिर अपनी दाईं ओर घुमाने को कहें।",
@@ -51,6 +79,11 @@ const STRINGS = {
     verifiedIn: "चेहरा सत्यापित - इन मार्क हुआ",
     verifiedOut: "चेहरा सत्यापित - आउट मार्क हुआ",
     enrolled: "चेहरा पंजीकृत हुआ",
+    aadhaarMatched: "आधार फ़ोटो से मिलान हुआ",
+    flaggedTitle: "सहेजा गया - APSWMO की स्वीकृति की प्रतीक्षा",
+    flaggedMismatch: "आधार कार्ड का चेहरा कर्मचारी के चेहरे से नहीं मिला",
+    flaggedNoFace: "आधार कार्ड की फ़ोटो में साफ़ चेहरा नहीं मिला",
+    flaggedNext: "पंजीकरण APSWMO को भेजा गया है। स्वीकृति तक इस कर्मचारी की हाज़िरी पहले की तरह लगेगी।",
     notVerified: "सत्यापित नहीं हुआ",
     tryAgain: "फिर से प्रयास करें",
     manual: "इसके बजाय मैन्युअल मार्क करें",
@@ -62,10 +95,11 @@ const STRINGS = {
   },
 };
 
-type Step = "consent" | "front" | "turn" | "checking" | "done" | "failed" | "manual";
+type Step = "consent" | "aadhaar" | "front" | "turn" | "checking" | "done" | "flagged" | "failed" | "manual";
 
 export interface FaceCaptureDialogProps {
-  staffId: number;
+  /** The worker: Safai staff, driver or assistant. */
+  person: FacePerson;
   staffName: string;
   purpose: FacePurpose;
   onClose: () => void;
@@ -85,16 +119,41 @@ function grab(video: HTMLVideoElement): string {
   return canvas.toDataURL("image/jpeg", 0.85).replace(/^data:image\/jpeg;base64,/, "");
 }
 
-export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone, onManual }: FaceCaptureDialogProps) {
+/** Aadhaar card photo from the phone camera / gallery -> JPEG, longest side 1280 px (the printed face is small). */
+function cardToJpeg(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85).replace(/^data:image\/jpeg;base64,/, ""));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("unreadable"));
+    };
+    img.src = url;
+  });
+}
+
+export function FaceCaptureDialog({ person, staffName, purpose, onClose, onDone, onManual }: FaceCaptureDialogProps) {
   const { lang } = useAttendanceLang();
   const s = STRINGS[lang];
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cardCameraRef = useRef<HTMLInputElement>(null);
+  const cardGalleryRef = useRef<HTMLInputElement>(null);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [cameraReady, setCameraReady] = useState(false);
   const [challenge, setChallenge] = useState<FaceChallenge | null>(null);
   const [step, setStep] = useState<Step>(purpose === "enrol" ? "consent" : "front");
   const [front, setFront] = useState<string | null>(null);
+  const [card, setCard] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -121,18 +180,20 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
     }
   }, [s.cameraError, stopCamera]);
 
-  const newChallenge = useCallback(async () => {
+  /** Fresh single-use photo session (also checks up front that this login may act on this worker). */
+  const newChallenge = useCallback(async (): Promise<boolean> => {
     setChallenge(null);
     setFront(null);
     setMessage(null);
     setError(null);
     try {
-      setChallenge(await createFaceChallenge(staffId, purpose));
-      setStep(purpose === "enrol" && step === "consent" ? "consent" : "front");
+      setChallenge(await createFaceChallenge(person, purpose));
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return false;
     }
-  }, [staffId, purpose, step]);
+  }, [person, purpose]);
 
   useEffect(() => {
     void newChallenge();
@@ -149,6 +210,24 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
     }
   }, [step, facing, startCamera, stopCamera]);
 
+  async function pickCard(file: File | undefined) {
+    if (!file) return;
+    setError(null);
+    try {
+      setCard(await cardToJpeg(file));
+    } catch {
+      setError(s.aadhaarBadFile);
+    }
+  }
+
+  /** The 2-minute photo session starts only now, so time spent on consent and the Aadhaar card does not count. */
+  async function startFacePhotos() {
+    setBusy(true);
+    const ok = await newChallenge();
+    setBusy(false);
+    if (ok) setStep("front");
+  }
+
   async function capture() {
     const v = videoRef.current;
     if (!v || !challenge || !v.videoWidth) return;
@@ -162,9 +241,15 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
     stopCamera();
     try {
       if (purpose === "enrol") {
-        await submitFaceEnrol(challenge.challengeId, front!, img, true);
-        setMessage(s.enrolled);
-        setStep("done");
+        const r = await submitFaceEnrol(challenge.challengeId, front!, img, true, card!);
+        const pct = r.aadhaarSimilarity != null ? ` (${Math.round(r.aadhaarSimilarity * 100)}%)` : "";
+        if (r.pendingApproval) {
+          setMessage(`${r.aadhaarCheck === "no_face" ? s.flaggedNoFace : s.flaggedMismatch}${pct}.`);
+          setStep("flagged");
+        } else {
+          setMessage(`${s.enrolled} - ${s.aadhaarMatched}${pct}`);
+          setStep("done");
+        }
       } else {
         const r = await submitFacePunch(challenge.challengeId, front!, img);
         if (r.verified) {
@@ -182,8 +267,7 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
   }
 
   async function retry() {
-    setStep("front");
-    await newChallenge();
+    if (await newChallenge()) setStep("front");
   }
 
   async function manual() {
@@ -202,9 +286,9 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
 
   useEffect(() => {
     if (step !== "done") return;
-    const t = setTimeout(onDone, 1500);
+    const t = setTimeout(onDone, purpose === "enrol" ? 2500 : 1500);
     return () => clearTimeout(t);
-  }, [step, onDone]);
+  }, [step, onDone, purpose]);
 
   const title = purpose === "enrol" ? s.titleEnrol : purpose === "in" ? s.titleIn : s.titleOut;
   const showVideo = step === "front" || step === "turn";
@@ -228,12 +312,50 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
           <div>
             <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{s.consentText}</p>
             <button
-              onClick={() => setStep("front")}
+              onClick={() => setStep("aadhaar")}
               disabled={!challenge}
               className="w-full rounded-md bg-nnm-blue px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
               {s.consentNext}
             </button>
+          </div>
+        )}
+
+        {step === "aadhaar" && (
+          <div>
+            <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+              <CreditCard className="h-4 w-4" /> {s.aadhaarTitle}
+            </p>
+            <p className="mb-3 text-xs text-slate-600">{s.aadhaarHint}</p>
+            <input ref={cardCameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { void pickCard(e.target.files?.[0]); e.target.value = ""; }} />
+            <input ref={cardGalleryRef} type="file" accept="image/*" className="hidden" onChange={(e) => { void pickCard(e.target.files?.[0]); e.target.value = ""; }} />
+            {card ? (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`data:image/jpeg;base64,${card}`} alt={s.aadhaarTitle} className="mb-3 w-full rounded-md border border-slate-200 object-contain" />
+                <div className="flex gap-2">
+                  <button onClick={() => setCard(null)} className="rounded-md border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700">
+                    {s.aadhaarRetake}
+                  </button>
+                  <button
+                    onClick={startFacePhotos}
+                    disabled={busy}
+                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-md bg-nnm-blue px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {busy && <Loader2 className="h-4 w-4 animate-spin" />} {s.aadhaarNext}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <button onClick={() => cardCameraRef.current?.click()} className="inline-flex items-center justify-center gap-1.5 rounded-md bg-nnm-blue px-3 py-2.5 text-sm font-semibold text-white">
+                  <Camera className="h-4 w-4" /> {s.aadhaarTake}
+                </button>
+                <button onClick={() => cardGalleryRef.current?.click()} className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-300 px-3 py-2.5 text-sm font-semibold text-slate-700">
+                  <ImageUp className="h-4 w-4" /> {s.aadhaarPick}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -293,6 +415,20 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-600" />
             <p className="text-sm font-semibold text-green-800">{message}</p>
+          </div>
+        )}
+
+        {step === "flagged" && (
+          <div className="py-2">
+            <div className="mb-4 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <b>{s.flaggedTitle}.</b> {message} {s.flaggedNext}
+              </span>
+            </div>
+            <button onClick={onDone} className="w-full rounded-md bg-nnm-blue px-3 py-2.5 text-sm font-semibold text-white">
+              {s.close}
+            </button>
           </div>
         )}
 

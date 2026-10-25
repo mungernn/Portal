@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getWardAssistantsToday, markAssistantIn, markAssistantAbsent, markAssistantOut } from "../services/fieldAssistantAttendance.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
+import { guardManualMark } from "../services/faceAttendance.service";
+
+/** Optional reason for marking a face-enrolled worker by hand (face attendance - see faceAttendance.service). */
+const overrideSchema = z.object({ overrideReason: z.string().max(300).nullish() });
 
 /**
  * GET /api/v1/attendance/assistants/ward/:wardId/today - mirrors
@@ -33,7 +37,9 @@ const assistantIdParamSchema = z.object({ assistantId: z.coerce.number().int().p
 export const postMarkAssistantIn = asyncHandler(async (req: Request, res: Response) => {
   const parsed = assistantIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid assistant id");
+  const record = await guardManualMark(req.attendanceUser!, { type: "assistant", id: parsed.data.assistantId }, "in", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markAssistantIn(req.attendanceUser!, parsed.data.assistantId);
+  await record();
   res.status(200).json({ success: true, ...result });
 });
 
@@ -51,6 +57,8 @@ export const postMarkAssistantAbsent = asyncHandler(async (req: Request, res: Re
 export const postMarkAssistantOut = asyncHandler(async (req: Request, res: Response) => {
   const parsed = assistantIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid assistant id");
+  const record = await guardManualMark(req.attendanceUser!, { type: "assistant", id: parsed.data.assistantId }, "out", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markAssistantOut(req.attendanceUser!, parsed.data.assistantId);
+  await record();
   res.status(200).json({ success: true, ...result });
 });

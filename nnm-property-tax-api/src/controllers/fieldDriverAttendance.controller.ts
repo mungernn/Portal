@@ -3,6 +3,10 @@ import { z } from "zod";
 import { getWardDriversToday, markDriverIn, markDriverAbsent, markDriverOut } from "../services/fieldDriverAttendance.service";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
+import { guardManualMark } from "../services/faceAttendance.service";
+
+/** Optional reason for marking a face-enrolled worker by hand (face attendance - see faceAttendance.service). */
+const overrideSchema = z.object({ overrideReason: z.string().max(300).nullish() });
 
 /**
  * GET /api/v1/attendance/drivers/ward/:wardId/today - driver_supervisor's
@@ -32,7 +36,9 @@ const driverIdParamSchema = z.object({ driverId: z.coerce.number().int().positiv
 export const postMarkDriverIn = asyncHandler(async (req: Request, res: Response) => {
   const parsed = driverIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid driver id");
+  const record = await guardManualMark(req.attendanceUser!, { type: "driver", id: parsed.data.driverId }, "in", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markDriverIn(req.attendanceUser!, parsed.data.driverId);
+  await record();
   res.status(200).json({ success: true, ...result });
 });
 
@@ -50,6 +56,8 @@ export const postMarkDriverAbsent = asyncHandler(async (req: Request, res: Respo
 export const postMarkDriverOut = asyncHandler(async (req: Request, res: Response) => {
   const parsed = driverIdParamSchema.safeParse(req.params);
   if (!parsed.success) throw ApiError.badRequest("Invalid driver id");
+  const record = await guardManualMark(req.attendanceUser!, { type: "driver", id: parsed.data.driverId }, "out", overrideSchema.safeParse(req.body ?? {}).data?.overrideReason);
   const result = await markDriverOut(req.attendanceUser!, parsed.data.driverId);
+  await record();
   res.status(200).json({ success: true, ...result });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Eye, Loader2, LogIn, LogOut, ScanFace, Trash2, UserX, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Clock, Eye, Loader2, LogIn, LogOut, ScanFace, Trash2, UserX, X } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { FaceCaptureDialog } from "@/components/attendance/face-capture-dialog";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
@@ -18,6 +18,8 @@ import {
   type WardWorkerToday,
 } from "@/lib/attendance-api";
 import {
+  fetchEnrolmentLog,
+  fetchEnrolmentLogPhotos,
   fetchEnrolmentPhoto,
   fetchFaceConfig,
   fetchFaceReview,
@@ -25,8 +27,12 @@ import {
   fetchPunchPhotos,
   fetchWardFaceEnrolments,
   removeFaceEnrolment,
+  reviewEnrolment,
   reviewFacePunch,
+  type AadhaarCheck,
+  type FaceEnrolmentLogEntry,
   type FaceEnrolmentStatus,
+  type FacePersonType,
   type FaceReviewEntry,
   type FaceSummaryWard,
 } from "@/lib/face-attendance-api";
@@ -34,15 +40,41 @@ import {
 const MARK_ROLES: AttendanceRole[] = ["sanitation_prabhari", "apswmo", "attendance_admin"];
 const ENROL_ROLES: AttendanceRole[] = ["sanitation_prabhari", "apswmo", "sanitation_officer", "attendance_admin"];
 const REVIEW_ROLES: AttendanceRole[] = ["sanitation_officer", "sanitation_prabhari", "apswmo", "attendance_admin"];
+/** Approve / reject enrolments flagged by the Aadhaar check. */
+const APPROVE_ROLES: AttendanceRole[] = ["apswmo", "attendance_admin"];
 
-type Tab = "mark" | "enrol" | "review" | "summary";
+type Tab = "mark" | "enrol" | "log" | "review" | "summary";
+const PERSON_TYPES: FacePersonType[] = ["staff", "driver", "assistant"];
 
 const STRINGS = {
   en: {
     title: "Face Attendance",
-    subtitle: "Safai staff attendance with face check and head-turn liveness.",
+    subtitle: "Attendance of Safai staff, drivers and assistants with face check and head-turn liveness.",
     off: "Face attendance is not switched on yet on the server. Enrolment and face marking open once it is.",
-    tabs: { mark: "Mark attendance", enrol: "Enrol faces", review: "Review", summary: "Ward summary" } as Record<Tab, string>,
+    tabs: { mark: "Mark attendance", enrol: "Enrol faces", log: "Enrolment log", review: "Review", summary: "Ward summary" } as Record<Tab, string>,
+    types: { staff: "Safai staff", driver: "Drivers", assistant: "Assistants" } as Record<FacePersonType, string>,
+    typeOne: { staff: "Safai staff", driver: "Driver", assistant: "Assistant" } as Record<FacePersonType, string>,
+    noneOfType: "No active workers of this type in this ward.",
+    awaitingApproval: "Awaiting APSWMO approval",
+    aadhaar: { matched: "Aadhaar matched", mismatch: "Aadhaar mismatch", no_face: "No face on Aadhaar photo" } as Record<AadhaarCheck, string>,
+    aadhaarNotChecked: "Aadhaar not checked",
+    logPending: "Awaiting approval",
+    logFlagged: "Aadhaar mismatches",
+    logAll: "All enrolments",
+    allTypes: "All types",
+    from: "From",
+    to: "To",
+    stateActive: "Active",
+    statePending: "Awaiting APSWMO",
+    stateRejected: "Rejected",
+    stateReplaced: "Replaced / removed",
+    approve: "Approve",
+    approveHint: "Approve only after checking the Aadhaar card photo is of this worker.",
+    reviewedBy: "Decided by",
+    removedBy: "Removed by",
+    aadhaarPhoto: "Aadhaar card photo",
+    aadhaarHidden: "Aadhaar photo visible to APSWMO / Sanitation Officer only",
+    pendingCol: "Awaiting approval",
     ward: "Ward",
     pickWard: "Select a ward",
     noWorkers: "No active workers in this ward.",
@@ -74,7 +106,7 @@ const STRINGS = {
     punchPhoto: "Photo at punch",
     enrolledPhoto: "Enrolled photo",
     noPhoto: "No photo",
-    activeStaff: "Staff",
+    activeStaff: "Workers",
     faceIn: "Face In",
     manualIn: "Manual In",
     failed: "Failed checks",
@@ -83,9 +115,32 @@ const STRINGS = {
   },
   hi: {
     title: "चेहरा हाज़िरी",
-    subtitle: "चेहरा जाँच और सिर घुमाने (लाइवनेस) के साथ सफ़ाई कर्मियों की हाज़िरी।",
+    subtitle: "चेहरा जाँच और सिर घुमाने (लाइवनेस) के साथ सफ़ाई कर्मियों, ड्राइवरों और सहायकों की हाज़िरी।",
     off: "सर्वर पर चेहरा हाज़िरी अभी चालू नहीं है। चालू होने पर पंजीकरण और चेहरा मार्किंग खुलेगी।",
-    tabs: { mark: "हाज़िरी मार्क करें", enrol: "चेहरा पंजीकरण", review: "समीक्षा", summary: "वार्ड सारांश" } as Record<Tab, string>,
+    tabs: { mark: "हाज़िरी मार्क करें", enrol: "चेहरा पंजीकरण", log: "पंजीकरण लॉग", review: "समीक्षा", summary: "वार्ड सारांश" } as Record<Tab, string>,
+    types: { staff: "सफ़ाई कर्मी", driver: "ड्राइवर", assistant: "सहायक" } as Record<FacePersonType, string>,
+    typeOne: { staff: "सफ़ाई कर्मी", driver: "ड्राइवर", assistant: "सहायक" } as Record<FacePersonType, string>,
+    noneOfType: "इस वार्ड में इस प्रकार का कोई सक्रिय कर्मचारी नहीं।",
+    awaitingApproval: "APSWMO की स्वीकृति लंबित",
+    aadhaar: { matched: "आधार मिलान हुआ", mismatch: "आधार मिलान नहीं", no_face: "आधार फ़ोटो में चेहरा नहीं" } as Record<AadhaarCheck, string>,
+    aadhaarNotChecked: "आधार जाँच नहीं हुई",
+    logPending: "स्वीकृति लंबित",
+    logFlagged: "आधार मिलान नहीं",
+    logAll: "सभी पंजीकरण",
+    allTypes: "सभी प्रकार",
+    from: "से",
+    to: "तक",
+    stateActive: "सक्रिय",
+    statePending: "APSWMO लंबित",
+    stateRejected: "अस्वीकृत",
+    stateReplaced: "बदला / हटाया गया",
+    approve: "स्वीकृत करें",
+    approveHint: "आधार कार्ड की फ़ोटो इसी कर्मचारी की है, यह जाँचने के बाद ही स्वीकृत करें।",
+    reviewedBy: "निर्णय",
+    removedBy: "हटाया",
+    aadhaarPhoto: "आधार कार्ड फ़ोटो",
+    aadhaarHidden: "आधार फ़ोटो केवल APSWMO / स्वच्छता पदाधिकारी देख सकते हैं",
+    pendingCol: "स्वीकृति लंबित",
     ward: "वार्ड",
     pickWard: "वार्ड चुनें",
     noWorkers: "इस वार्ड में कोई सक्रिय कर्मचारी नहीं।",
@@ -151,7 +206,7 @@ export default function FaceAttendancePage() {
   const tabs: Tab[] = [
     ...(MARK_ROLES.includes(user.role) ? (["mark"] as Tab[]) : []),
     ...(ENROL_ROLES.includes(user.role) ? (["enrol"] as Tab[]) : []),
-    ...(REVIEW_ROLES.includes(user.role) ? (["review", "summary"] as Tab[]) : []),
+    ...(REVIEW_ROLES.includes(user.role) ? (["log", "review", "summary"] as Tab[]) : []),
   ];
   const nameOf = (n: string, hi: string | null) => (lang === "hi" ? hi || transliterateName(n) : n);
   const wardPicker = (
@@ -211,6 +266,7 @@ export default function FaceAttendancePage() {
             {wardId && enabled && <EnrolTab wardId={wardId} s={s} nameOf={nameOf} />}
           </>
         )}
+        {tab === "log" && <LogTab s={s} username={user.username} canApprove={APPROVE_ROLES.includes(user.role)} nameOf={nameOf} />}
         {tab === "review" && <ReviewTab s={s} username={user.username} />}
         {tab === "summary" && <SummaryTab s={s} />}
       </main>
@@ -312,7 +368,7 @@ function MarkTab({ wardId, faceOn, s, nameOf }: { wardId: number; faceOn: boolea
       </div>
       {face && (
         <FaceCaptureDialog
-          staffId={face.w.staffId}
+          person={{ type: "staff", id: face.w.staffId }}
           staffName={nameOf(face.w.name, face.w.nameHi)}
           purpose={face.purpose}
           onClose={() => {
@@ -361,15 +417,23 @@ function PhotoModal({ title, photos, onClose, s }: { title: string; photos: { la
   );
 }
 
+function AadhaarBadge({ check, s }: { check: AadhaarCheck | null; s: S }) {
+  if (!check) return <span className="text-slate-400">{s.aadhaarNotChecked}</span>;
+  const cls = check === "matched" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800";
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{s.aadhaar[check]}</span>;
+}
+
 function EnrolTab({ wardId, s, nameOf }: { wardId: number; s: S; nameOf: NameOf }) {
+  const [type, setType] = useState<FacePersonType>("staff");
   const [rows, setRows] = useState<FaceEnrolmentStatus[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enrolFor, setEnrolFor] = useState<FaceEnrolmentStatus | null>(null);
   const [photo, setPhoto] = useState<{ name: string; src: string | null } | null>(null);
 
   const load = useCallback(() => {
-    fetchWardFaceEnrolments(wardId).then(setRows).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [wardId]);
+    setError(null);
+    fetchWardFaceEnrolments(wardId, type).then(setRows).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [wardId, type]);
   useEffect(() => {
     setRows(null);
     load();
@@ -378,61 +442,89 @@ function EnrolTab({ wardId, s, nameOf }: { wardId: number; s: S; nameOf: NameOf 
   async function remove(r: FaceEnrolmentStatus) {
     if (!window.confirm(s.confirmRemove)) return;
     try {
-      await removeFaceEnrolment(r.staffId);
+      await removeFaceEnrolment({ type: r.personType, id: r.personId });
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  if (!rows) return <Loader2 className="h-5 w-5 animate-spin text-slate-400" />;
-  const done = rows.filter((r) => r.enrolledAt).length;
+  const done = rows?.filter((r) => r.enrolledAt).length ?? 0;
   return (
     <>
-      <ErrorBox text={error} />
-      <p className="mb-3 text-sm text-slate-600">
-        <b>{done}</b> / {rows.length} {s.enrolledCount}
-      </p>
-      <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
-        {rows.map((r) => (
-          <div key={r.staffId} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="font-semibold text-slate-900">{nameOf(r.name, r.nameHi)}</div>
-              <div className="text-xs text-slate-500">
-                {r.enrolledAt ? (
-                  <span className="inline-flex items-center gap-1 text-green-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> {s.enrolledOn} {new Date(r.enrolledAt).toLocaleDateString("en-IN")} {s.by} {r.enrolledBy}
-                  </span>
-                ) : (
-                  s.notEnrolled
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => setEnrolFor(r)} className="inline-flex items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white">
-                <ScanFace className="h-3.5 w-3.5" /> {r.enrolledAt ? s.reEnrol : s.enrol}
-              </button>
-              {r.enrolledAt && (
-                <>
-                  <button
-                    onClick={async () => setPhoto({ name: r.name, src: (await fetchEnrolmentPhoto(r.staffId)).photo })}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600"
-                  >
-                    <Eye className="h-3.5 w-3.5" /> {s.view}
-                  </button>
-                  <button onClick={() => remove(r)} className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">
-                    <Trash2 className="h-3.5 w-3.5" /> {s.remove}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {PERSON_TYPES.map((t) => (
+          <button
+            key={t}
+            onClick={() => setType(t)}
+            className={`rounded-md px-3 py-1.5 text-xs font-semibold ${type === t ? "bg-slate-800 text-white" : "border border-slate-300 bg-white text-slate-700"}`}
+          >
+            {s.types[t]}
+          </button>
         ))}
       </div>
+      <ErrorBox text={error} />
+      {!rows ? (
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-400">{s.noneOfType}</p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-slate-600">
+            <b>{done}</b> / {rows.length} {s.enrolledCount}
+          </p>
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+            {rows.map((r) => (
+              <div key={r.personId} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="font-semibold text-slate-900">{nameOf(r.name, r.nameHi)}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    {r.enrolledAt ? (
+                      <>
+                        <span className="inline-flex items-center gap-1 text-green-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> {s.enrolledOn} {new Date(r.enrolledAt).toLocaleDateString("en-IN")} {s.by} {r.enrolledBy}
+                        </span>
+                        <AadhaarBadge check={r.aadhaarCheck} s={s} />
+                      </>
+                    ) : (
+                      !r.pendingSince && s.notEnrolled
+                    )}
+                    {r.pendingSince && (
+                      <span className="inline-flex items-center gap-1 font-semibold text-amber-700">
+                        <Clock className="h-3.5 w-3.5" /> {s.awaitingApproval}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {!r.pendingSince && (
+                    <button onClick={() => setEnrolFor(r)} className="inline-flex items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white">
+                      <ScanFace className="h-3.5 w-3.5" /> {r.enrolledAt ? s.reEnrol : s.enrol}
+                    </button>
+                  )}
+                  {r.enrolledAt && (
+                    <button
+                      onClick={async () => setPhoto({ name: r.name, src: (await fetchEnrolmentPhoto({ type: r.personType, id: r.personId })).photo })}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> {s.view}
+                    </button>
+                  )}
+                  {(r.enrolledAt || r.pendingSince) && (
+                    <button onClick={() => remove(r)} className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600">
+                      <Trash2 className="h-3.5 w-3.5" /> {s.remove}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       {enrolFor && (
         <FaceCaptureDialog
-          staffId={enrolFor.staffId}
-          staffName={nameOf(enrolFor.name, enrolFor.nameHi)}
+          person={{ type: enrolFor.personType, id: enrolFor.personId }}
+          staffName={`${nameOf(enrolFor.name, enrolFor.nameHi)} (${s.typeOne[enrolFor.personType]})`}
           purpose="enrol"
           onClose={() => {
             setEnrolFor(null);
@@ -445,6 +537,162 @@ function EnrolTab({ wardId, s, nameOf }: { wardId: number; s: S; nameOf: NameOf 
         />
       )}
       {photo && <PhotoModal title={photo.name} photos={[{ label: s.enrolledPhoto, src: photo.src }]} onClose={() => setPhoto(null)} s={s} />}
+    </>
+  );
+}
+
+function enrolmentState(e: FaceEnrolmentLogEntry, s: S): { label: string; cls: string } {
+  if (e.reviewStatus === "pending") return { label: s.statePending, cls: "bg-amber-100 text-amber-800" };
+  if (e.reviewStatus === "rejected") return { label: s.stateRejected, cls: "bg-red-100 text-red-700" };
+  if (e.active) return { label: s.stateActive, cls: "bg-green-100 text-green-700" };
+  return { label: s.stateReplaced, cls: "bg-slate-100 text-slate-600" };
+}
+
+function LogTab({ s, username, canApprove, nameOf }: { s: S; username: string; canApprove: boolean; nameOf: NameOf }) {
+  const [kind, setKind] = useState<"pending" | "flagged" | "all">("pending");
+  const [type, setType] = useState<FacePersonType | "">("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [rows, setRows] = useState<FaceEnrolmentLogEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [remarks, setRemarks] = useState<Record<number, string>>({});
+  const [photos, setPhotos] = useState<{ title: string; face: string | null; aadhaar: string | null; hidden: boolean } | null>(null);
+
+  const load = useCallback(() => {
+    setRows(null);
+    setError(null);
+    fetchEnrolmentLog(kind, { type: type || undefined, from: from || undefined, to: to || undefined })
+      .then(setRows)
+      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [kind, type, from, to]);
+  useEffect(load, [load]);
+
+  async function decide(e: FaceEnrolmentLogEntry, decision: "accepted" | "rejected") {
+    setError(null);
+    try {
+      await reviewEnrolment(e.id, decision, remarks[e.id]);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  return (
+    <>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {(["pending", "flagged", "all"] as const).map((k) => (
+          <button key={k} onClick={() => setKind(k)} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${kind === k ? "bg-slate-800 text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
+            {k === "pending" ? s.logPending : k === "flagged" ? s.logFlagged : s.logAll}
+          </button>
+        ))}
+      </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+        <select value={type} onChange={(e) => setType(e.target.value as FacePersonType | "")} className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs">
+          <option value="">{s.allTypes}</option>
+          {PERSON_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {s.types[t]}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-1.5">
+          {s.from}
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
+        </label>
+        <label className="flex items-center gap-1.5">
+          {s.to}
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1 text-xs" />
+        </label>
+      </div>
+      <ErrorBox text={error} />
+      {!rows ? (
+        <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-400">{s.nothing}</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((e) => {
+            const st = enrolmentState(e, s);
+            return (
+              <div key={e.id} className={`rounded-xl border bg-white p-4 text-sm ${e.reviewStatus === "pending" ? "border-amber-300" : "border-slate-200"}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-slate-900">{nameOf(e.name, e.nameHi)}</span>
+                      <span className="text-xs text-slate-500">
+                        {s.typeOne[e.personType]}
+                        {e.wardName ? ` - ${e.wardName}` : ""}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${st.cls}`}>{st.label}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span>
+                        {s.enrolledOn} {new Date(e.enrolledAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })} {s.by} {e.enrolledBy} (
+                        {e.enrolledByRole.replace(/_/g, " ")})
+                      </span>
+                      <AadhaarBadge check={e.aadhaarCheck} s={s} />
+                      {e.aadhaarSimilarity != null && <span>{s.similarity} {Math.round(e.aadhaarSimilarity * 100)}%</span>}
+                    </div>
+                    {e.reviewedBy && (
+                      <div className="mt-1 text-xs text-slate-500">
+                        {s.reviewedBy}: {e.reviewedBy} {e.reviewedAt ? new Date(e.reviewedAt).toLocaleDateString("en-IN") : ""} {e.reviewRemarks ? `- ${e.reviewRemarks}` : ""}
+                      </div>
+                    )}
+                    {e.removedBy && (
+                      <div className="mt-1 text-xs text-slate-500">
+                        {s.removedBy}: {e.removedBy} {e.removedAt ? new Date(e.removedAt).toLocaleDateString("en-IN") : ""}
+                      </div>
+                    )}
+                  </div>
+                  {(e.hasPhoto || e.hasAadhaar) && (
+                    <button
+                      onClick={async () => {
+                        const p = await fetchEnrolmentLogPhotos(e.id);
+                        setPhotos({ title: `${e.name} - ${s.typeOne[e.personType]}`, face: p.photo, aadhaar: p.aadhaar, hidden: p.aadhaarHidden });
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600"
+                    >
+                      <Eye className="h-3.5 w-3.5" /> {s.view}
+                    </button>
+                  )}
+                </div>
+                {e.reviewStatus === "pending" && canApprove && e.enrolledBy !== username && (
+                  <div className="mt-3">
+                    <p className="mb-2 flex items-center gap-1.5 text-xs text-amber-800">
+                      <AlertTriangle className="h-3.5 w-3.5" /> {s.approveHint}
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={remarks[e.id] ?? ""}
+                        onChange={(ev) => setRemarks({ ...remarks, [e.id]: ev.target.value })}
+                        placeholder={s.remarks}
+                        className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-xs"
+                      />
+                      <button onClick={() => decide(e, "accepted")} className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white">
+                        {s.approve}
+                      </button>
+                      <button onClick={() => decide(e, "rejected")} className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white">
+                        {s.reject}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {photos && (
+        <PhotoModal
+          title={photos.title}
+          photos={[
+            { label: s.enrolledPhoto, src: photos.face },
+            { label: photos.hidden ? s.aadhaarHidden : s.aadhaarPhoto, src: photos.aadhaar },
+          ]}
+          onClose={() => setPhotos(null)}
+          s={s}
+        />
+      )}
     </>
   );
 }
@@ -498,7 +746,7 @@ function ReviewTab({ s, username }: { s: S; username: string }) {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="font-semibold text-slate-900">
-                    {r.name} <span className="font-normal text-slate-500">- {r.wardName} - {r.date} - {r.action.toUpperCase()}</span>
+                    {r.name} <span className="font-normal text-slate-500">- {s.typeOne[r.personType ?? "staff"]} - {r.wardName} - {r.date} - {r.action.toUpperCase()}</span>
                   </div>
                   <div className="text-xs text-slate-500">
                     {s.by} {r.markedBy} ({r.markedByRole.replace(/_/g, " ")}) {new Date(r.createdAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })}
@@ -581,6 +829,7 @@ function SummaryTab({ s }: { s: S }) {
                 <th className="px-3 py-2">{s.ward}</th>
                 <th className="px-3 py-2 text-right">{s.activeStaff}</th>
                 <th className="px-3 py-2 text-right">{s.enrolledCount}</th>
+                <th className="px-3 py-2 text-right">{s.pendingCol}</th>
                 <th className="px-3 py-2 text-right">{s.faceIn}</th>
                 <th className="px-3 py-2 text-right">{s.manualIn}</th>
                 <th className="px-3 py-2 text-right">{s.failed}</th>
@@ -594,6 +843,7 @@ function SummaryTab({ s }: { s: S }) {
                     <td className="px-3 py-2">{r.wardName}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.activeStaff}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.enrolled}</td>
+                    <td className={`px-3 py-2 text-right tabular-nums ${r.pendingApproval ? "font-semibold text-amber-700" : ""}`}>{r.pendingApproval}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{r.faceIn}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${r.manualIn ? "font-semibold text-amber-700" : ""}`}>{r.manualIn}</td>
                     <td className={`px-3 py-2 text-right tabular-nums ${r.failedAttempts ? "font-semibold text-red-700" : ""}`}>{r.failedAttempts}</td>

@@ -5,6 +5,7 @@ import { assetRepository } from "../repositories/asset.repository";
 import { istDateString, istTimeString, istShiftStartToday } from "../utils/istDate";
 import { isTotoLabel } from "../utils/totoVehicle";
 import { ApiError } from "../utils/ApiError";
+import { enrolledIds } from "./faceAttendance.service";
 import type { AttendanceTokenPayload, FieldDriverRow } from "../types/attendance.types";
 
 export type DriverWardFilter = "all" | "excludeToto" | "totoOnly";
@@ -18,6 +19,8 @@ export interface WardDriverToday {
   inTime: string | null;
   outTime: string | null;
   status: string | null;
+  /** Face enrolled - with face attendance on, Mark In/Out goes through the camera. */
+  faceEnrolled: boolean;
 }
 
 export async function getWardDriversToday(wardId: number, filter: DriverWardFilter = "all"): Promise<WardDriverToday[]> {
@@ -33,6 +36,7 @@ export async function getWardDriversToday(wardId: number, filter: DriverWardFilt
 
   const shifts = await attendanceShiftRepository.listAll();
   const shiftById = new Map(shifts.map((s) => [s.id, s]));
+  const enrolled = await enrolledIds("driver", wardId);
 
   // vehicle_number now lives on the linked asset, not the driver row directly - see migration 028.
   const assetIds = drivers.map((d) => d.asset_id).filter((id): id is number => id !== null);
@@ -51,6 +55,7 @@ export async function getWardDriversToday(wardId: number, filter: DriverWardFilt
       inTime: rec?.in_time ? istTimeString(rec.in_time) : null,
       outTime: rec?.out_time ? istTimeString(rec.out_time) : null,
       status: rec?.status ?? null,
+      faceEnrolled: enrolled.has(Number(d.id)),
     };
   });
 }
@@ -68,7 +73,7 @@ async function isDriverToto(driver: FieldDriverRow): Promise<boolean> {
  * repository's listByWardExcludingToto/listTotoByWard. attendance_admin
  * is unrestricted, matching the pre-existing behavior for that role.
  */
-async function assertWardAccess(user: AttendanceTokenPayload, driver: FieldDriverRow): Promise<void> {
+export async function assertWardAccess(user: AttendanceTokenPayload, driver: FieldDriverRow): Promise<void> {
   if (user.role === "attendance_admin") return;
 
   const toto = await isDriverToto(driver);

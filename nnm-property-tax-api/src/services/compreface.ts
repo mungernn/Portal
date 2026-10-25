@@ -85,6 +85,33 @@ export async function recognizeTop(image: Buffer): Promise<{ subject: string; si
   return s?.subject ? { subject: String(s.subject), similarity: Number(s.similarity) } : null;
 }
 
+/**
+ * Compares the face printed on an Aadhaar card photo with a live face photo, using the same Recognition service:
+ * the card is added as a throw-away subject, the live photo is verified 1:1 against it, and the subject is deleted.
+ * Card photos are small and printed, so a lower detection threshold is used for the card.
+ * Returns null similarity when no usable face is found on the card (or in the live photo).
+ */
+export async function compareWithCard(card: Buffer, live: Buffer): Promise<{ similarity: number | null; noFace: boolean }> {
+  const subject = `aadhaar-check-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    let added: any;
+    try {
+      added = await call("POST", `/api/v1/recognition/faces?subject=${encodeURIComponent(subject)}&det_prob_threshold=0.5`, card);
+    } catch (err) {
+      // 503 = face server down: let the caller stop the enrolment. Anything else (e.g. several faces on the card) is
+      // treated as "no usable face" so the enrolment is flagged for the APSWMO rather than blocked.
+      if (err instanceof ApiError && err.statusCode === 503) throw err;
+      return { similarity: null, noFace: true };
+    }
+    if (added?.noFace || !added?.image_id) return { similarity: null, noFace: true };
+    const found = faces(await call("POST", `/api/v1/recognition/faces/${encodeURIComponent(String(added.image_id))}/verify?det_prob_threshold=${DET_PROB}`, live)).map(toResult);
+    if (found.length === 0) return { similarity: null, noFace: true };
+    return { similarity: Math.max(...found.map((f) => f.similarity ?? 0)), noFace: false };
+  } finally {
+    await deleteSubject(subject);
+  }
+}
+
 export async function deleteSubject(subject: string): Promise<void> {
   try {
     await call("DELETE", `/api/v1/recognition/faces?subject=${encodeURIComponent(subject)}`);
