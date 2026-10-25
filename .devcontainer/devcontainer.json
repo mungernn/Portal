@@ -1,0 +1,26 @@
+{
+  "name": "NNM Portal",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "shutdownAction": "stopCompose",
+
+  "forwardPorts": [3000, 4000, 5432],
+  "portsAttributes": {
+    "3000": { "label": "Portal (open this)", "onAutoForward": "openBrowser" },
+    "4000": { "label": "API", "onAutoForward": "silent" },
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
+  },
+
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": "bash .devcontainer/start.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "bradlc.vscode-tailwindcss", "ckolkman.vscode-postgres"]
+    },
+    "codespaces": {
+      "openFiles": [".devcontainer/README.md"]
+    }
+  }
+}

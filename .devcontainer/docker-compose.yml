@@ -1,0 +1,21 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    # Shares the db container's network, so PostgreSQL is reachable at localhost:5432
+    network_mode: service:db
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: nnm_app
+      POSTGRES_PASSWORD: nnm_dev_pw
+      POSTGRES_DB: nnm_property_tax
+
+volumes:
+  pgdata:
