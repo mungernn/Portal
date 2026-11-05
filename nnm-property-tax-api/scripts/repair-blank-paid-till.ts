@@ -13,6 +13,10 @@
  *      the import year in when the column was missing or misread), the old record's year is used and the holding's
  *      tax assessment periods are recomputed from its floors.
  *
+ *   5. Years from 2011-12 onward with no tax assessment on file (which hold the holding: no notice, no payment) are
+ *      assessed from the holding's floors - the same automatic assessment the system makes when a holding is saved.
+ *      Years before 2011-12 still need the ARV from the old demand register (Pre-2011 ARV Entry).
+ *
  * Anything else is left blank (= billed from the creation year) and listed in the report, with a note where the
  * creation year looks like an import placeholder, or where years have no assessment on file (those holdings are
  * already held: no notice or payment until the assessment is completed).
@@ -29,7 +33,7 @@ import "dotenv/config";
 import fs from "node:fs";
 import { pool } from "../src/config/db";
 import { propertyRepository } from "../src/repositories/property.repository";
-import { regenerateAutomaticTaxHistoryStages } from "../src/services/automaticTaxHistory.service";
+import { computedStageRows, regenerateAutomaticTaxHistoryStages } from "../src/services/automaticTaxHistory.service";
 import { effectivePaidTillStart } from "../src/services/paidYearGuard.service";
 import { missingTaxYears, yearRangesLabel } from "../src/services/arrears.service";
 import { getCurrentAssessmentYearStartNum, parseYearStartOrNull } from "../src/utils/assessmentYear";
@@ -105,6 +109,10 @@ async function main() {
     leftBlank: 0,
     placeholderCreation: 0,
     heldMissingAssessment: 0,
+    assessedFromFloors: 0,
+    stillHeldPre2011Only: 0,
+    stillHeldNoFloors: 0,
+    stillHeldFloorsNotPriced: 0,
     noticesSuperseded: 0,
   };
 
@@ -155,19 +163,48 @@ async function main() {
       tax_paid_till_year: paidTill !== null ? fy(paidTill) : null,
     };
     const billedFromNum = Math.max((paidTill ?? (newCreation ?? currentYear) - 1) + 1, newCreation ?? currentYear);
-    const missing = creationReason ? [] : missingTaxYears(after, await propertyRepository.findTaxHistoryByHoldingNo(h.holding_no));
+    // Years without an assessment hold the holding (no notice, no payment). From 2011-12 onward the system can
+    // compute them from the holding's floors (the same automatic assessment a save makes); earlier years need the
+    // ARV from the old demand register.
+    const stored = await propertyRepository.findTaxHistoryByHoldingNo(h.holding_no);
+    const floors = await propertyRepository.findFloorsByHoldingNo(h.holding_no);
+    const missingNow = missingTaxYears(after, stored);
+    let assessReason: string | null = null;
+    let missing = missingNow;
+    if (missingNow.some((y) => y >= 2011) && floors.length) {
+      const withComputed = [...stored.filter((s) => !s.auto_generated), ...computedStageRows(after, floors)];
+      const missingAfter = missingTaxYears(after, withComputed);
+      if (missingAfter.length < missingNow.length) {
+        const covered = missingNow.filter((y) => !missingAfter.includes(y));
+        assessReason = `assessment computed from the floors for ${yearRangesLabel(covered)}`;
+        missing = missingAfter;
+      }
+    }
+    if (missingNow.length) counts.heldMissingAssessment++;
+    if (assessReason) counts.assessedFromFloors++;
     if (missing.length) {
-      notes.push(`No assessment on file for ${yearRangesLabel(missing)} - notice and payment are held until it is completed`);
-      counts.heldMissingAssessment++;
+      let why: string;
+      if (missing.every((y) => y < 2011)) {
+        why = "Tax Daroga to enter the pre-2011 ARV from the old demand register (Admin > Pre-2011 ARV Entry)";
+        counts.stillHeldPre2011Only++;
+      } else if (!floors.length || Number(property.area_sqft) <= 0) {
+        why = "the holding has no floor details / area - it needs a survey";
+        counts.stillHeldNoFloors++;
+      } else {
+        why = "its floors could not be priced (check usage type, construction type and year built of each floor)";
+        counts.stillHeldFloorsNotPriced++;
+      }
+      notes.push(`Still no assessment for ${yearRangesLabel(missing)} - held until ${why}`);
+    } else if (missingNow.length) {
+      notes.push("Hold released by the computed assessment");
     }
 
     const actions: string[] = [];
     if (paidReason) actions.push(`paid till -> ${fy(paidTill!)} (${paidReason})`);
     if (creationReason) actions.push(`creation year ${h.holding_creation_year ?? "-"} -> ${fy(newCreation!)} (${creationReason})`);
-    if (!actions.length) {
-      actions.push("left blank - billed from the creation year");
-      counts.leftBlank++;
-    }
+    if (assessReason) actions.push(assessReason);
+    if (!paidReason && !creationReason) counts.leftBlank++;
+    if (!actions.length) actions.push("left blank - billed from the creation year");
     if (paidReason?.startsWith("restored")) counts.restoredFromHistory++;
     else if (paidReason?.startsWith("old record")) counts.fromOldRecord++;
     else if (paidReason) counts.fromReceipts++;
@@ -185,7 +222,7 @@ async function main() {
       note: notes.join("; "),
     });
 
-    if (APPLY && (paidReason || creationReason)) {
+    if (APPLY && (paidReason || creationReason || assessReason)) {
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
@@ -209,6 +246,12 @@ async function main() {
             [h.holding_no, h.holding_creation_year, fy(newCreation!), creationReason, RUN_BY],
           );
         }
+        if (assessReason) {
+          await client.query(
+            `INSERT INTO holding_year_repair_log (holding_no, field, previous_value, new_value, reason, run_by) VALUES ($1,'tax_history_stages',NULL,NULL,$2,$3)`,
+            [h.holding_no, assessReason, RUN_BY],
+          );
+        }
         const sup = await client.query(
           `UPDATE demand_notices SET superseded = TRUE WHERE holding_no = $1 AND NOT settled AND NOT cancelled AND NOT superseded AND NOT on_hold`,
           [h.holding_no],
@@ -221,11 +264,10 @@ async function main() {
       } finally {
         client.release();
       }
-      if (creationReason) {
-        // The assessment periods start at the creation year: recompute them from the floors.
+      if ((creationReason || assessReason) && floors.length) {
+        // The automatic assessment periods (2011-12 onward) are recomputed from the floors and the creation year.
         const fresh = await propertyRepository.findByHoldingNo(h.holding_no);
-        const floors = await propertyRepository.findFloorsByHoldingNo(h.holding_no);
-        if (fresh && floors.length) await regenerateAutomaticTaxHistoryStages(h.holding_no, fresh, floors, RUN_BY);
+        if (fresh) await regenerateAutomaticTaxHistoryStages(h.holding_no, fresh, floors, RUN_BY);
       }
     }
   }
@@ -257,6 +299,10 @@ async function main() {
   console.log(`  left blank (billed from creation year):          ${counts.leftBlank}`);
   console.log(`  of all these - creation year looks like the entry year, check it: ${counts.placeholderCreation}`);
   console.log(`  of all these - held, years without an assessment:               ${counts.heldMissingAssessment}`);
+  console.log(`     assessment computed from floors (2011-12 onward):             ${counts.assessedFromFloors}`);
+  console.log(`     still held - only pre-2011 years (register ARV needed):       ${counts.stillHeldPre2011Only}`);
+  console.log(`     still held - no floors / area (survey needed):                ${counts.stillHeldNoFloors}`);
+  console.log(`     still held - floors could not be priced (check floors):       ${counts.stillHeldFloorsNotPriced}`);
   if (APPLY) console.log(`Open demand notices superseded (a fresh one is due): ${counts.noticesSuperseded}`);
   console.log("Details: repair-paid-till-report.csv");
   await pool.end();
