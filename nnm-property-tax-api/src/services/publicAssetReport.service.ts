@@ -23,7 +23,13 @@ export type ReportStatus = "pending" | "approved" | "rejected";
 
 const REPAIR_DEADLINE_HOURS = 72;
 
-const SWITCH_LABEL: Record<string, string> = { working: "OK", not_working: "not OK", automatic: "automatic", joint: "joint", unknown: "not known" };
+const SWITCH_LABEL: Record<string, string> = {
+  working: "OK",
+  not_working: "not OK",
+  automatic: "automatic",
+  joint: "joint",
+  unknown: "not known",
+};
 export const PROBLEM_LABEL: Record<string, string> = {
   no_water: "No water",
   motor_not_running: "Motor not running",
@@ -58,7 +64,8 @@ interface ReportRow {
 /** Validates the "not working since" date the citizen gives: not in the future and within the last year. */
 export function checkSinceDate(since: string) {
   const d = new Date(`${since}T00:00:00+05:30`);
-  if (Number.isNaN(d.getTime()) || d.getTime() > Date.now()) throw ApiError.badRequest("The date it stopped working cannot be in the future.");
+  if (Number.isNaN(d.getTime()) || d.getTime() > Date.now())
+    throw ApiError.badRequest("The date it stopped working cannot be in the future.");
   if (d.getTime() < Date.now() - 366 * 86400_000) throw ApiError.badRequest("Give a date within the last year.");
 }
 
@@ -74,7 +81,10 @@ export async function reportsToday(phone: string, assetType: AssetType): Promise
 /** The complaint already waiting for the City Manager on this asset, if any. */
 export async function pendingFor(assetType: AssetType, assetId: number): Promise<{ reported_at: Date } | null> {
   const col = assetType === "light" ? "light_id" : "pyau_id";
-  const { rows } = await pool.query<{ reported_at: Date }>(`SELECT reported_at FROM public_asset_reports WHERE ${col} = $1 AND status = 'pending' LIMIT 1`, [assetId]);
+  const { rows } = await pool.query<{ reported_at: Date }>(
+    `SELECT reported_at FROM public_asset_reports WHERE ${col} = $1 AND status = 'pending' LIMIT 1`,
+    [assetId],
+  );
   return rows[0] ?? null;
 }
 
@@ -122,7 +132,8 @@ export async function submit(input: {
     return { reportId: Number(rows[0]!.id) };
   } catch (e) {
     // Two citizens reporting the same asset at the same moment: the unique pending index lets only one through.
-    if ((e as { code?: string }).code === "23505") throw ApiError.badRequest("This has just been reported by someone else and is waiting for verification.");
+    if ((e as { code?: string }).code === "23505")
+      throw ApiError.badRequest("This has just been reported by someone else and is waiting for verification.");
     throw e;
   }
 }
@@ -151,7 +162,14 @@ export async function myReports(phone: string, assetType: AssetType) {
   return rows.map((r) => ({
     ...r,
     // One status for the citizen: awaiting verification -> not accepted / with the contractor -> repaired.
-    stage: r.verification === "pending" ? "pending" : r.verification === "rejected" ? "rejected" : r.repair_status === "repaired" ? "repaired" : "approved",
+    stage:
+      r.verification === "pending"
+        ? "pending"
+        : r.verification === "rejected"
+          ? "rejected"
+          : r.repair_status === "repaired"
+            ? "repaired"
+            : "approved",
   }));
 }
 
@@ -164,7 +182,8 @@ export const VIEW_ROLES = ["city_manager", "municipal_commissioner", "deputy_mun
 
 /** Streetlight complaints are verified by the City Manager the Commissioner assigned to streetlights (when one is assigned). */
 async function assertCanVerify(user: AttendanceTokenPayload, assetType: AssetType) {
-  if (!(VERIFY_ROLES as readonly string[]).includes(user.role)) throw new ApiError(403, "Only the City Manager can verify public complaints.");
+  if (!(VERIFY_ROLES as readonly string[]).includes(user.role))
+    throw new ApiError(403, "Only the City Manager can verify public complaints.");
   if (assetType === "light") {
     const a = await streetlightCityManagerAssignmentRepository.get();
     if (a?.assigned_city_manager_id && Number(a.assigned_city_manager_id) !== Number(user.sub)) {
@@ -173,7 +192,11 @@ async function assertCanVerify(user: AttendanceTokenPayload, assetType: AssetTyp
   }
 }
 
-export async function listForStaff(filter: { status?: ReportStatus; assetType?: AssetType | "high_mast" | "streetlight"; wardId?: number }) {
+export async function listForStaff(filter: {
+  status?: ReportStatus;
+  assetType?: AssetType | "high_mast" | "streetlight";
+  wardId?: number;
+}) {
   const where: string[] = [];
   const params: unknown[] = [];
   if (filter.status) {
@@ -217,7 +240,11 @@ export async function listForStaff(filter: { status?: ReportStatus; assetType?: 
       LIMIT 500`,
     params,
   );
-  return rows.map((r) => ({ ...r, latitude: r.latitude == null ? null : Number(r.latitude), longitude: r.longitude == null ? null : Number(r.longitude) }));
+  return rows.map((r) => ({
+    ...r,
+    latitude: r.latitude == null ? null : Number(r.latitude),
+    longitude: r.longitude == null ? null : Number(r.longitude),
+  }));
 }
 
 export async function pendingCounts() {
@@ -235,7 +262,12 @@ export async function pendingCounts() {
 }
 
 /** Moves one pending complaint to approved/rejected - atomically, so two clicks cannot both act on it. */
-async function claim(id: number, status: "approved" | "rejected", user: AttendanceTokenPayload, remarks: string | null): Promise<ReportRow> {
+async function claim(
+  id: number,
+  status: "approved" | "rejected",
+  user: AttendanceTokenPayload,
+  remarks: string | null,
+): Promise<ReportRow> {
   const { rows } = await pool.query<ReportRow>(
     `UPDATE public_asset_reports SET status = $2, verified_by_user_id = $3, verified_at = now(), verification_remarks = $4
       WHERE id = $1 AND status = 'pending' RETURNING *`,
@@ -266,7 +298,10 @@ export async function approve(user: AttendanceTokenPayload, id: number, remarks:
   try {
     if (r.asset_type === "light") {
       const lightId = Number(r.light_id);
-      const { rows: open } = await pool.query<{ id: string }>(`SELECT id FROM light_faults WHERE light_id = $1 AND status = 'open' ORDER BY reported_at LIMIT 1`, [lightId]);
+      const { rows: open } = await pool.query<{ id: string }>(
+        `SELECT id FROM light_faults WHERE light_id = $1 AND status = 'open' ORDER BY reported_at LIMIT 1`,
+        [lightId],
+      );
       let faultId: number;
       let linked = false;
       if (open[0]) {
@@ -309,7 +344,9 @@ export async function approve(user: AttendanceTokenPayload, id: number, remarks:
       const pyau = await pyauRepository.findById(pyauId);
       if (!pyau || !pyau.active) throw ApiError.badRequest("This submersible is no longer in the registry.");
       let assignedContractorId: number | null = null;
-      if (!isUnderBuilderWarranty(pyau)) assignedContractorId = (await pyauContractorWardRepository.findByWard(Number(pyau.ward_id)))?.contractor_id ?? null;
+      if (!isUnderBuilderWarranty(pyau))
+        assignedContractorId =
+          pyau.maintenance_contractor_id ?? (await pyauContractorWardRepository.findByWard(Number(pyau.ward_id)))?.contractor_id ?? null;
       const issue = await pyauIssueRepository.create({
         pyauId,
         dateOfIssue: r.non_functional_since,
@@ -330,7 +367,10 @@ export async function approve(user: AttendanceTokenPayload, id: number, remarks:
     return { issueId, linkedToExisting: linked };
   } catch (e) {
     // Creating the fault failed: put the complaint back in the City Manager's queue.
-    await pool.query(`UPDATE public_asset_reports SET status = 'pending', verified_by_user_id = NULL, verified_at = NULL, verification_remarks = NULL WHERE id = $1`, [id]);
+    await pool.query(
+      `UPDATE public_asset_reports SET status = 'pending', verified_by_user_id = NULL, verified_at = NULL, verification_remarks = NULL WHERE id = $1`,
+      [id],
+    );
     throw e;
   }
 }

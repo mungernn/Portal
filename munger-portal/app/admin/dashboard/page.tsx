@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck, Trash2, RefreshCw, Upload, MapPin, Map as MapIcon, ClipboardCheck, UserCheck, ClipboardList, Receipt, RotateCcw, AlertTriangle, List, Flag, Home, FileText, Printer, Landmark, FileSpreadsheet, CalendarDays } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck, Trash2, RefreshCw, Upload, MapPin, Map as MapIcon, ClipboardCheck, UserCheck, ClipboardList, Receipt, RotateCcw, AlertTriangle, List, Flag, Home, FileText, Printer, Landmark, FileSpreadsheet, CalendarDays, Droplets } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { MapSectionDashboard } from "@/components/building-permit/map-section-dashboard";
 import { AgencyOperatorDashboard } from "@/components/agency/agency-operator-dashboard";
@@ -953,6 +953,16 @@ export default function AdminDashboardPage() {
                   </span>
                   <h3 className="mb-1.5 text-base font-semibold text-slate-900">Street Light Reports</h3>
                   <p className="text-sm text-slate-500">Ward-wise, street-wise and agency-wise reports, downloadable for Excel.</p>
+                </Link>
+              )}
+
+              {showStreetlightReports && (
+                <Link href="/admin/submersibles" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <Droplets className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Submersible Pyau Dashboard</h3>
+                  <p className="text-sm text-slate-500">Ward-wise submersibles: details, faults, repairs with items, cost, photos and the ward parshad&apos;s application.</p>
                 </Link>
               )}
             </div>
