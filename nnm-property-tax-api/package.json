@@ -16,6 +16,7 @@
     "migrate:sheets": "tsx scripts/migrate-from-sheets.ts",
     "migrate:csv": "tsx scripts/migrate-from-csv.ts",
     "backfill-tax-figures": "tsx scripts/backfill-stored-tax-figures.ts",
+    "repair-paid-till": "tsx scripts/repair-blank-paid-till.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "face:check": "tsx scripts/face-check.ts",
     "create-operator": "tsx scripts/create-operator.ts",

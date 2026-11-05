@@ -232,12 +232,14 @@ export async function createMigratedHolding(
   })();
   // The holding's real creation year from the old record when given (it decides which years are due); else this year.
   const creationYear = creationYearLabel(d.holdingCreationYear) ?? currentAssessmentYear;
+  // The old record's Last Payment Year is the year tax was paid till; blank = nothing paid since creation.
+  const paidTill = creationYearLabel(d.lastPaymentYear);
   await pool.query(
     `INSERT INTO properties (
       holding_no, old_holding_no, old_pid, owner_name, relation_type, relation_name,
       area_sqft, address, ward, assessment_year, road_type, holding_creation_year,
-      created_by
-    ) VALUES ($1,$2,$3,$4,$5,$6,0,$7,$8,$9,'MR',$10,$11)`,
+      created_by, tax_paid_till_year
+    ) VALUES ($1,$2,$3,$4,$5,$6,0,$7,$8,$9,'MR',$10,$11,$12)`,
     [
       holdingNo,
       d.oldHoldingNo,
@@ -250,6 +252,7 @@ export async function createMigratedHolding(
       currentAssessmentYear,
       creationYear,
       actorDisplayName,
+      paidTill,
     ],
   );
   // Old ARV/payment/status/remarks figures are reference-only, kept on the migrated_holding_surveys row - never used in
@@ -289,6 +292,14 @@ async function refreshOldRecord(holdingNo: string, d: MigratedRowData): Promise<
     [holdingNo, d.arvPre96, d.arv97to2010, d.arv2011to2020, d.lastPaymentYear, d.taxStatus, d.remarks],
   );
   await saveArvBands(holdingNo, d);
+  // A paid-till year still blank on the holding is taken from the sheet's Last Payment Year.
+  const paidTill = creationYearLabel(d.lastPaymentYear);
+  if (paidTill) {
+    await pool.query(`UPDATE properties SET tax_paid_till_year = $2 WHERE holding_no = $1 AND tax_paid_till_year IS NULL`, [
+      holdingNo,
+      paidTill,
+    ]);
+  }
   const cy = creationYearLabel(d.holdingCreationYear);
   // Only while the holding is still an unsurveyed MUNG-MIG placeholder (nothing billed against it yet).
   if (cy) {

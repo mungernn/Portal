@@ -140,7 +140,9 @@ export async function applyPropertySave(
       vacantArv: Number(calc.vacant.arv),
       taxPayable: Number(calc.currentTax),
       holdingCreationYear: input.holdingCreationYear,
-      taxPaidTillYear: input.taxPaidTillYear ?? null,
+      // A save that does not mention it at all (e.g. a Tax Collector's discrepancy / survey report, whose form has no
+      // such field) keeps the stored year. Blanking it here made a paid holding look never paid.
+      taxPaidTillYear: input.taxPaidTillYear === undefined ? (existingRow?.tax_paid_till_year ?? null) : input.taxPaidTillYear,
       presentHoldingName: input.presentHoldingName ?? null,
       presentCategory: input.presentCategory ?? null,
     },

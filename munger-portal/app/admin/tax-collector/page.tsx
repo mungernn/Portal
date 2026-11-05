@@ -407,7 +407,10 @@ export default function TaxCollectorPage() {
               <div className="grid grid-cols-1 gap-1.5 text-sm sm:grid-cols-2">
                 {DETAIL_FIELDS.map(([key, label]) => (
                   <p key={key}>
-                    <span className="text-slate-500">{label}:</span> {detailVal(key, property[key])}
+                    <span className="text-slate-500">{label}:</span>{" "}
+                    {key === "tax_paid_till_year" && !property.tax_paid_till_year
+                      ? `Nothing paid since creation - due from ${property.holding_creation_year ?? "the creation year"}`
+                      : detailVal(key, property[key])}
                   </p>
                 ))}
                 <p>
