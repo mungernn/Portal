@@ -1,3 +1,4 @@
+import type { FloorChangeSpec, FloorSnapshot } from "../utils/floorTimeline";
 export interface FloorInput {
   floorLabel: string;
   buildupSqft: number;
@@ -6,6 +7,10 @@ export interface FloorInput {
   occupancy: "self" | "rented";
   yearBuilt?: string | null;
   closingYear?: string | null;
+  /** Floor changes: the recorded floor this row comes from (several rows, same source = the floor was split). */
+  source?: FloorSnapshot | null;
+  /** Floor changes: how this row's change applies - from a year (past kept) or a correction. */
+  change?: FloorChangeSpec | null;
 }
 
 /**
@@ -14,9 +19,13 @@ export interface FloorInput {
  *  - correction: the record was always wrong - the floors are replaced for every year.
  */
 export interface FloorChangeInput {
-  kind: "from_year" | "correction";
+  /** Per-floor statements (each row's `change`, plus `removed`). Older requests have one kind for the whole edit. */
+  mode?: "per_floor";
+  kind?: "from_year" | "correction";
   effectiveYear?: string | null;
   reason: string;
+  /** Recorded floors removed: from which year they no longer exist, or a correction (never existed). */
+  removed?: { floor: FloorSnapshot; kind: "from_year" | "correction"; effectiveYear?: string | null }[];
 }
 
 export interface TaxExemptionInput {

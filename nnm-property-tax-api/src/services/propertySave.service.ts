@@ -1,6 +1,6 @@
 import { propertyRepository } from "../repositories/property.repository";
-import { applyFloorChangeFromYear, floorsDiffer } from "../utils/floorTimeline";
-import { assertFloorChangeStated } from "./floorChange.service";
+import { applyFloorChangeFromYear, applyFloorPlan, floorsDiffer } from "../utils/floorTimeline";
+import { assertFloorChangeStated, floorPlanOf } from "./floorChange.service";
 import { propertySaveRepository } from "../repositories/propertySave.repository";
 import { changeRequestRepository } from "../repositories/changeRequest.repository";
 import { regenerateAutomaticTaxHistoryStages } from "./automaticTaxHistory.service";
@@ -46,14 +46,22 @@ export async function applyPropertySave(holdingNo: string, input: PropertySaveIn
   // Same rule for the slum flag: a save that omits it keeps the stored value.
   const isSlum = input.isSlum ?? Boolean(existingRow?.is_slum);
 
-  // "Changed from year Y": keep the old floors for the years before Y (closed rows) and start the new ones in Y, so the
-  // past is priced on the use it actually had. A correction (or no statement - older queued requests) replaces them.
-  const fromYear = input.floorChange?.kind === "from_year" ? parseYearStartOrNull(input.floorChange.effectiveYear ?? null) : null;
-  if (!isNew && fromYear !== null) {
+  // Floor by floor: "changed from year Y" keeps the old floor for the years before Y (a closed row) and starts the new
+  // row(s) in Y, so the past is priced on the use it actually had; a correction replaces the floor for every year.
+  if (!isNew && input.floorChange) {
     const storedFloors = await propertyRepository.findFloorsByHoldingNo(holdingNo);
-    if (floorsDiffer(storedFloors, input.floors))
-      input = { ...input, floors: applyFloorChangeFromYear(storedFloors, input.floors, fromYear) };
+    if (floorsDiffer(storedFloors, input.floors)) {
+      const plan = floorPlanOf(storedFloors, input);
+      if (plan) input = { ...input, floors: applyFloorPlan(plan) };
+      else {
+        // Older requests: one statement for the whole edit.
+        const fromYear = input.floorChange.kind === "from_year" ? parseYearStartOrNull(input.floorChange.effectiveYear ?? null) : null;
+        if (fromYear !== null) input = { ...input, floors: applyFloorChangeFromYear(storedFloors, input.floors, fromYear) };
+      }
+    }
   }
+  // The per-floor statements are not floor data.
+  input = { ...input, floors: input.floors.map(({ source: _s, change: _c, ...f }) => f) };
   // Transport-only fields never go into the record or its history.
   delete input.premisesPhotoBase64;
   delete input.premisesPhotoMimeType;

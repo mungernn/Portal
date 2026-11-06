@@ -220,9 +220,9 @@ export default function ChangeRequestDetailPage() {
 
             <FloorChangeSummary
               floorChange={
-                (detail.request.proposed_data as { floorChange?: { kind?: string; effectiveYear?: string | null; reason?: string } | null })
-                  .floorChange
+                (detail.request.proposed_data as { floorChange?: Parameters<typeof FloorChangeSummary>[0]["floorChange"] }).floorChange
               }
+              floors={(detail.request.proposed_data as { floors?: Parameters<typeof FloorChangeSummary>[0]["floors"] }).floors}
               premisesPhotoPath={detail.request.premises_photo_path ? `/admin/change-requests/${detail.request.id}/premises-photo` : null}
               useChange={detail.request.approval_tier === "use_change"}
             />

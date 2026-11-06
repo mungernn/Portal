@@ -72,9 +72,13 @@ async function main() {
     if (cur.floor_change_kind === "from_year") continue; // recorded properly - the past was kept
     const before = byLabel(prev.floors);
     const after = byLabel(cur.floors);
+    // Details still present in the next version (open or closed) were kept - a "from year" change keeps the old
+    // floor as a closed row. Only details that vanished were overwritten.
+    const stillThere = new Set(cur.floors.map((f) => `${norm(f.floorLabel).toLowerCase()}|${describe(f)}`));
     for (const [label, oldList] of before) {
       const newList = after.get(label);
       if (!newList || oldList.join(" / ") === newList.join(" / ")) continue;
+      if (oldList.every((d) => stillThere.has(`${label}|${d}`))) continue;
       if (!unpaidCache.has(cur.holding_no)) {
         const p = await propertyRepository.findByHoldingNo(cur.holding_no);
         const paid = p ? await effectivePaidTillStart(p) : null;

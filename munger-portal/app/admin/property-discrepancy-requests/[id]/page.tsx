@@ -189,12 +189,10 @@ export default function PropertyDiscrepancyRequestDetailPage() {
                 <div className="mt-3">
                   <FloorChangeSummary
                     floorChange={
-                      (
-                        detail.request.proposed_data as {
-                          floorChange?: { kind?: string; effectiveYear?: string | null; reason?: string } | null;
-                        }
-                      ).floorChange
+                      (detail.request.proposed_data as { floorChange?: Parameters<typeof FloorChangeSummary>[0]["floorChange"] })
+                        .floorChange
                     }
+                    floors={(detail.request.proposed_data as { floors?: Parameters<typeof FloorChangeSummary>[0]["floors"] }).floors}
                   />
                 </div>
                 {(detail.request.gps_lat || detail.request.photo_path) && (

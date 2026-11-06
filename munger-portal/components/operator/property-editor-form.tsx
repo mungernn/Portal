@@ -14,7 +14,10 @@ import {
   blankFloorChange,
   floorChangePayload,
   floorChangeProblem,
+  floorRowExtras,
+  floorsChanged,
   isUseChange,
+  withSources,
   type FloorChangeState,
 } from "@/components/floor-change-box";
 import { fileToBase64 } from "@/components/admin/discrepancy-capture-section";
@@ -148,11 +151,14 @@ export function PropertyEditorForm({
     ...blankMaster(defaultAssessmentYear),
     ...initialMaster,
   });
-  const [floors, setFloors] = useState<FloorFormState[]>(initialFloors?.length ? initialFloors : [makeBlankFloor(0)]);
+  // When editing, every loaded floor remembers the recorded floor it is (its `source`), for floor-by-floor change statements.
+  const [floors, setFloors] = useState<FloorFormState[]>(
+    initialFloors?.length ? (isEditing ? withSources(initialFloors) : initialFloors) : [makeBlankFloor(0)],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<SaveError | null>(null);
   // Floors as loaded, to see whether they are being changed (only when editing an existing holding).
-  const [originalFloors] = useState<FloorFormState[]>(() => (isEditing && initialFloors?.length ? initialFloors : []));
+  const [originalFloors] = useState<FloorFormState[]>(() => (isEditing && initialFloors?.length ? withSources(initialFloors) : []));
   const [floorChange, setFloorChange] = useState<FloorChangeState>(blankFloorChange);
   const [premisesPhoto, setPremisesPhoto] = useState<File | null>(null);
   const [result, setResult] = useState<SaveResult | null>(null);
@@ -272,7 +278,7 @@ export function PropertyEditorForm({
         changeBasis: isEditing ? master.changeBasis : null,
         changeReference: isEditing ? master.changeReference : null,
         ...(taxExemption ? { taxExemption } : {}),
-        ...(isEditing ? { floorChange: floorChangePayload(originalFloors, floors, floorChange) } : {}),
+        ...(isEditing && floorsChanged(originalFloors, floors) ? { floorChange: floorChangePayload(floorChange) } : {}),
         ...(needsPremisesPhoto && premisesPhoto
           ? { premisesPhotoBase64: await fileToBase64(premisesPhoto), premisesPhotoMimeType: premisesPhoto.type }
           : {}),
@@ -284,6 +290,7 @@ export function PropertyEditorForm({
           occupancy: f.occupancy,
           yearBuilt: f.yearBuilt || null,
           closingYear: f.closingYear || null,
+          ...(isEditing ? floorRowExtras(f) : {}),
         })),
       };
 
@@ -789,6 +796,7 @@ export function PropertyEditorForm({
         <FloorChangeBox
           original={originalFloors}
           current={floors}
+          onFloorsChange={setFloors}
           creationYear={master.holdingCreationYear}
           value={floorChange}
           onChange={setFloorChange}

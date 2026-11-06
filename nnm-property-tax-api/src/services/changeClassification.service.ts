@@ -3,7 +3,8 @@ import type { PropertyRow, FloorRow } from "../types/property.types";
 import type { PropertySaveInput } from "../types/propertySave.types";
 import { num } from "../utils/num";
 import { exemptionChanged } from "../utils/taxExemption";
-import { floorsDiffer, floorUseChanged } from "../utils/floorTimeline";
+import { floorsDiffer, floorUseChanged, planIsUseChange } from "../utils/floorTimeline";
+import { floorPlanOf } from "./floorChange.service";
 import { getCurrentAssessmentYearStartNum, parseYearStartOrNull } from "../utils/assessmentYear";
 
 export type ApprovalTier = "minor" | "significant" | "mutation" | "use_change";
@@ -55,12 +56,21 @@ export function classifyPropertyChange(existingProperty: PropertyRow, existingFl
   // A floor's use changing, or any floor change applied to past years (back-dated or a correction), alters arrears:
   // Tax Daroga -> City Manager -> Deputy Commissioner.
   if (floorsDiffer(existingFloors, input.floors)) {
+    const plan = floorPlanOf(existingFloors, input);
+    if (plan) {
+      if (planIsUseChange(plan, getCurrentAssessmentYearStartNum())) return "use_change";
+      return areaOrStructureTier(existingProperty, existingFloors, input);
+    }
     const fc = input.floorChange;
     const from = parseYearStartOrNull(fc?.effectiveYear ?? null);
     const backDated = fc?.kind === "correction" || (from !== null && from < getCurrentAssessmentYearStartNum());
     if (backDated || floorUseChanged(existingFloors, input.floors)) return "use_change";
   }
 
+  return areaOrStructureTier(existingProperty, existingFloors, input);
+}
+
+function areaOrStructureTier(existingProperty: PropertyRow, existingFloors: FloorRow[], input: PropertySaveInput): ApprovalTier {
   const areaChanged = num(input.areaSqft) !== num(existingProperty.area_sqft);
 
   const floorsStructurallyChanged =
