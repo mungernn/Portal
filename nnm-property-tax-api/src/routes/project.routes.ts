@@ -7,6 +7,7 @@ import {
   bulkImportHandler,
   createProjectHandler,
   deleteProjectHandler,
+  exportReportHandler,
   engineerSetupHandler,
   getDocumentHandler,
   getPhotoHandler,
@@ -33,6 +34,7 @@ const WORK = [...PROJECT_ENTRY_ROLES, ...ENGINEER_ROLES];
 
 projectRouter.get("/", requireAttendanceRole(ANY), listProjectsHandler);
 projectRouter.get("/ward-report", requireAttendanceRole(ANY), wardReportHandler);
+projectRouter.get("/export", requireAttendanceRole(ANY), exportReportHandler);
 projectRouter.get("/template", requireAttendanceRole(PROJECT_ENTRY_ROLES), templateHandler);
 projectRouter.post("/bulk-upload", requireAttendanceRole(PROJECT_ENTRY_ROLES), bulkImportHandler);
 projectRouter.get("/engineers", requireAttendanceRole(PROJECT_VIEW_ALL_ROLES), engineerSetupHandler);

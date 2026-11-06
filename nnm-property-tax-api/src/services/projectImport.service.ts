@@ -10,79 +10,176 @@ import {
   type ProjectCategory,
   type ProjectStage,
 } from "../types/project.types";
-import { cellText } from "./propertyBulkImport.service";
-import { projectDb, type ProjectInput } from "./project.service";
+import { listProjects, projectDb, type ProjectFilter, type ProjectInput } from "./project.service";
+import {
+  REPORT_COLUMNS,
+  STAGE_RANK,
+  costFromName,
+  guessCategory,
+  nameWithoutCost,
+  normHeading,
+  schemeFromName,
+  splitLetter,
+  stageFromFacts,
+  wardFromName,
+  type ReportColumn,
+} from "./projectReportFormat";
 
 /**
- * Bulk entry of projects from an Excel sheet (Commissioner / Yojana Prabhari). Columns are found by their header
- * (order does not matter; unknown columns are ignored). A row whose Project Code - or, without a code, whose ward and
- * name - matches a project already entered updates that project with the cells that are filled in, so the same sheet
- * can be uploaded again as projects move forward. Each row stands alone: a bad row is reported and the rest go in.
+ * Bulk entry of schemes / projects (Commissioner, Yojana Prabhari) in the department's "3 Years Report" format -
+ * an Excel (.xlsx) or CSV file. Columns are found by their heading, so the report's own sheet uploads as it is; the
+ * older portal template still works. The name cell's estimate cost, ward number and scheme are read from the text
+ * when there is no column for them; the type of work is guessed from the name (it can be corrected later); the stage
+ * is worked out from the dates and progress unless a Stage column says otherwise.
+ *
+ * Re-uploading updates: a row matching a project already entered (by Project Code, else by name + financial year)
+ * fills in the cells that have a value - blank / "-" cells never erase anything - and the stage only moves forward.
+ * Each row stands alone: a bad row is reported and the rest go in. Cells that cannot be read (a mistyped date) are
+ * left blank and listed as warnings.
  */
 
-type Field = Exclude<keyof ProjectInput, never>;
-const HEADERS: { field: Field; header: string; aliases: string[]; kind: "text" | "number" | "date" | "special" }[] = [
-  { field: "projectCode", header: "Project Code", aliases: ["code", "project id", "project no"], kind: "text" },
-  { field: "name", header: "Project Name", aliases: ["name", "name of work", "work name", "project"], kind: "text" },
-  { field: "wardId", header: "Ward", aliases: ["ward no", "ward number"], kind: "special" },
-  { field: "locationText", header: "Location", aliases: ["site", "address", "location / address"], kind: "text" },
-  { field: "schemeName", header: "Scheme", aliases: ["yojana", "scheme name", "head"], kind: "text" },
-  { field: "category", header: "Category", aliases: ["type of work", "work type", "type"], kind: "special" },
-  { field: "discipline", header: "Discipline", aliases: ["civil / mechanical", "civil/mechanical"], kind: "special" },
-  { field: "financialYear", header: "Financial Year", aliases: ["fy", "year"], kind: "text" },
-  { field: "estimatedCost", header: "Estimated Cost", aliases: ["estimate", "estimated amount", "estimate amount"], kind: "number" },
-  { field: "approvalNo", header: "Approval No", aliases: ["approval number", "sanction no"], kind: "text" },
-  { field: "approvalDate", header: "Approval Date", aliases: ["sanction date"], kind: "date" },
-  { field: "tenderNo", header: "Tender No", aliases: ["tender number", "nit no"], kind: "text" },
-  { field: "tenderDate", header: "Tender Date", aliases: ["nit date"], kind: "date" },
-  { field: "tenderFinalisedDate", header: "Tender Finalised Date", aliases: ["tender finalized date"], kind: "date" },
-  { field: "agencyName", header: "Agency", aliases: ["agency name", "contractor", "contractor name"], kind: "text" },
-  { field: "workOrderNo", header: "Work Order No", aliases: ["work order number", "wo no"], kind: "text" },
-  { field: "workOrderDate", header: "Work Order Date", aliases: ["wo date"], kind: "date" },
-  { field: "workOrderAmount", header: "Work Order Amount", aliases: ["wo amount", "agreement amount"], kind: "number" },
-  { field: "targetCompletionDate", header: "Target Completion Date", aliases: ["target date", "completion target"], kind: "date" },
-  { field: "actualStartDate", header: "Actual Start Date", aliases: ["start date", "work start date"], kind: "date" },
-  { field: "actualCompletionDate", header: "Actual Completion Date", aliases: ["completion date", "date of completion"], kind: "date" },
-  { field: "paymentAmount", header: "Payment Amount", aliases: ["amount paid", "paid amount"], kind: "number" },
-  { field: "paymentDate", header: "Payment Date", aliases: ["date of payment"], kind: "date" },
-  { field: "stage", header: "Stage", aliases: ["status", "project status"], kind: "special" },
-  { field: "remarks", header: "Remarks", aliases: ["remark", "notes"], kind: "text" },
-];
+type Grid = string[][];
 
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9/]+/g, " ")
-    .trim();
+// ---------------------------------------------------------------------------------------------------------------------
+// Reading the file into a grid of text
+// ---------------------------------------------------------------------------------------------------------------------
 
-export const PROJECT_STAGE_IMPORT_HELP = PROJECT_STAGES.map((s) => PROJECT_STAGE_LABELS[s]);
+/** RFC 4180 CSV: quoted cells may hold commas, quotes ("") and line breaks. */
+function parseCsv(text: string): Grid {
+  const rows: Grid = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!;
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i++;
+        } else quoted = false;
+      } else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") {
+      row.push(cell);
+      cell = "";
+    } else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else cell += c;
+  }
+  if (cell || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+/** An Excel cell as text; dates as YYYY-MM-DD. */
+function excelText(v: ExcelJS.CellValue): string {
+  if (v === null || v === undefined) return "";
+  if (v instanceof Date) return `${v.getUTCFullYear()}-${pad(v.getUTCMonth() + 1)}-${pad(v.getUTCDate())}`;
+  if (typeof v === "object") {
+    if ("richText" in v) return v.richText.map((t) => t.text).join("");
+    if ("result" in v) return excelText(v.result as ExcelJS.CellValue);
+    if ("text" in v) return String(v.text);
+    if ("error" in v) return "";
+  }
+  return String(v);
+}
+
+async function readGrid(buffer: Buffer): Promise<Grid> {
+  const isXlsx = buffer[0] === 0x50 && buffer[1] === 0x4b; // "PK" - a zip
+  if (!isXlsx) {
+    let text: string;
+    if (buffer[0] === 0xff && buffer[1] === 0xfe) text = buffer.subarray(2).toString("utf16le");
+    else text = buffer.toString("utf8").replace(/^\uFEFF/, "");
+    if (!text.includes(",") && text.includes("\t")) return text.split(/\r?\n/).map((l) => l.split("\t")); // tab-separated "Unicode text"
+    return parseCsv(text);
+  }
+  const wb = new ExcelJS.Workbook();
+  try {
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+  } catch {
+    throw new Error("Could not read the file - upload the Excel (.xlsx) or CSV sheet.");
+  }
+  const ws = wb.worksheets.find((w) => /project|scheme|report|योजना/i.test(w.name)) ?? wb.worksheets[0];
+  if (!ws) throw new Error("The Excel file has no sheet.");
+  const grid: Grid = [];
+  ws.eachRow({ includeEmpty: true }, (row, r) => {
+    const cells: string[] = [];
+    row.eachCell({ includeEmpty: true }, (cell, c) => {
+      cells[c - 1] = excelText(cell.value);
+    });
+    grid[r - 1] = Array.from(cells, (x) => x ?? "");
+  });
+  return Array.from(grid, (r) => r ?? []);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Cells
+// ---------------------------------------------------------------------------------------------------------------------
+
+const blank = (t: string) => {
+  const v = t.trim();
+  return v === "" || /^[-–—]+$/.test(v) || /^n\.?a\.?$/i.test(v) || v === "0000-00-00";
+};
+
+/** dd.mm.yyyy / dd-mm-yyyy / dd/mm/yyyy / yyyy-mm-dd; a typo'd year like 20250 is read as 2025 (with a warning). */
+function parseDate(t: string): { value: string | null; warning?: string } {
+  const v = t.trim();
+  if (blank(v)) return { value: null };
+  const ymd = (y: number, m: number, d: number) => {
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return y >= 1990 && y <= 2100 && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d ? dt.toISOString().slice(0, 10) : null;
+  };
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) {
+    const r = ymd(+m[1]!, +m[2]!, +m[3]!);
+    return r ? { value: r } : { value: null, warning: `"${v}" is not a date` };
+  }
+  m = v.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(\d?)$/);
+  if (m) {
+    const r = ymd(+m[3]!, +m[2]!, +m[1]!);
+    if (!r) return { value: null, warning: `"${v}" is not a date` };
+    return m[4] ? { value: r, warning: `"${v}" read as ${m[1]}.${m[2]}.${m[3]} - please check` } : { value: r };
+  }
+  return { value: null, warning: `"${v}" is not a date (use DD.MM.YYYY)` };
+}
+
+function parseAmount(t: string): { value: number | null; warning?: string } {
+  if (blank(t)) return { value: null };
+  const n = Number(t.replace(/[,₹\s]|rs\.?|\/-|रू0|रु0/gi, ""));
+  return Number.isFinite(n) && n >= 0 ? { value: n } : { value: null, warning: `"${t.trim()}" is not an amount` };
+}
+
+function parsePct(t: string): { value: number | null; warning?: string } {
+  if (blank(t)) return { value: null };
+  const n = Number(t.replace(/[%\s]/g, ""));
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? { value: n } : { value: null, warning: `"${t.trim()}" is not a percentage (0-100)` };
+}
 
 function matchCategory(v: string): ProjectCategory | null {
-  const n = norm(v);
-  for (const k of PROJECT_CATEGORY_KEYS) if (norm(k.replace(/_/g, " ")) === n || norm(PROJECT_CATEGORIES[k].label) === n) return k;
-  // Loose matches for common ways of writing it.
-  if (/high ?mast|street ?light/.test(n)) return "streetlight_highmast";
-  if (/submersible|pyau|piyau/.test(n)) return "submersible_pyau";
-  if (/pcc/.test(n)) return "road_pcc";
-  if (/bitum|blacktop|road/.test(n)) return "road_bituminous";
-  if (/drain|nala|nali/.test(n)) return "drain";
-  if (/park|pond|talab/.test(n)) return "park_pond";
-  if (/boundary/.test(n)) return "boundary_wall";
-  if (/building|bhawan/.test(n)) return "building";
-  if (/pump|water supply/.test(n)) return "water_supply_pump";
-  if (/electric/.test(n)) return "electrical";
-  if (/vehicle|machine/.test(n)) return "vehicle_machinery";
-  return null;
+  const n = normHeading(v);
+  for (const k of PROJECT_CATEGORY_KEYS)
+    if (normHeading(k.replace(/_/g, " ")) === n || normHeading(PROJECT_CATEGORIES[k].label) === n) return k;
+  const g = guessCategory(v);
+  return g.category === "other_civil" && !/other|civil/i.test(v) ? null : g.category;
 }
 
 function matchStage(v: string): ProjectStage | null {
-  const n = norm(v);
-  for (const s of PROJECT_STAGES) if (norm(s.replace(/_/g, " ")) === n || norm(PROJECT_STAGE_LABELS[s]) === n) return s;
+  const n = normHeading(v);
+  for (const s of PROJECT_STAGES) if (normHeading(s.replace(/_/g, " ")) === n || normHeading(PROJECT_STAGE_LABELS[s]) === n) return s;
+  if (/cancel|drop|रद्द/.test(n)) return "cancelled";
   if (/^past/.test(n)) return "past_completed";
   if (/payment/.test(n)) return "payment_done";
   if (/^complete/.test(n)) return "completed";
   if (/progress|ongoing|started/.test(n)) return "in_progress";
-  if (/work ?order/.test(n)) return "work_order_issued";
+  if (/work ?order|award/.test(n)) return "work_order_issued";
   if (/final/.test(n)) return "tender_finalised";
   if (/tender/.test(n)) return "tendered";
   if (/approv|sanction/.test(n)) return "approved";
@@ -90,63 +187,53 @@ function matchStage(v: string): ProjectStage | null {
 }
 
 function matchDiscipline(v: string): Discipline | null {
-  const n = norm(v);
-  if (!n) return null;
-  if (/both|civil.*mech|mech.*civil/.test(n)) return "both";
-  if (/mech/.test(n)) return "mechanical";
-  if (/civil/.test(n)) return "civil";
+  const n = normHeading(v);
+  if (/both|civil.*mech|mech.*civil|दोनों/.test(n)) return "both";
+  if (/mech|यांत्रिक/.test(n)) return "mechanical";
+  if (/civil|सिविल/.test(n)) return "civil";
   return null;
 }
 
-/** A date cell: an Excel date, or text like 2025-04-01, 01-04-2025, 01/04/2025, 01.04.2025. */
-function parseDate(v: ExcelJS.CellValue): string | null | "bad" {
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
-  const t = cellText(v);
-  if (!t) return null;
-  const ymd = (y: string, mo: string, d: string) => {
-    const dt = new Date(Date.UTC(Number(y), Number(mo) - 1, Number(d)));
-    return dt.getUTCMonth() === Number(mo) - 1 && dt.getUTCDate() === Number(d) ? dt.toISOString().slice(0, 10) : "bad";
-  };
-  let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return ymd(m[1]!, m[2]!, m[3]!);
-  m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (m) return ymd(m[3]!, m[2]!, m[1]!);
-  return "bad";
-}
+/** Name for matching: letters and digits only. */
+const nameKey = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Import
+// ---------------------------------------------------------------------------------------------------------------------
 
 export interface ProjectImportResult {
   created: number;
   updated: number;
   unchanged: number;
   errors: { row: number; message: string }[];
+  warnings: { row: number; message: string }[];
+  /** The columns that were recognised (headings as in the file). */
+  columnsFound: number;
+}
+
+/** Fields of ProjectInput a sheet can fill (everything but the specials handled by hand). */
+type Out = Partial<ProjectInput> & Record<string, unknown>;
+
+function findHeader(grid: Grid): { row: number; cols: Map<string, number> } {
+  let best = { row: -1, cols: new Map<string, number>() };
+  const lookup = new Map<string, ReportColumn>();
+  for (const c of REPORT_COLUMNS) for (const h of [c.heading, ...c.aliases]) if (!lookup.has(normHeading(h))) lookup.set(normHeading(h), c);
+  for (let r = 0; r < Math.min(10, grid.length); r++) {
+    const cols = new Map<string, number>();
+    (grid[r] ?? []).forEach((cell, c) => {
+      const def = lookup.get(normHeading(cell));
+      if (def && !cols.has(def.field)) cols.set(def.field, c);
+    });
+    if ((cols.has("nameAndCost") || cols.has("name")) && cols.size > best.cols.size) best = { row: r, cols };
+  }
+  if (best.row < 0)
+    throw new Error('No "Name of Work & Estimate Cost" column found - use the headings of the 3 Years Report (download the template).');
+  return best;
 }
 
 export async function importProjects(user: AttendanceTokenPayload, buffer: Buffer): Promise<ProjectImportResult> {
-  const wb = new ExcelJS.Workbook();
-  try {
-    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
-  } catch {
-    throw new Error("Could not read the file - upload the Excel (.xlsx) sheet.");
-  }
-  const ws = wb.worksheets.find((w) => w.name.toLowerCase() === "projects") ?? wb.worksheets[0];
-  if (!ws) throw new Error("The Excel file has no sheet.");
-
-  // Header row: the first row in the top 5 that has a "name" column.
-  let headerRow = 0;
-  const col = new Map<Field, number>();
-  for (let r = 1; r <= Math.min(5, ws.rowCount) && !headerRow; r++) {
-    const found = new Map<Field, number>();
-    ws.getRow(r).eachCell({ includeEmpty: false }, (cell, c) => {
-      const h = norm(cellText(cell.value));
-      const def = HEADERS.find((d) => norm(d.header) === h || d.aliases.some((a) => norm(a) === h));
-      if (def && !found.has(def.field)) found.set(def.field, c);
-    });
-    if (found.has("name")) {
-      headerRow = r;
-      for (const [k, v] of found) col.set(k, v);
-    }
-  }
-  if (!headerRow) throw new Error('No "Project Name" column found - download the template and use its column headings.');
+  const grid = await readGrid(buffer);
+  const { row: headerRow, cols } = findHeader(grid);
 
   const { rows: wards } = await pool.query<{ id: string; ward_name: string }>(`SELECT id, ward_name FROM attendance_wards`);
   const wardNum = (label: string) => label.match(/\d+/)?.[0]?.replace(/^0+(?=\d)/, "") ?? null;
@@ -157,72 +244,136 @@ export async function importProjects(user: AttendanceTokenPayload, buffer: Buffe
     if (n && !wardByNum.has(n)) wardByNum.set(n, Number(w.id));
   }
 
-  const { rows: existingRows } = await pool.query<{ id: string; project_code: string; ward_id: string; name: string }>(
-    `SELECT id, project_code, ward_id, name FROM projects`,
-  );
+  const { rows: existingRows } = await pool.query<{
+    id: string;
+    project_code: string;
+    ward_id: string | null;
+    name: string;
+    financial_year: string | null;
+  }>(`SELECT id, project_code, ward_id, name, financial_year FROM projects`);
   const byCode = new Map(existingRows.map((p) => [p.project_code.trim().toLowerCase(), Number(p.id)]));
-  const byWardName = new Map(existingRows.map((p) => [`${p.ward_id}|${norm(p.name)}`, Number(p.id)]));
+  const byNameFy = new Map(existingRows.map((p) => [`${nameKey(p.name)}|${p.financial_year ?? ""}`, Number(p.id)]));
 
-  const result: ProjectImportResult = { created: 0, updated: 0, unchanged: 0, errors: [] };
-  for (let r = headerRow + 1; r <= ws.rowCount; r++) {
-    const row = ws.getRow(r);
-    const raw = (f: Field) => (col.has(f) ? row.getCell(col.get(f)!).value : null);
-    const txt = (f: Field) => cellText(raw(f)).trim();
-    if (HEADERS.every((d) => !txt(d.field))) continue;
-    const name = txt("name");
-    const wardText = txt("wardId");
-    if (!wardText && (!name || /^(grand\s+)?total/i.test(name))) continue; // e.g. a totals row
+  const result: ProjectImportResult = { created: 0, updated: 0, unchanged: 0, errors: [], warnings: [], columnsFound: cols.size };
+  for (let r = headerRow + 1; r < grid.length; r++) {
+    const line = r + 1; // as the sheet numbers rows
+    const cells = grid[r] ?? [];
+    const txt = (f: string) => (cols.has(f) ? (cells[cols.get(f)!] ?? "").trim() : "");
+    const rawName = txt("nameAndCost") || txt("name");
+    if (cells.every((c) => blank(c ?? ""))) continue;
+    if (!rawName || /^(grand\s+)?total|^कुल/i.test(rawName)) continue; // e.g. a totals row
+    const warn = (m: string) => result.warnings.push({ row: line, message: m });
     try {
-      const out: Partial<ProjectInput> = {};
+      const out: Out = {};
       const problems: string[] = [];
-      for (const d of HEADERS) {
-        if (d.kind === "special") continue;
-        const t = txt(d.field);
-        if (!t) continue;
-        if (d.kind === "text") (out as Record<string, unknown>)[d.field] = t;
-        else if (d.kind === "number") {
-          const n = Number(t.replace(/[,₹\s]|rs\.?/gi, ""));
-          if (Number.isFinite(n) && n >= 0) (out as Record<string, unknown>)[d.field] = n;
-          else problems.push(`${d.header} "${t}" is not an amount`);
+      for (const c of REPORT_COLUMNS) {
+        if (c.kind === "special") continue;
+        const t = txt(c.field);
+        if (blank(t)) continue;
+        const label = c.heading.replace(/\s+/g, " ");
+        if (c.kind === "text") out[c.field] = t.replace(/\s*\n\s*/g, " ");
+        else if (c.kind === "date") {
+          const d = parseDate(t);
+          if (d.value) out[c.field] = d.value;
+          if (d.warning) warn(`${label}: ${d.warning}`);
+        } else if (c.kind === "number") {
+          const a = parseAmount(t);
+          if (a.value !== null) out[c.field] = a.value;
+          if (a.warning) warn(`${label}: ${a.warning}`);
         } else {
-          const dt = parseDate(raw(d.field));
-          if (dt === "bad") problems.push(`${d.header} "${t}" is not a date (use DD-MM-YYYY)`);
-          else if (dt) (out as Record<string, unknown>)[d.field] = dt;
+          const p = parsePct(t);
+          if (p.value !== null) out[c.field] = p.value;
+          if (p.warning) warn(`${label}: ${p.warning}`);
         }
       }
-      if (wardText) {
-        const w = wardByExact.get(wardText.toLowerCase()) ?? wardByNum.get(wardNum(wardText) ?? "");
-        if (w) out.wardId = w;
-        else problems.push(`ward "${wardText}" not found`);
+
+      // Name and estimate cost.
+      const name = (cols.has("nameAndCost") ? nameWithoutCost(rawName) : rawName.replace(/\s+/g, " ")) || rawName;
+      out.name = name;
+      if (typeof out.financialYear === "string") {
+        const fy = out.financialYear.replace(/\s+/g, "");
+        if (fy.length > 9) {
+          warn(`Financial Year "${out.financialYear}" is too long - write it like 2025-26`);
+          delete out.financialYear;
+        } else out.financialYear = fy;
       }
+      if (cols.has("nameAndCost")) out.nameAsEntered = rawName;
+      if (out.estimatedCost === undefined) {
+        const cost = costFromName(rawName);
+        if (cost !== null) out.estimatedCost = cost;
+      }
+      if (out.schemeName === undefined) {
+        const sch = schemeFromName(rawName);
+        if (sch) out.schemeName = sch;
+      }
+
+      // Ward: the column, else "वार्ड नं0- 21" in the name, else city-wide.
+      const wardText = txt("wardId");
+      const wardFrom = !blank(wardText) ? wardText : wardFromName(rawName);
+      if (wardFrom) {
+        const w = wardByExact.get(wardFrom.toLowerCase()) ?? wardByNum.get(wardNum(wardFrom) ?? "");
+        if (w) out.wardId = w;
+        else problems.push(`ward "${wardFrom}" not found`);
+      }
+
+      // A.A letter "2870,\n28.11.2023".
+      const aa = txt("aaLetter");
+      if (!blank(aa)) {
+        const { no, date } = splitLetter(aa);
+        if (no) out.approvalNo = no;
+        if (date) {
+          const d = parseDate(date);
+          if (d.value) out.approvalDate = d.value;
+          if (d.warning) warn(`A.A date: ${d.warning}`);
+        }
+      }
+
       const catText = txt("category");
-      if (catText) {
+      if (!blank(catText)) {
         const c = matchCategory(catText);
         if (c) out.category = c;
-        else problems.push(`category "${catText}" not recognised`);
+        else problems.push(`type of work "${catText}" not recognised`);
       }
       const discText = txt("discipline");
-      if (discText) {
+      if (!blank(discText)) {
         const d = matchDiscipline(discText);
         if (d) out.discipline = d;
-        else problems.push(`discipline "${discText}" should be Civil, Mechanical or Both`);
+        else problems.push(`"${discText}" should be Civil, Mechanical or Both`);
       }
       const stageText = txt("stage");
-      if (stageText) {
-        const s = matchStage(stageText);
-        if (s) out.stage = s;
-        else problems.push(`stage "${stageText}" not recognised`);
+      let explicitStage: ProjectStage | null = null;
+      if (!blank(stageText)) {
+        explicitStage = matchStage(stageText);
+        if (!explicitStage) problems.push(`stage "${stageText}" not recognised`);
       }
       if (problems.length) throw new Error(problems.join("; "));
 
-      const code = out.projectCode?.toLowerCase();
-      const existingId =
-        (code ? byCode.get(code) : undefined) ?? (out.wardId && name ? byWardName.get(`${out.wardId}|${norm(name)}`) : undefined);
+      const code = (out.projectCode as string | undefined)?.toLowerCase();
+      const existingId = (code ? byCode.get(code) : undefined) ?? byNameFy.get(`${nameKey(name)}|${out.financialYear ?? ""}`);
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         if (existingId) {
+          const cur = (await client.query(`SELECT * FROM projects WHERE id = $1`, [existingId])).rows[0] as Record<string, unknown>;
           if (out.category && !out.discipline) out.discipline = PROJECT_CATEGORIES[out.category].discipline;
+          // Keep the as-entered text only when it says something the name and cost do not (e.g. our own download).
+          if (
+            cur.name_as_entered === null &&
+            out.name === cur.name &&
+            (out.estimatedCost ?? null) === (cur.estimated_cost === null ? null : Number(cur.estimated_cost))
+          )
+            delete out.nameAsEntered;
+          // Stage: as given, else from the dates now known - forward only (cancelled only before the work is awarded).
+          const merged = { ...factsOf(cur), ...out };
+          const curStage = cur.stage as ProjectStage;
+          const derived = explicitStage ?? stageFromFacts(merged);
+          if (explicitStage) out.stage = explicitStage;
+          else if (
+            derived === "cancelled"
+              ? STAGE_RANK[curStage] < STAGE_RANK.work_order_issued && curStage !== "cancelled"
+              : STAGE_RANK[derived] > STAGE_RANK[curStage]
+          )
+            out.stage = derived;
           const changes = await projectDb.patchProject(client, existingId, out);
           if (Object.keys(changes).length) {
             await projectDb.audit(client, user, changes.stage ? "stage_changed" : "project_edited", existingId, {
@@ -232,14 +383,22 @@ export async function importProjects(user: AttendanceTokenPayload, buffer: Buffe
             result.updated++;
           } else result.unchanged++;
         } else {
-          const missing = [!name && "Project Name", !out.wardId && "Ward", !out.category && "Category"].filter(Boolean);
-          if (missing.length) throw new Error(`${missing.join(", ")} missing`);
-          const input = { ...out, name, stage: out.stage ?? "approved" } as ProjectInput;
+          const guessed = guessCategory(rawName);
+          const input = {
+            ...out,
+            name,
+            wardId: out.wardId ?? null,
+            category: out.category ?? guessed.category,
+            discipline: out.discipline ?? (out.category ? null : guessed.discipline),
+            stage: explicitStage,
+          } as ProjectInput;
           const id = await projectDb.insertProject(client, user, input);
-          await projectDb.audit(client, user, "project_added", id, { name, stage: input.stage, viaExcel: true });
-          const newCode = (await client.query<{ project_code: string }>(`SELECT project_code FROM projects WHERE id = $1`, [id])).rows[0]!;
-          byCode.set(newCode.project_code.toLowerCase(), id);
-          byWardName.set(`${input.wardId}|${norm(name)}`, id);
+          const saved = (
+            await client.query<{ project_code: string; stage: string }>(`SELECT project_code, stage FROM projects WHERE id = $1`, [id])
+          ).rows[0]!;
+          await projectDb.audit(client, user, "project_added", id, { name, stage: saved.stage, viaExcel: true });
+          byCode.set(saved.project_code.toLowerCase(), id);
+          byNameFy.set(`${nameKey(name)}|${input.financialYear ?? ""}`, id);
           result.created++;
         }
         await client.query("COMMIT");
@@ -250,56 +409,172 @@ export async function importProjects(user: AttendanceTokenPayload, buffer: Buffe
         client.release();
       }
     } catch (e) {
-      result.errors.push({ row: r, message: e instanceof Error ? e.message : String(e) });
+      result.errors.push({ row: line, message: e instanceof Error ? e.message : String(e) });
     }
   }
   if (result.created + result.updated + result.unchanged + result.errors.length > 0) {
-    await projectDb.audit(pool, user, "bulk_import", null, { ...result, errors: result.errors.length });
+    await projectDb.audit(pool, user, "bulk_import", null, {
+      created: result.created,
+      updated: result.updated,
+      unchanged: result.unchanged,
+      errors: result.errors.length,
+      warnings: result.warnings.length,
+    });
   }
   return result;
 }
 
-/** The blank template: the Projects sheet with every column, and a Lists sheet with the categories and stages. */
+const iso = (v: unknown) =>
+  v instanceof Date ? `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}` : v === null || v === undefined ? null : String(v);
+const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+/** The stage-relevant facts of a stored project row. */
+function factsOf(r: Record<string, unknown>) {
+  return {
+    tenderDate: iso(r.tender_date),
+    techBidDisposalDate: iso(r.tech_bid_disposal_date),
+    finBidOpeningDate: iso(r.fin_bid_opening_date),
+    workAwardedDate: iso(r.work_awarded_date),
+    agreementDate: iso(r.agreement_date),
+    workOrderDate: iso(r.work_order_date),
+    actualStartDate: iso(r.actual_start_date),
+    actualCompletionDate: iso(r.actual_completion_date),
+    physicalProgressPct: num(r.physical_progress_pct),
+    financialProgressPct: num(r.financial_progress_pct),
+    paymentDate: iso(r.payment_date),
+    remarks: (r.remarks as string | null) ?? null,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Template and download in the same format
+// ---------------------------------------------------------------------------------------------------------------------
+
+const TEMPLATE_COLUMNS = REPORT_COLUMNS.filter((c) => c.field !== "name");
+const REPORT_COUNT = TEMPLATE_COLUMNS.findIndex((c) => c.field === "projectCode"); // the report's own columns come first
+
+function styleHeader(ws: ExcelJS.Worksheet) {
+  ws.columns = TEMPLATE_COLUMNS.map((c, i) => ({
+    header: c.heading,
+    key: c.field,
+    width: c.field === "nameAndCost" ? 60 : i < REPORT_COUNT ? 16 : 20,
+  }));
+  const h = ws.getRow(1);
+  h.height = 90;
+  h.eachCell((cell, n) => {
+    cell.font = { bold: true };
+    cell.alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: n <= REPORT_COUNT ? "FFDDEBF7" : "FFF2F2F2" } };
+    cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+  });
+  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 2 }];
+}
+
+/** The blank sheet: the 3 Years Report columns (blue) then the optional portal columns (grey), with instructions. */
 export async function projectTemplate(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Projects");
-  ws.columns = HEADERS.map((h) => ({ header: h.header, key: h.field, width: Math.max(14, h.header.length + 4) }));
-  ws.getRow(1).font = { bold: true };
-  ws.addRow({
-    name: "PCC road from main road to school",
-    wardId: "Ward 1",
-    locationText: "Near primary school",
-    schemeName: "Mukhyamantri Shahri Vikas Yojana",
-    category: PROJECT_CATEGORIES.road_pcc.label,
-    discipline: "Civil",
-    financialYear: "2025-26",
-    estimatedCost: 1250000,
-    approvalNo: "123/2025",
-    approvalDate: "01-06-2025",
-    stage: PROJECT_STAGE_LABELS.approved,
-  });
-  ws.getRow(2).font = { italic: true, color: { argb: "FF888888" } };
-  const lists = wb.addWorksheet("Lists");
-  lists.columns = [
-    { header: "Category", key: "c", width: 28 },
-    { header: "Discipline", key: "d", width: 14 },
-    { header: "", key: "x", width: 4 },
-    { header: "Stage", key: "s", width: 44 },
+  styleHeader(wb.addWorksheet("Projects"));
+  const help = wb.addWorksheet("Instructions");
+  help.columns = [{ width: 110 }];
+  const lines = [
+    "How to fill this sheet",
+    "",
+    "One row per scheme / work, in the 3 Years Report format. Blue columns are the report's own; grey ones are optional.",
+    'Name of Work & Estimate Cost: the name as usual, ending "... की प्राक्कलित राशि मो0- 57,68,000/- रू0" - the amount is read from it.',
+    'Ward Number: the number only. Leave blank for a city-wide work (or write the ward in the name as "वार्ड नं0- 21").',
+    "Dates: DD.MM.YYYY (e.g. 25.11.2023). Use - (dash) where a step does not apply or has not happened yet.",
+    'A.A Letter No. & Date: "2870, 28.11.2023" (letter number, then the date).',
+    "Progress columns: a number from 0 to 100.",
+    "The stage (approved, tendered, work order given, in progress, completed, payment done) is worked out from the dates and progress.",
+    'Remarks with "रद्द" mark a tender / scheme cancelled (unless the work was already awarded).',
+    "Type of work is guessed from the name (नाला, पी0सी0सी0 रोड, सबमर्सिबल / प्याऊ ...) - fill the grey column, or correct it in the portal.",
+    "",
+    "Uploading the same sheet again later updates the works already entered (matched by name + financial year, or Project Code):",
+    "filled cells are taken, blank / dash cells never erase anything, and the stage only moves forward.",
+    "",
+    "Type of work (for the optional column):",
+    ...PROJECT_CATEGORY_KEYS.map(
+      (k) => `   ${PROJECT_CATEGORIES[k].label} (${PROJECT_CATEGORIES[k].discipline === "civil" ? "Civil" : "Mechanical"})`,
+    ),
   ];
-  lists.getRow(1).font = { bold: true };
-  const cats = PROJECT_CATEGORY_KEYS.map((k) => PROJECT_CATEGORIES[k]);
-  for (let i = 0; i < Math.max(cats.length, PROJECT_STAGES.length); i++) {
-    const c = cats[i];
-    const s = PROJECT_STAGES[i];
-    lists.addRow({
-      c: c?.label ?? "",
-      d: c ? (c.discipline === "civil" ? "Civil" : "Mechanical") : "",
-      s: s ? PROJECT_STAGE_LABELS[s] : "",
-    });
-  }
-  lists.addRow({});
-  lists.addRow({ c: "Discipline may be Civil, Mechanical or Both (blank = from the category)." });
-  lists.addRow({ c: "Dates as DD-MM-YYYY. Leave Project Code blank for new projects - it is given automatically." });
-  lists.addRow({ c: "The grey example row (row 2) is read like any other row - delete it before uploading." });
+  for (const l of lines) help.addRow([l]);
+  help.getRow(1).font = { bold: true, size: 13 };
+  return Buffer.from(await wb.xlsx.writeBuffer());
+}
+
+const dmy = (v: unknown) => {
+  const s = iso(v);
+  const m = s?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : "-";
+};
+const dash = (v: unknown) => (v === null || v === undefined || v === "" ? "-" : String(v));
+const rupeeText = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+
+/** The projects (same filter as the list) in the 3 Years Report format - the same columns as the upload. */
+export async function exportProjectsReport(user: AttendanceTokenPayload, f: ProjectFilter): Promise<Buffer> {
+  const rows = (await listProjects(user, f)) as Record<string, unknown>[];
+  rows.sort((a, b) => Number(a.id) - Number(b.id));
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Projects");
+  styleHeader(ws);
+  rows.forEach((p, i) => {
+    const cost = num(p.estimated_cost);
+    const nameCell =
+      (p.name_as_entered as string | null) ?? `${String(p.name)}${cost ? ` की प्राक्कलित राशि मो0- ${rupeeText(cost)}/- रू0` : ""}`;
+    const wardNo = p.ward_id ? (String(p.ward_name).match(/\d+/)?.[0] ?? String(p.ward_name)) : "";
+    const v: Record<string, unknown> = {
+      srNo: i + 1,
+      nameAndCost: nameCell,
+      wardId: wardNo,
+      financialYear: dash(p.financial_year),
+      aaLetter: p.approval_no || p.approval_date ? `${p.approval_no ?? ""},\n${p.approval_date ? dmy(p.approval_date) : ""}` : "-",
+      bidderClaim: dash(p.bidder_claim),
+      componentProgressPct: dash(num(p.component_progress_pct)),
+      physicalProgressPct: dash(num(p.physical_progress_pct)),
+      financialProgressPct: dash(num(p.financial_progress_pct)),
+      eotReason: dash(p.eot_reason),
+      remarks: (p.remarks as string | null) ?? "",
+      projectCode: p.project_code,
+      category: PROJECT_CATEGORIES[p.category as ProjectCategory]?.label ?? p.category,
+      discipline: p.discipline === "both" ? "Both" : p.discipline === "mechanical" ? "Mechanical" : "Civil",
+      schemeName: p.scheme_name ?? "",
+      estimatedCost: cost ?? "",
+      agencyName: p.agency_name ?? "",
+      workOrderNo: p.work_order_no ?? "",
+      workOrderAmount: num(p.work_order_amount) ?? "",
+      paymentAmount: num(p.payment_amount) ?? "",
+      locationText: p.location_text ?? "",
+      stage: PROJECT_STAGE_LABELS[p.stage as ProjectStage] ?? p.stage,
+    };
+    const DATE_FIELDS: Record<string, string> = {
+      taSentDate: "ta_sent_date",
+      taDate: "ta_date",
+      tsSentDate: "ts_sent_date",
+      tsDate: "ts_date",
+      boqApprovalDate: "boq_approval_date",
+      tenderDate: "tender_date",
+      techBidOpeningDate: "tech_bid_opening_date",
+      csToEeDate: "cs_to_ee_date",
+      csToSeDate: "cs_to_se_date",
+      csToCeDate: "cs_to_ce_date",
+      csToEicDate: "cs_to_eic_date",
+      techBidDisposalDate: "tech_bid_disposal_date",
+      claimDisposalDate: "claim_disposal_date",
+      finBidOpeningDate: "fin_bid_opening_date",
+      finBidToEeDate: "fin_bid_to_ee_date",
+      finBidToSeDate: "fin_bid_to_se_date",
+      finBidToCeDate: "fin_bid_to_ce_date",
+      finBidToEicDate: "fin_bid_to_eic_date",
+      workAwardedDate: "work_awarded_date",
+      agreementDate: "agreement_date",
+      targetCompletionDate: "target_completion_date",
+      actualCompletionDate: "actual_completion_date",
+      eotDate: "eot_date",
+      actualStartDate: "actual_start_date",
+      paymentDate: "payment_date",
+    };
+    for (const [k, c] of Object.entries(DATE_FIELDS)) v[k] = p[c] ? dmy(p[c]) : k === "actualStartDate" || k === "paymentDate" ? "" : "-";
+    const row = ws.addRow(v);
+    row.alignment = { wrapText: true, vertical: "top" };
+  });
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

@@ -19,6 +19,7 @@ import {
   STAGE_LABELS,
   bulkUpload,
   categoryLabel,
+  downloadReportFormat,
   downloadTemplate,
   fetchProjects,
   fileToBase64,
@@ -62,6 +63,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [counts, setCounts] = useState<StageCount[]>([]);
+  const [years, setYears] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -69,6 +71,7 @@ export default function ProjectsPage() {
       const r = await fetchProjects(filter);
       setProjects(r.projects);
       setCounts(r.counts);
+      setYears(r.years);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load projects.");
@@ -194,15 +197,26 @@ export default function ProjectsPage() {
           })}
         </div>
 
+        {canEnter && <BulkUpload onDone={load} />}
+
         <Card
           title={projects ? `${projects.length} project${projects.length === 1 ? "" : "s"}` : "Projects"}
           right={
-            <button onClick={exportList} className={outlineBtn} disabled={!projects?.length}>
-              <Download className="h-4 w-4" /> Download list
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => downloadReportFormat(filter).catch((e) => setError(e.message))}
+                className={outlineBtn}
+                disabled={!projects?.length}
+              >
+                <FileSpreadsheet className="h-4 w-4" /> Download (3 Years Report format)
+              </button>
+              <button onClick={exportList} className={outlineBtn} disabled={!projects?.length}>
+                <Download className="h-4 w-4" /> Short list (CSV)
+              </button>
+            </div>
           }
         >
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div>
               <label className={labelClass}>Ward</label>
               <select
@@ -211,9 +225,25 @@ export default function ProjectsPage() {
                 onChange={(e) => setFilter((f) => ({ ...f, wardId: e.target.value }))}
               >
                 <option value="">All wards</option>
+                <option value="0">City-wide works (no ward)</option>
                 {wards.map((w) => (
                   <option key={w.id} value={w.id}>
                     {w.wardName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Financial year</label>
+              <select
+                className={inputClass}
+                value={filter.financialYear ?? ""}
+                onChange={(e) => setFilter((f) => ({ ...f, financialYear: e.target.value }))}
+              >
+                <option value="">All years</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
                   </option>
                 ))}
               </select>
@@ -288,6 +318,7 @@ export default function ProjectsPage() {
                     <th className="py-2 pr-3">Type</th>
                     <th className="py-2 pr-3">Stage</th>
                     <th className="py-2 pr-3 text-right">Estimate</th>
+                    <th className="py-2 pr-3 text-right">Progress</th>
                     <th className="py-2 pr-3">Monitored by</th>
                     <th className="py-2 pr-3 text-center">Photos</th>
                   </tr>
@@ -313,6 +344,12 @@ export default function ProjectsPage() {
                         <StagePill stage={p.stage} />
                       </td>
                       <td className="py-2.5 pr-3 text-right whitespace-nowrap">{rupees(p.estimated_cost)}</td>
+                      <td className="py-2.5 pr-3 text-right whitespace-nowrap text-xs">
+                        {p.physical_progress_pct !== null ? `${Number(p.physical_progress_pct)}%` : "-"}
+                        {p.financial_progress_pct !== null && (
+                          <div className="text-slate-400">Fin. {Number(p.financial_progress_pct)}%</div>
+                        )}
+                      </td>
                       <td className="py-2.5 pr-3 text-xs text-slate-600">
                         {monitorsOf(p) || <span className="text-amber-700">No engineer assigned</span>}
                       </td>
@@ -324,8 +361,6 @@ export default function ProjectsPage() {
             </div>
           )}
         </Card>
-
-        {canEnter && <BulkUpload onDone={load} />}
       </main>
     </div>
   );
@@ -339,7 +374,8 @@ function BulkUpload({ onDone }: { onDone: () => void }) {
 
   async function upload() {
     const file = fileRef.current?.files?.[0];
-    if (!file) return setError("Choose the Excel file first.");
+    if (!file) return setError("Choose the Excel or CSV file first.");
+    if (file.size > 7 * 1024 * 1024) return setError("The file is too large - at most 7 MB.");
     setBusy(true);
     setError(null);
     setResult(null);
@@ -355,17 +391,21 @@ function BulkUpload({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <Card title="Bulk upload from Excel">
+    <Card title="Bulk upload - 3 Years Report format">
       <p className="mb-3 text-sm text-slate-600">
-        Download the template, fill one row per project and upload it. Columns are read by their heading. A row with the Project Code (or
-        the same ward and name) of a project already entered updates it with the cells that are filled in - so the same sheet can be
-        uploaded again as projects move forward.
+        Upload the scheme sheet in the 3 Years Report format, as Excel (.xlsx) or CSV, exactly as it is prepared - columns are read by their
+        headings. The estimate cost, ward and scheme are read from the name of work when there is no separate column, the type of work is
+        guessed from the name, and the stage is worked out from the dates and progress. Blank ward = a city-wide work.
+      </p>
+      <p className="mb-3 text-sm text-slate-600">
+        Upload the same sheet again whenever it is updated: works already entered (same name and financial year) are updated with the filled
+        cells - blank or &quot;-&quot; cells never erase anything - and the stage only moves forward.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <button onClick={() => downloadTemplate().catch((e) => setError(e.message))} className={outlineBtn}>
           <FileSpreadsheet className="h-4 w-4" /> Download template
         </button>
-        <input ref={fileRef} type="file" accept=".xlsx" className="text-sm" />
+        <input ref={fileRef} type="file" accept=".xlsx,.csv,text/csv" className="text-sm" />
         <button onClick={upload} disabled={busy} className={primaryBtn}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} Upload
         </button>
@@ -382,6 +422,7 @@ function BulkUpload({ onDone }: { onDone: () => void }) {
             )}
             .
           </p>
+          <p className="text-xs text-slate-500">{result.columnsFound} columns recognised.</p>
           {result.errors.length > 0 && (
             <ul className="mt-2 max-h-48 list-disc overflow-y-auto pl-5 text-red-700">
               {result.errors.map((e) => (
@@ -390,6 +431,20 @@ function BulkUpload({ onDone }: { onDone: () => void }) {
                 </li>
               ))}
             </ul>
+          )}
+          {result.warnings.length > 0 && (
+            <>
+              <p className="mt-2 font-medium text-amber-800">
+                {result.warnings.length} cell{result.warnings.length === 1 ? "" : "s"} to check (the rest of the row was taken):
+              </p>
+              <ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5 text-amber-800">
+                {result.warnings.map((w, i) => (
+                  <li key={i}>
+                    Row {w.row}: {w.message}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </div>
       )}

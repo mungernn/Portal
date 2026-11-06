@@ -160,23 +160,47 @@ function ProjectView({ d, reload }: { d: ProjectDetail; reload: () => Promise<vo
           {row("Location", p.location_text)}
           {row("Scheme", p.scheme_name)}
           {row("Financial year", p.financial_year)}
-          {row("Estimated cost", rupees(p.estimated_cost))}
-          {row("Approval", [p.approval_no, p.approval_date && formatDate(p.approval_date)].filter(Boolean).join(" · "))}
-          {row("Tender", [p.tender_no, p.tender_date && formatDate(p.tender_date)].filter(Boolean).join(" · "))}
-          {row("Tender finalised", p.tender_finalised_date && formatDate(p.tender_finalised_date))}
+          {row("Estimate cost", rupees(p.estimated_cost))}
+          {row("A.A. letter", [p.approval_no, p.approval_date && formatDate(p.approval_date)].filter(Boolean).join(" · "))}
+          {row("Tender / NIT no.", p.tender_no)}
           {row("Agency", p.agency_name)}
           {row("Work order", [p.work_order_no, p.work_order_date && formatDate(p.work_order_date)].filter(Boolean).join(" · "))}
           {row("Work order amount", p.work_order_amount && rupees(p.work_order_amount))}
-          {row("Target completion", p.target_completion_date && formatDate(p.target_completion_date))}
-          {row("Work started", p.actual_start_date && formatDate(p.actual_start_date))}
-          {row("Completed", p.actual_completion_date && formatDate(p.actual_completion_date))}
           {row(
             "Payment",
             [p.payment_amount && rupees(p.payment_amount), p.payment_date && formatDate(p.payment_date)].filter(Boolean).join(" · "),
           )}
+          {row("Extension of time", [p.eot_reason, p.eot_date && formatDate(p.eot_date)].filter(Boolean).join(" · "))}
           {row("Entered by", `${p.created_by}, ${new Date(p.created_at).toLocaleDateString("en-IN")}`)}
         </dl>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <Progress label="Main component physical progress" value={p.component_progress_pct} />
+          <Progress label="Overall physical progress" value={p.physical_progress_pct} />
+          <Progress label="Financial progress" value={p.financial_progress_pct} />
+        </div>
         {p.remarks && <p className="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-700">{p.remarks}</p>}
+        {p.name_as_entered && p.name_as_entered !== p.name && (
+          <p className="mt-2 text-xs text-slate-400">As entered: {p.name_as_entered}</p>
+        )}
+      </Card>
+
+      <Card title="Steps - as in the 3 Years Report">
+        <ol className="gap-x-8 sm:columns-2">
+          {TIMELINE.map(([label, key]) => {
+            const v = p[key] as string | null;
+            return (
+              <li
+                key={key}
+                className="flex break-inside-avoid items-baseline justify-between gap-3 border-b border-slate-100 py-1.5 text-sm"
+              >
+                <span className={v ? "text-slate-700" : "text-slate-400"}>{label}</span>
+                <span className={`whitespace-nowrap font-medium ${v ? "text-slate-900" : "text-slate-300"}`}>
+                  {v ? (key === "bidder_claim" ? v : formatDate(v)) : "-"}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
       </Card>
 
       <Monitors d={d} reload={reload} />
@@ -254,8 +278,14 @@ function Monitors({ d, reload }: { d: ProjectDetail; reload: () => Promise<void>
   return (
     <Card title="Monitoring engineers">
       <p className="mb-3 text-sm text-slate-500">
-        By default the JE / AE assigned to {p.ward_name} for this type of work.
-        {d.canAssign && " You can name a different engineer for this project."}
+        {p.ward_id ? (
+          <>
+            By default the JE / AE assigned to {p.ward_name} for this type of work.
+            {d.canAssign && " You can name a different engineer for this project."}
+          </>
+        ) : (
+          <>A city-wide work has no ward engineer - {d.canAssign ? "name its engineers below." : "the Commissioner names its engineers."}</>
+        )}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {roles.map((r) => {
@@ -292,17 +322,68 @@ function Monitors({ d, reload }: { d: ProjectDetail; reload: () => Promise<void>
   );
 }
 
+/** The 3 Years Report's steps, in its order. */
+const TIMELINE: [string, keyof Project][] = [
+  ["Estimate sent for T.A. by ULB", "ta_sent_date"],
+  ["Technical approval (T.A.)", "ta_date"],
+  ["Administrative approval (A.A.)", "approval_date"],
+  ["Estimate sent for T.S. by ULB", "ts_sent_date"],
+  ["Technical sanction (T.S.)", "ts_date"],
+  ["BoQ approval", "boq_approval_date"],
+  ["Tender invited", "tender_date"],
+  ["Technical bid opened", "tech_bid_opening_date"],
+  ["C.S. with checklist to EE by ULB", "cs_to_ee_date"],
+  ["C.S. to SE by EE", "cs_to_se_date"],
+  ["C.S. to CE by SE", "cs_to_ce_date"],
+  ["C.S. to EIC by CE", "cs_to_eic_date"],
+  ["Technical bid disposal", "tech_bid_disposal_date"],
+  ["Claim by bidder", "bidder_claim"],
+  ["Claim disposed", "claim_disposal_date"],
+  ["Financial bid opened", "fin_bid_opening_date"],
+  ["Financial bid to EE by ULB", "fin_bid_to_ee_date"],
+  ["Financial bid to SE by EE", "fin_bid_to_se_date"],
+  ["Financial bid to CE by SE", "fin_bid_to_ce_date"],
+  ["Financial bid to EIC by CE", "fin_bid_to_eic_date"],
+  ["Work awarded", "work_awarded_date"],
+  ["Agreement", "agreement_date"],
+  ["Work started", "actual_start_date"],
+  ["Completion as per agreement", "target_completion_date"],
+  ["Actual completion", "actual_completion_date"],
+  ["Extension of time granted", "eot_date"],
+  ["Payment", "payment_date"],
+];
+
+function Progress({ label, value }: { label: string; value: string | null }) {
+  const n = value === null ? null : Number(value);
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs text-slate-500">
+        <span>{label}</span>
+        <span className="font-semibold text-slate-800">{n === null ? "-" : `${n}%`}</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-100">
+        <div className={`h-2 rounded-full ${n !== null && n >= 100 ? "bg-emerald-500" : "bg-nnm-blue"}`} style={{ width: `${n ?? 0}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function SiteWork({ d, reload }: { d: ProjectDetail; reload: () => Promise<void> }) {
   const p = d.project;
   const [notes, setNotes] = useState(p.site_notes ?? "");
   const [start, setStart] = useState(p.actual_start_date ?? "");
   const [end, setEnd] = useState(p.actual_completion_date ?? "");
+  const pctText = (v: string | null) => (v === null ? "" : String(Number(v)));
+  const [phys, setPhys] = useState(pctText(p.physical_progress_pct));
+  const [comp, setComp] = useState(pctText(p.component_progress_pct));
   const act = useAction(reload);
   useEffect(() => {
     setNotes(p.site_notes ?? "");
     setStart(p.actual_start_date ?? "");
     setEnd(p.actual_completion_date ?? "");
-  }, [p.site_notes, p.actual_start_date, p.actual_completion_date]);
+    setPhys(pctText(p.physical_progress_pct));
+    setComp(pctText(p.component_progress_pct));
+  }, [p.site_notes, p.actual_start_date, p.actual_completion_date, p.physical_progress_pct, p.component_progress_pct]);
 
   if (!d.canWork)
     return p.site_notes ? (
@@ -332,7 +413,7 @@ function SiteWork({ d, reload }: { d: ProjectDetail; reload: () => Promise<void>
           </button>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <div>
           <label className={labelClass}>Work started on</label>
           <input type="date" className={inputClass} value={start} onChange={(e) => setStart(e.target.value)} />
@@ -341,7 +422,15 @@ function SiteWork({ d, reload }: { d: ProjectDetail; reload: () => Promise<void>
           <label className={labelClass}>Completed on</label>
           <input type="date" className={inputClass} value={end} onChange={(e) => setEnd(e.target.value)} />
         </div>
-        <div className="sm:col-span-3">
+        <div>
+          <label className={labelClass}>Overall physical progress (%)</label>
+          <input type="number" min={0} max={100} className={inputClass} value={phys} onChange={(e) => setPhys(e.target.value)} />
+        </div>
+        <div>
+          <label className={labelClass}>Main component progress (%)</label>
+          <input type="number" min={0} max={100} className={inputClass} value={comp} onChange={(e) => setComp(e.target.value)} />
+        </div>
+        <div className="sm:col-span-4">
           <label className={labelClass}>Site notes - measurements, issues, progress</label>
           <textarea className={inputClass} rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
@@ -350,7 +439,15 @@ function SiteWork({ d, reload }: { d: ProjectDetail; reload: () => Promise<void>
         className={`${primaryBtn} mt-3`}
         disabled={act.busy}
         onClick={() =>
-          act.run(() => updateSite(p.id, { siteNotes: notes, actualStartDate: start || null, actualCompletionDate: end || null }))
+          act.run(() =>
+            updateSite(p.id, {
+              siteNotes: notes,
+              actualStartDate: start || null,
+              actualCompletionDate: end || null,
+              physicalProgressPct: phys === "" ? null : Number(phys),
+              componentProgressPct: comp === "" ? null : Number(comp),
+            }),
+          )
         }
       >
         {act.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save

@@ -11,6 +11,7 @@ export const PROJECT_STAGES = [
   "completed",
   "payment_done",
   "past_completed",
+  "cancelled",
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
@@ -23,6 +24,7 @@ export const PROJECT_STAGE_LABELS: Record<ProjectStage, string> = {
   completed: "Completed",
   payment_done: "Payment done",
   past_completed: "Past project (completed before the portal)",
+  cancelled: "Cancelled / dropped",
 };
 
 /** Ongoing = not yet finished; past = finished (including the ones finished before the portal). */

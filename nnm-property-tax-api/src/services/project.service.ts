@@ -5,6 +5,7 @@ import { pool } from "../config/db";
 import { env } from "../config/env";
 import { ApiError } from "../utils/ApiError";
 import { MAX_PHOTO_BYTES, uploadLimitMessage } from "../utils/uploadLimits";
+import { stageFromFacts } from "./projectReportFormat";
 import { ENGINEER_ROLES, type AttendanceTokenPayload, type EngineerRole } from "../types/attendance.types";
 import {
   MAX_PHOTOS_PER_MILESTONE,
@@ -65,6 +66,7 @@ export interface ProjectFilter {
   stage?: ProjectStage | null;
   group?: "ongoing" | "past" | null;
   discipline?: Discipline | null;
+  financialYear?: string | null;
   q?: string | null;
 }
 
@@ -80,6 +82,26 @@ const DATE_COLUMNS = [
   "actual_start_date",
   "actual_completion_date",
   "payment_date",
+  "ta_sent_date",
+  "ta_date",
+  "ts_sent_date",
+  "ts_date",
+  "boq_approval_date",
+  "tech_bid_opening_date",
+  "cs_to_ee_date",
+  "cs_to_se_date",
+  "cs_to_ce_date",
+  "cs_to_eic_date",
+  "tech_bid_disposal_date",
+  "claim_disposal_date",
+  "fin_bid_opening_date",
+  "fin_bid_to_ee_date",
+  "fin_bid_to_se_date",
+  "fin_bid_to_ce_date",
+  "fin_bid_to_eic_date",
+  "work_awarded_date",
+  "agreement_date",
+  "eot_date",
 ];
 const withDates = <T extends Record<string, unknown>>(row: T): T => {
   const out: Record<string, unknown> = { ...row };
@@ -88,7 +110,7 @@ const withDates = <T extends Record<string, unknown>>(row: T): T => {
 };
 const today = () => dateText(new Date()) as string;
 
-const LIST_COLUMNS = `p.*, w.ward_name,
+const LIST_COLUMNS = `p.*, COALESCE(w.ward_name, 'City-wide') AS ward_name,
   (SELECT COUNT(*)::int FROM project_photos ph WHERE ph.project_id = p.id) AS photo_count,
   (SELECT COUNT(*)::int FROM project_documents d WHERE d.project_id = p.id) AS document_count,
   ${ENGINEER_ROLES.map((r) => `(SELECT u.display_name FROM attendance_users u WHERE u.id = ${monitorSql(r)}) AS ${r}_name`).join(",\n  ")}`;
@@ -105,8 +127,11 @@ function whereFor(user: User, f: ProjectFilter): { sql: string; params: unknown[
     if (!r) throw new ApiError(403, "Project monitoring is not available for this login.");
     conds.push(monitoredBySql(r, add(user.sub)));
   }
-  if (f.wardId) conds.push(`p.ward_id = ${add(f.wardId)}`);
+  if (f.wardId === 0)
+    conds.push(`p.ward_id IS NULL`); // city-wide works
+  else if (f.wardId) conds.push(`p.ward_id = ${add(f.wardId)}`);
   if (f.stage) conds.push(`p.stage = ${add(f.stage)}`);
+  if (f.financialYear) conds.push(`p.financial_year = ${add(f.financialYear)}`);
   if (f.group) conds.push(`p.stage = ANY(${add(f.group === "past" ? PAST_STAGES : ONGOING_STAGES)})`);
   if (f.discipline) conds.push(f.discipline === "both" ? `p.discipline = 'both'` : `p.discipline IN (${add(f.discipline)}, 'both')`);
   if (f.q) {
@@ -119,11 +144,21 @@ function whereFor(user: User, f: ProjectFilter): { sql: string; params: unknown[
 export async function listProjects(user: User, f: ProjectFilter) {
   const { sql, params } = whereFor(user, f);
   const { rows } = await pool.query(
-    `SELECT ${LIST_COLUMNS} FROM projects p JOIN attendance_wards w ON w.id = p.ward_id ${sql}
+    `SELECT ${LIST_COLUMNS} FROM projects p LEFT JOIN attendance_wards w ON w.id = p.ward_id ${sql}
      ORDER BY p.updated_at DESC LIMIT 2000`,
     params,
   );
   return rows.map(withDates);
+}
+
+/** The financial years of the projects this login can see (for the filter). */
+export async function financialYears(user: User): Promise<string[]> {
+  const { sql, params } = whereFor(user, {});
+  const { rows } = await pool.query<{ fy: string }>(
+    `SELECT DISTINCT p.financial_year AS fy FROM projects p ${sql ? `${sql} AND` : "WHERE"} p.financial_year IS NOT NULL ORDER BY 1 DESC`,
+    params,
+  );
+  return rows.map((r) => r.fy);
 }
 
 /** Counts by stage (the Commissioner's tiles) for the same filter, ignoring the stage / group filter. */
@@ -142,20 +177,21 @@ export async function stageCounts(user: User, f: ProjectFilter) {
 export async function wardReport(user: User, f: ProjectFilter) {
   const { sql, params } = whereFor(user, { ...f, stage: null });
   const { rows } = await pool.query(
-    `SELECT w.id AS ward_id, w.ward_name, p.stage, COUNT(*)::int AS count,
+    `SELECT w.id AS ward_id, COALESCE(w.ward_name, 'City-wide') AS ward_name, p.stage, COUNT(*)::int AS count,
             COALESCE(SUM(p.estimated_cost), 0) AS estimated, COALESCE(SUM(p.work_order_amount), 0) AS work_order,
             COALESCE(SUM(p.payment_amount), 0) AS paid
-     FROM projects p JOIN attendance_wards w ON w.id = p.ward_id ${sql}
-     GROUP BY w.id, w.ward_name, p.stage ORDER BY w.id`,
+     FROM projects p LEFT JOIN attendance_wards w ON w.id = p.ward_id ${sql}
+     GROUP BY w.id, w.ward_name, p.stage ORDER BY w.id NULLS LAST`,
     params,
   );
   return rows;
 }
 
 async function loadProject(db: Db, id: number) {
-  const { rows } = await db.query(`SELECT ${LIST_COLUMNS} FROM projects p JOIN attendance_wards w ON w.id = p.ward_id WHERE p.id = $1`, [
-    id,
-  ]);
+  const { rows } = await db.query(
+    `SELECT ${LIST_COLUMNS} FROM projects p LEFT JOIN attendance_wards w ON w.id = p.ward_id WHERE p.id = $1`,
+    [id],
+  );
   if (!rows[0]) throw ApiError.notFound("Project not found.");
   return withDates(rows[0]) as Record<string, unknown> & { id: string; ward_id: string; discipline: Discipline; stage: ProjectStage };
 }
@@ -211,7 +247,8 @@ export async function getProject(user: User, id: number) {
 export interface ProjectInput {
   projectCode?: string | null;
   name: string;
-  wardId: number;
+  /** null = a city-wide work (no ward). */
+  wardId: number | null;
   locationText?: string | null;
   schemeName?: string | null;
   category: ProjectCategory;
@@ -232,8 +269,35 @@ export interface ProjectInput {
   actualCompletionDate?: string | null;
   paymentAmount?: number | null;
   paymentDate?: string | null;
-  stage: ProjectStage;
+  /** null = work it out from the dates and progress. */
+  stage: ProjectStage | null;
   remarks?: string | null;
+  taSentDate?: string | null;
+  taDate?: string | null;
+  tsSentDate?: string | null;
+  tsDate?: string | null;
+  boqApprovalDate?: string | null;
+  techBidOpeningDate?: string | null;
+  csToEeDate?: string | null;
+  csToSeDate?: string | null;
+  csToCeDate?: string | null;
+  csToEicDate?: string | null;
+  techBidDisposalDate?: string | null;
+  bidderClaim?: string | null;
+  claimDisposalDate?: string | null;
+  finBidOpeningDate?: string | null;
+  finBidToEeDate?: string | null;
+  finBidToSeDate?: string | null;
+  finBidToCeDate?: string | null;
+  finBidToEicDate?: string | null;
+  workAwardedDate?: string | null;
+  agreementDate?: string | null;
+  componentProgressPct?: number | null;
+  physicalProgressPct?: number | null;
+  financialProgressPct?: number | null;
+  eotReason?: string | null;
+  eotDate?: string | null;
+  nameAsEntered?: string | null;
 }
 
 /** input key -> column. */
@@ -262,17 +326,47 @@ const COLUMNS: Record<Exclude<keyof ProjectInput, "projectCode">, string> = {
   paymentDate: "payment_date",
   stage: "stage",
   remarks: "remarks",
+  taSentDate: "ta_sent_date",
+  taDate: "ta_date",
+  tsSentDate: "ts_sent_date",
+  tsDate: "ts_date",
+  boqApprovalDate: "boq_approval_date",
+  techBidOpeningDate: "tech_bid_opening_date",
+  csToEeDate: "cs_to_ee_date",
+  csToSeDate: "cs_to_se_date",
+  csToCeDate: "cs_to_ce_date",
+  csToEicDate: "cs_to_eic_date",
+  techBidDisposalDate: "tech_bid_disposal_date",
+  bidderClaim: "bidder_claim",
+  claimDisposalDate: "claim_disposal_date",
+  finBidOpeningDate: "fin_bid_opening_date",
+  finBidToEeDate: "fin_bid_to_ee_date",
+  finBidToSeDate: "fin_bid_to_se_date",
+  finBidToCeDate: "fin_bid_to_ce_date",
+  finBidToEicDate: "fin_bid_to_eic_date",
+  workAwardedDate: "work_awarded_date",
+  agreementDate: "agreement_date",
+  componentProgressPct: "component_progress_pct",
+  physicalProgressPct: "physical_progress_pct",
+  financialProgressPct: "financial_progress_pct",
+  eotReason: "eot_reason",
+  eotDate: "eot_date",
+  nameAsEntered: "name_as_entered",
 };
 
 const withDiscipline = (i: ProjectInput): ProjectInput => ({ ...i, discipline: i.discipline ?? PROJECT_CATEGORIES[i.category].discipline });
 
-async function assertWard(db: Db, wardId: number) {
+/** The stage given, or (null) the one the dates and progress show. */
+export const resolveStage = (i: Partial<ProjectInput>): ProjectStage => i.stage ?? stageFromFacts(i);
+
+async function assertWard(db: Db, wardId: number | null) {
+  if (wardId === null) return; // city-wide
   const { rows } = await db.query(`SELECT 1 FROM attendance_wards WHERE id = $1`, [wardId]);
   if (!rows[0]) throw ApiError.badRequest("Unknown ward.");
 }
 
 async function insertProject(db: Db, user: User, input: ProjectInput): Promise<number> {
-  const i = withDiscipline(input);
+  const i = { ...withDiscipline(input), stage: resolveStage(input) };
   await assertWard(db, i.wardId);
   const id = Number((await db.query<{ id: string }>(`SELECT nextval(pg_get_serial_sequence('projects', 'id')) AS id`)).rows[0]!.id);
   const code = i.projectCode?.trim() || `PRJ-${String(id).padStart(5, "0")}`;
@@ -296,7 +390,7 @@ export async function createProject(user: User, input: ProjectInput) {
   try {
     await client.query("BEGIN");
     const id = await insertProject(client, user, input);
-    await audit(client, user, "project_added", id, { name: input.name, stage: input.stage });
+    await audit(client, user, "project_added", id, { name: input.name, stage: resolveStage(input) });
     await client.query("COMMIT");
     return loadProject(pool, id);
   } catch (e) {
@@ -354,7 +448,7 @@ export async function updateProject(user: User, id: number, input: ProjectInput)
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const changes = await patchProject(client, id, withDiscipline(input));
+    const changes = await patchProject(client, id, { ...withDiscipline(input), stage: resolveStage(input) });
     if (Object.keys(changes).length) await audit(client, user, changes.stage ? "stage_changed" : "project_edited", id, changes);
     await client.query("COMMIT");
     return loadProject(pool, id);
@@ -390,6 +484,8 @@ export interface SiteInput {
   siteNotes?: string | null;
   actualStartDate?: string | null;
   actualCompletionDate?: string | null;
+  componentProgressPct?: number | null;
+  physicalProgressPct?: number | null;
   /** A monitor may only start the work or mark it completed. */
   stage?: "in_progress" | "completed" | null;
 }
@@ -408,6 +504,8 @@ export async function updateSite(user: User, id: number, input: SiteInput) {
     const patch: Partial<ProjectInput> & { siteNotes?: string | null } = {};
     if (input.actualStartDate !== undefined) patch.actualStartDate = input.actualStartDate;
     if (input.actualCompletionDate !== undefined) patch.actualCompletionDate = input.actualCompletionDate;
+    if (input.componentProgressPct !== undefined) patch.componentProgressPct = input.componentProgressPct;
+    if (input.physicalProgressPct !== undefined) patch.physicalProgressPct = input.physicalProgressPct;
     if (input.stage && input.stage !== current.stage) {
       if (!canEnterProjects(user) && !MONITOR_STAGE_FROM[input.stage].includes(current.stage))
         throw ApiError.badRequest(

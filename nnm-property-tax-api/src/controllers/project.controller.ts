@@ -13,6 +13,7 @@ import {
   createProject,
   deleteProject,
   engineerSetup,
+  financialYears,
   filePath,
   getProject,
   listProjects,
@@ -24,7 +25,7 @@ import {
   updateSite,
   wardReport,
 } from "../services/project.service";
-import { importProjects, projectTemplate } from "../services/projectImport.service";
+import { exportProjectsReport, importProjects, projectTemplate } from "../services/projectImport.service";
 
 const user = (req: Request) => {
   if (!req.attendanceUser) throw new ApiError(401, "Not signed in.");
@@ -53,10 +54,19 @@ const amount = z
   .nullish()
   .transform((v) => (v === "" || v === undefined ? null : v));
 
+const pct = z
+  .union([z.coerce.number().min(0, "Progress is 0 to 100.").max(100, "Progress is 0 to 100."), z.literal("")])
+  .nullish()
+  .transform((v) => (v === "" || v === undefined ? null : v));
+
 const projectSchema = z.object({
   projectCode: text,
   name: z.string().trim().min(3, "Enter the name of the work."),
-  wardId: z.coerce.number().int().positive("Select the ward."),
+  // Blank = a city-wide work (no ward).
+  wardId: z
+    .union([z.coerce.number().int().positive(), z.literal(""), z.null()])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? null : v)),
   locationText: text,
   schemeName: text,
   category: z.enum(PROJECT_CATEGORY_KEYS, { message: "Select the type of work." }),
@@ -80,23 +90,53 @@ const projectSchema = z.object({
   actualCompletionDate: date,
   paymentAmount: amount,
   paymentDate: date,
-  stage: z.enum(PROJECT_STAGES),
+  // Blank = work it out from the dates and progress.
+  stage: z
+    .union([z.enum(PROJECT_STAGES), z.literal("")])
+    .nullish()
+    .transform((v) => v || null),
   remarks: text,
+  taSentDate: date,
+  taDate: date,
+  tsSentDate: date,
+  tsDate: date,
+  boqApprovalDate: date,
+  techBidOpeningDate: date,
+  csToEeDate: date,
+  csToSeDate: date,
+  csToCeDate: date,
+  csToEicDate: date,
+  techBidDisposalDate: date,
+  bidderClaim: text,
+  claimDisposalDate: date,
+  finBidOpeningDate: date,
+  finBidToEeDate: date,
+  finBidToSeDate: date,
+  finBidToCeDate: date,
+  finBidToEicDate: date,
+  workAwardedDate: date,
+  agreementDate: date,
+  componentProgressPct: pct,
+  physicalProgressPct: pct,
+  financialProgressPct: pct,
+  eotReason: text,
+  eotDate: date,
 });
 
 const filterSchema = z.object({
-  wardId: z.coerce.number().int().positive().optional(),
+  wardId: z.coerce.number().int().nonnegative().optional(), // 0 = city-wide works
   stage: z.enum(PROJECT_STAGES).optional(),
   group: z.enum(["ongoing", "past"]).optional(),
   discipline: z.enum(["civil", "mechanical", "both"]).optional(),
+  financialYear: z.string().trim().max(9).optional(),
   q: z.string().trim().max(100).optional(),
 });
 const filter = (req: Request) => parse(filterSchema, Object.fromEntries(Object.entries(req.query).filter(([, v]) => v !== "")));
 
 export const listProjectsHandler = asyncHandler(async (req: Request, res: Response) => {
   const f = filter(req);
-  const [projects, counts] = await Promise.all([listProjects(user(req), f), stageCounts(user(req), f)]);
-  res.json({ projects, counts });
+  const [projects, counts, years] = await Promise.all([listProjects(user(req), f), stageCounts(user(req), f), financialYears(user(req))]);
+  res.json({ projects, counts, years });
 });
 
 export const wardReportHandler = asyncHandler(async (req: Request, res: Response) => {
@@ -133,6 +173,8 @@ const siteSchema = z.object({
     .enum(["in_progress", "completed"])
     .nullish()
     .transform((v) => v ?? null),
+  componentProgressPct: pct.optional(),
+  physicalProgressPct: pct.optional(),
 });
 export const updateSiteHandler = asyncHandler(async (req: Request, res: Response) => {
   const body = parse(siteSchema, req.body);
@@ -141,6 +183,8 @@ export const updateSiteHandler = asyncHandler(async (req: Request, res: Response
     siteNotes: "siteNotes" in req.body ? body.siteNotes : undefined,
     actualStartDate: "actualStartDate" in req.body ? body.actualStartDate : undefined,
     actualCompletionDate: "actualCompletionDate" in req.body ? body.actualCompletionDate : undefined,
+    componentProgressPct: "componentProgressPct" in req.body ? body.componentProgressPct : undefined,
+    physicalProgressPct: "physicalProgressPct" in req.body ? body.physicalProgressPct : undefined,
     stage: body.stage,
   };
   res.json({ project: await updateSite(user(req), parseId(req), input) });
@@ -257,4 +301,11 @@ export const templateHandler = asyncHandler(async (_req: Request, res: Response)
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", 'attachment; filename="project-upload-template.xlsx"');
   res.send(await projectTemplate());
+});
+
+/** The list (same filters) in the 3 Years Report format. */
+export const exportReportHandler = asyncHandler(async (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", 'attachment; filename="projects-3-years-report-format.xlsx"');
+  res.send(await exportProjectsReport(user(req), filter(req)));
 });

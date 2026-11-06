@@ -5,7 +5,16 @@ import { Download } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import type { AttendanceRole } from "@/lib/attendance-auth";
-import { ONGOING_STAGES, PAST_STAGES, PROJECT_ROLES, STAGE_LABELS, fetchWardReport, rupees, type ProjectStage } from "@/lib/project-api";
+import {
+  ONGOING_STAGES,
+  PAST_STAGES,
+  PROJECT_ROLES,
+  STAGE_LABELS,
+  fetchProjects,
+  fetchWardReport,
+  rupees,
+  type ProjectStage,
+} from "@/lib/project-api";
 import { BackLink, Card, ErrorLine, Spinner, downloadCsv, inputClass, labelClass, outlineBtn } from "@/components/projects/parts";
 
 type Row = Awaited<ReturnType<typeof fetchWardReport>>[number];
@@ -15,16 +24,24 @@ export default function ProjectWardReportPage() {
   const user = useAttendanceGuard(PROJECT_ROLES as AttendanceRole[]);
   const [group, setGroup] = useState<"ongoing" | "past">("ongoing");
   const [discipline, setDiscipline] = useState("");
+  const [financialYear, setFinancialYear] = useState("");
+  const [years, setYears] = useState<string[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
     setRows(null);
-    fetchWardReport({ group, discipline })
+    fetchWardReport({ group, discipline, financialYear })
       .then(setRows)
       .catch((e) => setError(e.message));
-  }, [user, group, discipline]);
+  }, [user, group, discipline, financialYear]);
+  useEffect(() => {
+    if (user)
+      fetchProjects({ q: "-no-match-" })
+        .then((r) => setYears(r.years))
+        .catch(() => {});
+  }, [user]);
 
   const stages: ProjectStage[] = group === "ongoing" ? ONGOING_STAGES : PAST_STAGES;
   const table = useMemo(() => {
@@ -33,13 +50,13 @@ export default function ProjectWardReportPage() {
       { ward: string; counts: Record<string, number>; total: number; estimated: number; workOrder: number; paid: number }
     >();
     for (const r of rows ?? []) {
-      const w = byWard.get(r.ward_id) ?? { ward: r.ward_name, counts: {}, total: 0, estimated: 0, workOrder: 0, paid: 0 };
+      const w = byWard.get(r.ward_id ?? "city") ?? { ward: r.ward_name, counts: {}, total: 0, estimated: 0, workOrder: 0, paid: 0 };
       w.counts[r.stage] = (w.counts[r.stage] ?? 0) + r.count;
       w.total += r.count;
       w.estimated += Number(r.estimated);
       w.workOrder += Number(r.work_order);
       w.paid += Number(r.paid);
-      byWard.set(r.ward_id, w);
+      byWard.set(r.ward_id ?? "city", w);
     }
     return [...byWard.values()];
   }, [rows]);
@@ -56,7 +73,7 @@ export default function ProjectWardReportPage() {
   );
 
   function download() {
-    downloadCsv(`projects-${group}-ward-wise.csv`, [
+    downloadCsv(`projects-${group}${financialYear ? `-${financialYear}` : ""}-ward-wise.csv`, [
       [
         "Ward",
         ...stages.map((s) => STAGE_LABELS[s]),
@@ -105,6 +122,17 @@ export default function ProjectWardReportPage() {
               <select className={inputClass} value={group} onChange={(e) => setGroup(e.target.value as "ongoing" | "past")}>
                 <option value="ongoing">Ongoing</option>
                 <option value="past">Finished / past</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Financial year</label>
+              <select className={inputClass} value={financialYear} onChange={(e) => setFinancialYear(e.target.value)}>
+                <option value="">All years</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
               </select>
             </div>
             <div>

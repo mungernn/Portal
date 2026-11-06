@@ -43,6 +43,7 @@ export const PROJECT_STAGES = [
   "completed",
   "payment_done",
   "past_completed",
+  "cancelled",
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 export const STAGE_LABELS: Record<ProjectStage, string> = {
@@ -54,6 +55,7 @@ export const STAGE_LABELS: Record<ProjectStage, string> = {
   completed: "Completed",
   payment_done: "Payment done",
   past_completed: "Past project (before the portal)",
+  cancelled: "Cancelled / dropped",
 };
 export const STAGE_COLORS: Record<ProjectStage, string> = {
   approved: "bg-slate-100 text-slate-700",
@@ -64,6 +66,7 @@ export const STAGE_COLORS: Record<ProjectStage, string> = {
   completed: "bg-emerald-50 text-emerald-700",
   payment_done: "bg-green-100 text-green-800",
   past_completed: "bg-stone-100 text-stone-700",
+  cancelled: "bg-red-50 text-red-700",
 };
 export const ONGOING_STAGES: ProjectStage[] = ["approved", "tendered", "tender_finalised", "work_order_issued", "in_progress"];
 export const PAST_STAGES: ProjectStage[] = ["completed", "payment_done", "past_completed"];
@@ -106,7 +109,8 @@ export interface Project {
   id: string;
   project_code: string;
   name: string;
-  ward_id: string;
+  /** null = a city-wide work. */
+  ward_id: string | null;
   ward_name: string;
   location_text: string | null;
   scheme_name: string | null;
@@ -128,6 +132,32 @@ export interface Project {
   actual_completion_date: string | null;
   payment_amount: string | null;
   payment_date: string | null;
+  ta_sent_date: string | null;
+  ta_date: string | null;
+  ts_sent_date: string | null;
+  ts_date: string | null;
+  boq_approval_date: string | null;
+  tech_bid_opening_date: string | null;
+  cs_to_ee_date: string | null;
+  cs_to_se_date: string | null;
+  cs_to_ce_date: string | null;
+  cs_to_eic_date: string | null;
+  tech_bid_disposal_date: string | null;
+  bidder_claim: string | null;
+  claim_disposal_date: string | null;
+  fin_bid_opening_date: string | null;
+  fin_bid_to_ee_date: string | null;
+  fin_bid_to_se_date: string | null;
+  fin_bid_to_ce_date: string | null;
+  fin_bid_to_eic_date: string | null;
+  work_awarded_date: string | null;
+  agreement_date: string | null;
+  component_progress_pct: string | null;
+  physical_progress_pct: string | null;
+  financial_progress_pct: string | null;
+  eot_reason: string | null;
+  eot_date: string | null;
+  name_as_entered: string | null;
   stage: ProjectStage;
   remarks: string | null;
   site_notes: string | null;
@@ -220,6 +250,7 @@ export interface ProjectFilter {
   stage?: string;
   group?: "" | "ongoing" | "past";
   discipline?: string;
+  financialYear?: string;
   q?: string;
 }
 const qs = (f: object) => {
@@ -251,8 +282,34 @@ export interface ProjectForm {
   actualCompletionDate: string;
   paymentAmount: string;
   paymentDate: string;
-  stage: ProjectStage;
+  /** "" = work it out from the dates and progress. */
+  stage: "" | ProjectStage;
   remarks: string;
+  taSentDate: string;
+  taDate: string;
+  tsSentDate: string;
+  tsDate: string;
+  boqApprovalDate: string;
+  techBidOpeningDate: string;
+  csToEeDate: string;
+  csToSeDate: string;
+  csToCeDate: string;
+  csToEicDate: string;
+  techBidDisposalDate: string;
+  bidderClaim: string;
+  claimDisposalDate: string;
+  finBidOpeningDate: string;
+  finBidToEeDate: string;
+  finBidToSeDate: string;
+  finBidToCeDate: string;
+  finBidToEicDate: string;
+  workAwardedDate: string;
+  agreementDate: string;
+  componentProgressPct: string;
+  physicalProgressPct: string;
+  financialProgressPct: string;
+  eotReason: string;
+  eotDate: string;
 }
 
 export const emptyForm = (): ProjectForm => ({
@@ -279,8 +336,33 @@ export const emptyForm = (): ProjectForm => ({
   actualCompletionDate: "",
   paymentAmount: "",
   paymentDate: "",
-  stage: "approved",
+  stage: "",
   remarks: "",
+  taSentDate: "",
+  taDate: "",
+  tsSentDate: "",
+  tsDate: "",
+  boqApprovalDate: "",
+  techBidOpeningDate: "",
+  csToEeDate: "",
+  csToSeDate: "",
+  csToCeDate: "",
+  csToEicDate: "",
+  techBidDisposalDate: "",
+  bidderClaim: "",
+  claimDisposalDate: "",
+  finBidOpeningDate: "",
+  finBidToEeDate: "",
+  finBidToSeDate: "",
+  finBidToCeDate: "",
+  finBidToEicDate: "",
+  workAwardedDate: "",
+  agreementDate: "",
+  componentProgressPct: "",
+  physicalProgressPct: "",
+  financialProgressPct: "",
+  eotReason: "",
+  eotDate: "",
 });
 
 export const formFromProject = (p: Project): ProjectForm => {
@@ -289,7 +371,7 @@ export const formFromProject = (p: Project): ProjectForm => {
   return {
     projectCode: p.project_code,
     name: p.name,
-    wardId: String(p.ward_id),
+    wardId: p.ward_id ? String(p.ward_id) : "",
     locationText: v(p.location_text),
     schemeName: v(p.scheme_name),
     category: p.category,
@@ -312,15 +394,48 @@ export const formFromProject = (p: Project): ProjectForm => {
     paymentDate: v(p.payment_date),
     stage: p.stage,
     remarks: v(p.remarks),
+    taSentDate: v(p.ta_sent_date),
+    taDate: v(p.ta_date),
+    tsSentDate: v(p.ts_sent_date),
+    tsDate: v(p.ts_date),
+    boqApprovalDate: v(p.boq_approval_date),
+    techBidOpeningDate: v(p.tech_bid_opening_date),
+    csToEeDate: v(p.cs_to_ee_date),
+    csToSeDate: v(p.cs_to_se_date),
+    csToCeDate: v(p.cs_to_ce_date),
+    csToEicDate: v(p.cs_to_eic_date),
+    techBidDisposalDate: v(p.tech_bid_disposal_date),
+    bidderClaim: v(p.bidder_claim),
+    claimDisposalDate: v(p.claim_disposal_date),
+    finBidOpeningDate: v(p.fin_bid_opening_date),
+    finBidToEeDate: v(p.fin_bid_to_ee_date),
+    finBidToSeDate: v(p.fin_bid_to_se_date),
+    finBidToCeDate: v(p.fin_bid_to_ce_date),
+    finBidToEicDate: v(p.fin_bid_to_eic_date),
+    workAwardedDate: v(p.work_awarded_date),
+    agreementDate: v(p.agreement_date),
+    componentProgressPct: n(p.component_progress_pct),
+    physicalProgressPct: n(p.physical_progress_pct),
+    financialProgressPct: n(p.financial_progress_pct),
+    eotReason: v(p.eot_reason),
+    eotDate: v(p.eot_date),
   };
 };
 
 const payload = (f: ProjectForm) => ({ ...f, discipline: f.discipline || null });
 
-export const fetchProjects = (f: ProjectFilter) => call<{ projects: Project[]; counts: StageCount[] }>("GET", qs(f));
+export const fetchProjects = (f: ProjectFilter) => call<{ projects: Project[]; counts: StageCount[]; years: string[] }>("GET", qs(f));
 export const fetchWardReport = (f: ProjectFilter) =>
   call<{
-    rows: { ward_id: string; ward_name: string; stage: ProjectStage; count: number; estimated: string; work_order: string; paid: string }[];
+    rows: {
+      ward_id: string | null;
+      ward_name: string;
+      stage: ProjectStage;
+      count: number;
+      estimated: string;
+      work_order: string;
+      paid: string;
+    }[];
   }>("GET", `/ward-report${qs(f)}`).then((r) => r.rows);
 export const fetchProject = (id: string) => call<ProjectDetail>("GET", `/${id}`);
 export const createProject = (f: ProjectForm) => call<{ project: Project }>("POST", "", payload(f)).then((r) => r.project);
@@ -332,6 +447,8 @@ export const updateSite = (
     siteNotes?: string | null;
     actualStartDate?: string | null;
     actualCompletionDate?: string | null;
+    physicalProgressPct?: number | null;
+    componentProgressPct?: number | null;
     stage?: "in_progress" | "completed";
   },
 ) => call<{ project: Project }>("PATCH", `/${id}/site`, input).then((r) => r.project);
@@ -374,6 +491,8 @@ export interface ImportResult {
   updated: number;
   unchanged: number;
   errors: { row: number; message: string }[];
+  warnings: { row: number; message: string }[];
+  columnsFound: number;
 }
 export const bulkUpload = (base64: string) => call<ImportResult>("POST", "/bulk-upload", { base64 });
 
@@ -382,6 +501,16 @@ export async function blobUrl(path: string): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/projects${path}`, { headers: { Authorization: `Bearer ${token()}` } });
   if (!res.ok) throw new Error("Could not open the file.");
   return URL.createObjectURL(await res.blob());
+}
+
+/** The list (same filters) in the 3 Years Report format, as Excel. */
+export async function downloadReportFormat(f: ProjectFilter): Promise<void> {
+  const url = await blobUrl(`/export${qs(f)}`);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "projects-3-years-report-format.xlsx";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export async function downloadTemplate(): Promise<void> {
