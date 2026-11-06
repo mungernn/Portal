@@ -1,4 +1,6 @@
 import { propertyRepository } from "../repositories/property.repository";
+import { applyFloorChangeFromYear, floorsDiffer } from "../utils/floorTimeline";
+import { assertFloorChangeStated } from "./floorChange.service";
 import { propertySaveRepository } from "../repositories/propertySave.repository";
 import { changeRequestRepository } from "../repositories/changeRequest.repository";
 import { regenerateAutomaticTaxHistoryStages } from "./automaticTaxHistory.service";
@@ -7,6 +9,8 @@ import { calculateTax } from "./taxCalculation.service";
 import { annualSolidWasteCharge } from "./charges.service";
 import { ApiError } from "../utils/ApiError";
 import { exemptionDraftFields } from "../utils/taxExemption";
+import { parseYearStartOrNull } from "../utils/assessmentYear";
+import { saveRequestPhoto } from "../utils/requestPhoto";
 import { taxExemptionRepository } from "../repositories/taxExemption.repository";
 import type { FloorRow, PropertyRow } from "../types/property.types";
 import type { PropertySaveInput } from "../types/propertySave.types";
@@ -33,12 +37,7 @@ import type { ChangeRequestRow } from "../types/changeRequest.types";
  */
 
 /** Actually writes property + floors + history — used both for immediate creates and for approved edits. */
-export async function applyPropertySave(
-  holdingNo: string,
-  input: PropertySaveInput,
-  actorDisplayName: string,
-  isNew: boolean,
-) {
+export async function applyPropertySave(holdingNo: string, input: PropertySaveInput, actorDisplayName: string, isNew: boolean) {
   // A save that doesn't mention isBwg at all (e.g. an older queued
   // change request) must keep the holding's existing BWG status rather
   // than silently reset it and start charging solid waste again.
@@ -46,6 +45,18 @@ export async function applyPropertySave(
   const isBwg = input.isBwg ?? Boolean(existingRow?.is_bwg);
   // Same rule for the slum flag: a save that omits it keeps the stored value.
   const isSlum = input.isSlum ?? Boolean(existingRow?.is_slum);
+
+  // "Changed from year Y": keep the old floors for the years before Y (closed rows) and start the new ones in Y, so the
+  // past is priced on the use it actually had. A correction (or no statement - older queued requests) replaces them.
+  const fromYear = input.floorChange?.kind === "from_year" ? parseYearStartOrNull(input.floorChange.effectiveYear ?? null) : null;
+  if (!isNew && fromYear !== null) {
+    const storedFloors = await propertyRepository.findFloorsByHoldingNo(holdingNo);
+    if (floorsDiffer(storedFloors, input.floors))
+      input = { ...input, floors: applyFloorChangeFromYear(storedFloors, input.floors, fromYear) };
+  }
+  // Transport-only fields never go into the record or its history.
+  delete input.premisesPhotoBase64;
+  delete input.premisesPhotoMimeType;
 
   const draftProperty = {
     road_type: input.roadType,
@@ -57,7 +68,7 @@ export async function applyPropertySave(
     is_bwg: isBwg,
     is_slum: isSlum,
     ...exemptionDraftFields(isNew ? undefined : input.taxExemption, existingRow),
-	holding_creation_year: input.holdingCreationYear,
+    holding_creation_year: input.holdingCreationYear,
   } as unknown as PropertyRow;
 
   const draftFloors = input.floors.map((f) => ({
@@ -93,7 +104,9 @@ export async function applyPropertySave(
   if (trimmedOldPid) {
     const existing = await propertyRepository.findByOldPid(trimmedOldPid, holdingNo);
     if (existing) {
-      throw ApiError.badRequest(`Old PID "${trimmedOldPid}" is already used by holding ${existing.holding_no} - each old PID must be unique.`);
+      throw ApiError.badRequest(
+        `Old PID "${trimmedOldPid}" is already used by holding ${existing.holding_no} - each old PID must be unique.`,
+      );
     }
   }
 
@@ -161,9 +174,9 @@ export async function applyPropertySave(
   }
 
   await propertySaveRepository.replaceFloors(holdingNo, floorsWithTax);
-  
+
   await regenerateAutomaticTaxHistoryStages(holdingNo, draftProperty, draftFloors, actorDisplayName);
-  
+
   const version = await propertySaveRepository.nextHistoryVersion(holdingNo);
   await propertySaveRepository.insertHistory(
     holdingNo,
@@ -208,7 +221,9 @@ export async function savePropertyByHoldingNo(
 
   if (isNew) {
     if (input.taxExemption?.isExempt) {
-      throw ApiError.badRequest("A new holding cannot be marked exempt while it is being created. Save the holding first, then submit the exemption as a change so it goes for approval.");
+      throw ApiError.badRequest(
+        "A new holding cannot be marked exempt while it is being created. Save the holding first, then submit the exemption as a change so it goes for approval.",
+      );
     }
     const result = await applyPropertySave(holdingNo, input, operatorDisplayName, true);
     return { applied: true, isNew: true, ...result };
@@ -244,9 +259,20 @@ export async function savePropertyByHoldingNo(
   const previewCalc = calculateTax(draftProperty, draftFloors);
   const previewSolidWaste = annualSolidWasteCharge(draftProperty);
 
-	const existingFloors = await propertyRepository.findFloorsByHoldingNo(holdingNo);
-	const approvalTier = classifyPropertyChange(existing, existingFloors, input);
-	const finalStage = TIER_FINAL_STAGE[approvalTier];
+  const existingFloors = await propertyRepository.findFloorsByHoldingNo(holdingNo);
+  assertFloorChangeStated(existing, existingFloors, input);
+  const approvalTier = classifyPropertyChange(existing, existingFloors, input);
+  const finalStage = TIER_FINAL_STAGE[approvalTier];
+  // A change of use (or any back-dated floor change) needs a photo of the premises for the approvers.
+  const premises =
+    input.premisesPhotoBase64 && input.premisesPhotoMimeType
+      ? { base64: input.premisesPhotoBase64, mime: input.premisesPhotoMimeType }
+      : null;
+  if (approvalTier === "use_change" && !premises) {
+    throw ApiError.badRequest("Attach a photo of the premises - it is required for a change of use or a back-dated floor change.");
+  }
+  delete input.premisesPhotoBase64;
+  delete input.premisesPhotoMimeType;
 
   // Only one mutation request may be pending per holding at a time -
   // otherwise two operators (or the same operator twice) could queue
@@ -267,9 +293,13 @@ export async function savePropertyByHoldingNo(
     input.changeBasis,
     input.changeReference,
     input,
-	approvalTier,
+    approvalTier,
     finalStage,
   );
+  if (premises) {
+    const photoPath = await saveRequestPhoto("change-request-premises", `${holdingNo}-${changeRequest.id}`, premises.base64, premises.mime);
+    await changeRequestRepository.setPremisesPhoto(changeRequest.id, photoPath);
+  }
 
   return {
     applied: false,

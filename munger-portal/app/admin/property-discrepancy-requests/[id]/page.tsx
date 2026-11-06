@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FloorChangeSummary } from "@/components/admin/floor-change-summary";
 import { useParams, useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Loader2, MapPin, Pencil, RotateCcw, XCircle } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
@@ -23,8 +24,6 @@ import {
 import { PropertyChangeReview } from "@/components/admin/property-change-review";
 import { fetchFormOptions, type FormOptions } from "@/lib/operator-api";
 
-
-
 const DECISION_LABELS: Record<string, string> = {
   submitted: "submitted",
   approved: "approved",
@@ -33,10 +32,11 @@ const DECISION_LABELS: Record<string, string> = {
   reverted: "reverted",
 };
 
-
 function StatusBadge({ request }: { request: PropertyDiscrepancyRequest }) {
   if (request.status === "approved") {
-    return <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">Approved</span>;
+    return (
+      <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">Approved</span>
+    );
   }
   if (request.status === "rejected") {
     return (
@@ -46,7 +46,11 @@ function StatusBadge({ request }: { request: PropertyDiscrepancyRequest }) {
     );
   }
   if (request.status === "reverted") {
-    return <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">Reverted to Tax Collector</span>;
+    return (
+      <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700">
+        Reverted to Tax Collector
+      </span>
+    );
   }
   return (
     <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
@@ -79,7 +83,9 @@ export default function PropertyDiscrepancyRequestDetailPage() {
   useEffect(() => {
     if (!admin || !id) return;
     load();
-    fetchFormOptions().then(setFormOptions).catch(() => setFormOptions(null));
+    fetchFormOptions()
+      .then(setFormOptions)
+      .catch(() => setFormOptions(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admin, id]);
 
@@ -150,7 +156,10 @@ export default function PropertyDiscrepancyRequestDetailPage() {
       <AdminHeader admin={admin} />
 
       <main className="mx-auto max-w-3xl px-6 py-10">
-        <button onClick={() => router.push("/admin/property-discrepancy-requests")} className="mb-4 text-sm font-medium text-nnm-blue hover:underline">
+        <button
+          onClick={() => router.push("/admin/property-discrepancy-requests")}
+          className="mb-4 text-sm font-medium text-nnm-blue hover:underline"
+        >
           ← Back to Property Discrepancy Approvals
         </button>
 
@@ -177,6 +186,17 @@ export default function PropertyDiscrepancyRequestDetailPage() {
                 <p className="mt-2 text-sm text-slate-700">
                   <span className="font-medium">What the Tax Collector found:</span> {detail.request.discrepancy_notes}
                 </p>
+                <div className="mt-3">
+                  <FloorChangeSummary
+                    floorChange={
+                      (
+                        detail.request.proposed_data as {
+                          floorChange?: { kind?: string; effectiveYear?: string | null; reason?: string } | null;
+                        }
+                      ).floorChange
+                    }
+                  />
+                </div>
                 {(detail.request.gps_lat || detail.request.photo_path) && (
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                     {detail.request.gps_lat && (
@@ -207,9 +227,14 @@ export default function PropertyDiscrepancyRequestDetailPage() {
 
             <section className="rounded-xl border border-slate-200 bg-white p-6">
               <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-slate-900">{editing ? "Correcting the proposed details" : "What's changing"}</h2>
+                <h2 className="text-base font-semibold text-slate-900">
+                  {editing ? "Correcting the proposed details" : "What's changing"}
+                </h2>
                 {detail.request.status === "pending" && detail.request.current_stage === admin.role && !editing && (
-                  <button onClick={startEditing} className="inline-flex items-center gap-1.5 text-xs font-semibold text-nnm-blue hover:underline">
+                  <button
+                    onClick={startEditing}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-nnm-blue hover:underline"
+                  >
                     <Pencil className="h-3.5 w-3.5" />
                     Correct these entries
                   </button>
@@ -222,7 +247,12 @@ export default function PropertyDiscrepancyRequestDetailPage() {
               </div>
 
               {editing && editForm ? (
-                <AdminPropertyDetailsForm form={editForm} onChange={setEditForm} usageTypes={formOptions?.usageTypes ?? []} solidWasteChargeTypes={formOptions?.solidWasteChargeTypes ?? []} />
+                <AdminPropertyDetailsForm
+                  form={editForm}
+                  onChange={setEditForm}
+                  usageTypes={formOptions?.usageTypes ?? []}
+                  solidWasteChargeTypes={formOptions?.solidWasteChargeTypes ?? []}
+                />
               ) : (
                 <PropertyChangeReview
                   title="Full holding details - proposed corrections highlighted"
@@ -253,8 +283,8 @@ export default function PropertyDiscrepancyRequestDetailPage() {
                       )}
                       <div>
                         <p className="text-slate-700">
-                          <span className="font-medium">{ADMIN_ROLE_LABELS[a.stage]}</span> ({a.admin_display_name}) {DECISION_LABELS[a.decision] ?? a.decision} -{" "}
-                          {new Date(a.decided_at).toLocaleString("en-IN")}
+                          <span className="font-medium">{ADMIN_ROLE_LABELS[a.stage]}</span> ({a.admin_display_name}){" "}
+                          {DECISION_LABELS[a.decision] ?? a.decision} - {new Date(a.decided_at).toLocaleString("en-IN")}
                         </p>
                         {a.notes && <p className="text-slate-500">&ldquo;{a.notes}&rdquo;</p>}
                       </div>

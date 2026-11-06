@@ -8,6 +8,17 @@ export interface FloorInput {
   closingYear?: string | null;
 }
 
+/**
+ * How a change to the floors (use, construction, area, floors added / removed) is to be applied:
+ *  - from_year: it really changed from `effectiveYear` - earlier years keep the old floors (timeline);
+ *  - correction: the record was always wrong - the floors are replaced for every year.
+ */
+export interface FloorChangeInput {
+  kind: "from_year" | "correction";
+  effectiveYear?: string | null;
+  reason: string;
+}
+
 export interface TaxExemptionInput {
   isExempt: boolean;
   category?: string | null;
@@ -29,6 +40,11 @@ export interface PropertySaveInput {
   ownerDeceased?: boolean;
   /** Field reports only: the owner does not agree to give Aadhaar details, so the number is not required. */
   aadhaarRefused?: boolean;
+  /** Required whenever the floors change (see FloorChangeInput). */
+  floorChange?: FloorChangeInput | null;
+  /** Operator's change request only, not stored in proposed_data: photo of the premises (required for a use change). */
+  premisesPhotoBase64?: string | null;
+  premisesPhotoMimeType?: string | null;
   ownerName: string;
   relationType?: "S/O" | "D/O" | "W/O" | "C/O" | null;
   relationName?: string | null;

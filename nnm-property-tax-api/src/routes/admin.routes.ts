@@ -22,6 +22,7 @@ import {
   postRejectChangeRequest,
   postRevertChangeRequest,
   getChangeRequestTimeline,
+  getChangeRequestPremisesPhoto,
   getApplicationTimeline,
   getMutationPendingSummary,
   getHoldingLineage,
@@ -336,10 +337,13 @@ const requireSeniorAdmin = requireAdminRole("commissioner", "deputy_commissioner
 // mutation approvals, cancellation requests, tax collector management,
 // and trade license services below, per what was explicitly asked for.
 // The Tax Surveyor is in the chain for the field report of a mutation (only the cases assigned to him - see changeRequest.service).
+// The City Manager approves changes of use (Tax Daroga -> City Manager -> Deputy Commissioner); each action is still
+// checked against the request's current stage.
 const requireMutationChainRole = requireAdminRole(
   "tax_daroga",
   "tax_surveyor",
   "mutation_nodal_clerk",
+  "city_manager",
   "deputy_commissioner",
   "commissioner",
 );
@@ -381,6 +385,7 @@ const requireMutationViewRole = requireAdminRole(
 );
 adminRouter.get("/field-report-photos/:photoId", requireMutationViewRole, getFieldReportPhoto);
 adminRouter.get("/change-requests/:id/timeline", requireMutationViewRole, getChangeRequestTimeline);
+adminRouter.get("/change-requests/:id/premises-photo", requireMutationViewRole, getChangeRequestPremisesPhoto);
 adminRouter.get("/mutation-applications/:id/timeline", requireMutationViewRole, getApplicationTimeline);
 adminRouter.get("/mutation-pending-summary", requireMutationViewRole, getMutationPendingSummary);
 adminRouter.post("/change-requests/:id/approve", requireMutationChainRole, postApproveChangeRequest);

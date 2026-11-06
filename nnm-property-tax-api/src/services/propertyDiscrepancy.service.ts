@@ -12,6 +12,7 @@ import { MIGRATED_HOLDING_NO_PREFIX } from "../constants/taxRates";
 import { entryRevertEventRepository } from "../repositories/entryRevertEvent.repository";
 import { nextPropertyDiscrepancyStage, PROPERTY_DISCREPANCY_APPROVAL_STAGE_ORDER } from "../types/admin.types";
 import { env } from "../config/env";
+import { assertFloorChangeStated } from "./floorChange.service";
 import { ApiError } from "../utils/ApiError";
 import type { PropertyDiscrepancyRequestRow, PropertyDiscrepancyStatus } from "../types/propertyDiscrepancy.types";
 import type { PropertySaveInput } from "../types/propertySave.types";
@@ -93,6 +94,8 @@ export async function reportPropertyDiscrepancy(
   if (!proposedData.aadhaarNumber?.trim() && !proposedData.ownerDeceased && !proposedData.aadhaarRefused) {
     throw ApiError.badRequest("The holding owner's Aadhaar number is required (or tick that the owner has died / does not agree to give Aadhaar).");
   }
+  // A floor change must say whether it applies from a year (past kept) or is a correction.
+  assertFloorChangeStated(property, await propertyRepository.findFloorsByHoldingNo(holdingNo), proposedData);
 
   const existingPending = await propertyDiscrepancyRepository.findPendingForHolding(holdingNo);
   if (existingPending) throw ApiError.badRequest("This holding already has a discrepancy report pending review.");
@@ -332,6 +335,10 @@ export async function resubmitDiscrepancyAfterRevert(
     throw new ApiError(403, "Only the Tax Collector who originally reported this can resubmit it.");
   if (!proposedData.aadhaarNumber?.trim() && !proposedData.ownerDeceased && !proposedData.aadhaarRefused) {
     throw ApiError.badRequest("The holding owner's Aadhaar number is required (or tick that the owner has died / does not agree to give Aadhaar).");
+  }
+  {
+    const current = await propertyRepository.findByHoldingNo(request.holding_no);
+    if (current) assertFloorChangeStated(current, await propertyRepository.findFloorsByHoldingNo(request.holding_no), proposedData);
   }
 
   // A photo not re-attached on resubmission keeps whatever was on file from the original submission.

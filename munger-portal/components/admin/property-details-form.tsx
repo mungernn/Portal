@@ -1,6 +1,7 @@
 "use client";
 
 import { UserChargePaidTill } from "@/components/operator/user-charge-paid-till";
+import { FloorChangeBox, blankFloorChange, type FloorChangeState } from "@/components/floor-change-box";
 
 import { Plus } from "lucide-react";
 import { FloorRow, makeBlankFloor, type FloorFormState } from "@/components/operator/floor-row";
@@ -28,6 +29,8 @@ export interface AdminPropertyFormState {
   isBwg: boolean;
   isSlum: boolean;
   floors: FloorFormState[];
+  /** How a floor change applies (from a year / correction) - see FloorChangeBox. */
+  floorChange: FloorChangeState;
 }
 
 export function blankAdminPropertyForm(): AdminPropertyFormState {
@@ -48,6 +51,7 @@ export function blankAdminPropertyForm(): AdminPropertyFormState {
     isBwg: false,
     isSlum: false,
     floors: [makeBlankFloor(0)],
+    floorChange: blankFloorChange(),
   };
 }
 
@@ -68,6 +72,15 @@ export function propertyFormToPayload(form: AdminPropertyFormState): Record<stri
     solidWastePaidTillYear: form.solidWastePaidTillYear || null,
     isBwg: form.isBwg,
     isSlum: form.isSlum,
+    ...(form.floorChange?.kind
+      ? {
+          floorChange: {
+            kind: form.floorChange.kind,
+            effectiveYear: form.floorChange.kind === "from_year" ? form.floorChange.effectiveYear : null,
+            reason: form.floorChange.reason.trim(),
+          },
+        }
+      : {}),
     floors: form.floors.map((f) => ({
       floorLabel: f.floorLabel,
       buildupSqft: Number(f.buildupSqft) || 0,
@@ -100,6 +113,12 @@ export function propertyFormFromProposedData(data: Record<string, unknown>): Adm
     solidWastePaidTillYear: String(data.solidWastePaidTillYear ?? ""),
     isBwg: Boolean(data.isBwg),
     isSlum: Boolean(data.isSlum),
+    floorChange: (() => {
+      const fc = data.floorChange as { kind?: string; effectiveYear?: string | null; reason?: string } | null | undefined;
+      return fc?.kind === "from_year" || fc?.kind === "correction"
+        ? { kind: fc.kind, effectiveYear: String(fc.effectiveYear ?? ""), reason: String(fc.reason ?? "") }
+        : blankFloorChange();
+    })(),
     floors:
       floors.length > 0
         ? floors.map((f, i) => ({
@@ -133,6 +152,7 @@ export function propertyFormFromExisting(property: Record<string, unknown>, floo
     solidWastePaidTillYear: String(property.solid_waste_paid_till_year ?? ""),
     isBwg: Boolean(property.is_bwg),
     isSlum: Boolean(property.is_slum),
+    floorChange: blankFloorChange(),
     floors:
       floors.length > 0
         ? floors.map((f, i) => ({
@@ -154,11 +174,19 @@ export function AdminPropertyDetailsForm({
   onChange,
   usageTypes,
   solidWasteChargeTypes,
+  originalFloors,
+  premisesPhoto,
+  onPremisesPhoto,
 }: {
   form: AdminPropertyFormState;
   onChange: (next: AdminPropertyFormState) => void;
   usageTypes: string[];
   solidWasteChargeTypes: string[];
+  /** The holding's floors as recorded - when given, a floor change asks how it applies (FloorChangeBox). */
+  originalFloors?: FloorFormState[];
+  /** When given, the premises photo is picked here (change requests); otherwise the holding photo taken on the report serves. */
+  premisesPhoto?: File | null;
+  onPremisesPhoto?: (f: File | null) => void;
 }) {
   function updateField<K extends keyof AdminPropertyFormState>(key: K, value: AdminPropertyFormState[K]) {
     onChange({ ...form, [key]: value });
@@ -363,6 +391,18 @@ export function AdminPropertyDetailsForm({
           ))}
         </div>
       </div>
+      {originalFloors && (
+        <FloorChangeBox
+          original={originalFloors}
+          current={form.floors}
+          creationYear={form.holdingCreationYear}
+          value={form.floorChange ?? blankFloorChange()}
+          onChange={(v) => onChange({ ...form, floorChange: v })}
+          photo={premisesPhoto}
+          onPhoto={onPremisesPhoto}
+          photoNote="The holding photo taken with this report is the photo of the premises."
+        />
+      )}
     </div>
   );
 }

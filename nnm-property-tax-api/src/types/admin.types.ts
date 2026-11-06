@@ -78,8 +78,12 @@ export const APPROVAL_STAGE_ORDER: AdminRole[] = ["tax_daroga", "tax_surveyor", 
  * The next desk. The Tax Surveyor's field report is part of a MUTATION only (owner change, migration 140); every other
  * edit goes from the Tax Daroga straight to the Mutation Nodal Clerk.
  */
+/** A change of use / back-dated floor change: Tax Daroga -> City Manager -> Deputy Commissioner. */
+export const USE_CHANGE_STAGE_ORDER: AdminRole[] = ["tax_daroga", "city_manager", "deputy_commissioner"];
+
 export function nextApprovalStage(stage: AdminRole, tier?: string | null): AdminRole | null {
-  const order = tier === "mutation" ? APPROVAL_STAGE_ORDER : APPROVAL_STAGE_ORDER.filter((s) => s !== "tax_surveyor");
+  const order =
+    tier === "use_change" ? USE_CHANGE_STAGE_ORDER : tier === "mutation" ? APPROVAL_STAGE_ORDER : APPROVAL_STAGE_ORDER.filter((s) => s !== "tax_surveyor");
   const idx = order.indexOf(stage);
   return idx >= 0 && idx < order.length - 1 ? order[idx + 1]! : null;
 }

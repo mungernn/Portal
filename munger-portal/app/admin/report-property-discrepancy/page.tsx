@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { floorChangeProblem } from "@/components/floor-change-box";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AlertCircle, CheckCircle2, Search, AlertTriangle } from "lucide-react";
@@ -45,6 +46,7 @@ function ReportPropertyDiscrepancyContent() {
   const [ownerOnRecord, setOwnerOnRecord] = useState("");
   const [formOptions, setFormOptions] = useState<FormOptions | null>(null);
   const [form, setForm] = useState<AdminPropertyFormState>(blankAdminPropertyForm());
+  const [originalFloors, setOriginalFloors] = useState<AdminPropertyFormState["floors"]>([]);
   const [discrepancyNotes, setDiscrepancyNotes] = useState("");
   const [capture, setCapture] = useState<CaptureState>(blankCaptureState());
   const [submitting, setSubmitting] = useState(false);
@@ -76,7 +78,9 @@ function ReportPropertyDiscrepancyContent() {
         return;
       }
       setOwnerOnRecord(String(result.property.owner_name ?? ""));
-      setForm(propertyFormFromExisting(result.property, result.floors ?? []));
+      const loaded = propertyFormFromExisting(result.property, result.floors ?? []);
+      setForm(loaded);
+      setOriginalFloors(loaded.floors);
       setFound(true);
     } catch (err) {
       setSearchError(err instanceof Error ? err.message : "Search failed.");
@@ -109,6 +113,11 @@ function ReportPropertyDiscrepancyContent() {
   async function handleSubmit() {
     if (!discrepancyNotes.trim()) {
       setSubmitError("Describe what you found that doesn't match the records.");
+      return;
+    }
+    const floorProblem = floorChangeProblem(originalFloors, form.floors, form.floorChange);
+    if (floorProblem) {
+      setSubmitError(floorProblem);
       return;
     }
     if (!form.aadhaarNumber.trim() && !form.ownerDeceased && !form.aadhaarRefused) {
@@ -323,6 +332,7 @@ function ReportPropertyDiscrepancyContent() {
               <AdminPropertyDetailsForm
                 form={form}
                 onChange={setForm}
+                originalFloors={originalFloors}
                 usageTypes={formOptions?.usageTypes ?? []}
                 solidWasteChargeTypes={formOptions?.solidWasteChargeTypes ?? []}
               />

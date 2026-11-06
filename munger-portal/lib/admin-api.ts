@@ -76,12 +76,13 @@ export async function setAdminAccountActive(id: number, active: boolean): Promis
 
 export type ChangeRequestStatus = "pending" | "approved" | "rejected" | "reverted";
 
-export type ApprovalTier = "minor" | "significant" | "mutation";
+export type ApprovalTier = "minor" | "significant" | "mutation" | "use_change";
 
 export const TIER_LABELS: Record<ApprovalTier, string> = {
   minor: "Minor Clerical Editing",
   significant: "Significant Change",
   mutation: "Mutation (Ownership Change)",
+  use_change: "Change of Use / Back-dated Floor Change",
 };
 
 export interface ChangeRequestSummary {
@@ -97,6 +98,8 @@ export interface ChangeRequestSummary {
   current_stage: AdminRole;
   approval_tier: ApprovalTier;
   final_stage: AdminRole;
+  /** Photo of the premises (change of use / back-dated floor change). */
+  premises_photo_path?: string | null;
   reviewed_by: string | null;
   reviewed_role: string | null;
   reviewed_at: string | null;

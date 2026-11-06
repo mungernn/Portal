@@ -101,8 +101,9 @@ export default function AdminDashboardPage() {
   // can be hidden entirely when none of its cards apply to this role,
   // rather than showing an empty section.
   const isMutationChainRole = admin.role === "tax_daroga" || admin.role === "mutation_nodal_clerk" || admin.role === "deputy_commissioner" || isCommissioner;
-  // The Tax Surveyor gives the field report on mutations assigned to him (migration 140).
-  const showMutationApprovals = isMutationChainRole || admin.role === "tax_surveyor";
+  // The Tax Surveyor gives the field report on mutations assigned to him (migration 140); the City Manager approves
+  // changes of use (Tax Daroga -> City Manager -> Deputy Commissioner).
+  const showMutationApprovals = isMutationChainRole || admin.role === "tax_surveyor" || admin.role === "city_manager";
   const showCancellationRequests = !isRestrictedRole;
   const showBulkDemandNotices = !isRestrictedRole;
   const showAllPropertyChanges = isCommissioner;

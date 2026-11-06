@@ -10,6 +10,8 @@ export interface ChangeRequestRow {
   requested_by: string;
   requested_at: Date;
   status: ChangeRequestStatus;
+  /** Photo of the premises (change of use / back-dated floor change). */
+  premises_photo_path?: string | null;
   change_basis: string;
   change_reference: string;
   proposed_data: PropertySaveInput;

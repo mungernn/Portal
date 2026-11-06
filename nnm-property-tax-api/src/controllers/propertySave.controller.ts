@@ -69,6 +69,15 @@ export const propertySaveSchema = z.object({
   ownerDeceased: z.boolean().optional(),
   // Field reports only: the owner does not agree to give Aadhaar details.
   aadhaarRefused: z.boolean().optional(),
+  floorChange: z
+    .object({
+      kind: z.enum(["from_year", "correction"]),
+      effectiveYear: z.string().nullish(),
+      reason: z.string().trim().max(1000).default(""),
+    })
+    .nullish(),
+  premisesPhotoBase64: z.string().nullish(),
+  premisesPhotoMimeType: z.string().nullish(),
   ownerName: z.string().min(1),
   relationType: z.enum(["S/O", "D/O", "W/O", "C/O"]).nullish(),
   relationName: z.string().nullish(),
