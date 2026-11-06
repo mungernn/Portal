@@ -25,7 +25,14 @@ import {
 
 const inputClass =
   "w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-nnm-blue focus:ring-offset-1";
-const REQUESTER_ROLES = ["streetlight_je", "streetlight_ae", "streetlight_nodal_clerk", "streetlight_contractor"];
+const REQUESTER_ROLES = [
+  "streetlight_je",
+  "streetlight_ae",
+  "je_mechanical",
+  "ae_mechanical",
+  "streetlight_nodal_clerk",
+  "streetlight_contractor",
+];
 const APPROVER_ROLES = ["city_manager", "deputy_municipal_commissioner", "municipal_commissioner"];
 // Read-only visibility into streetlight change activity - can't propose or approve/reject, just see what's happening.
 const VIEWER_ONLY_ROLES = ["attendance_admin"];

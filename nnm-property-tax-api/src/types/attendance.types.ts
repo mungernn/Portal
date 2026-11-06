@@ -22,7 +22,12 @@ export type AttendanceRole =
   | "mayor"
   | "deputy_mayor"
   | "encroachment_staff"
-  | "mobile_court_staff";
+  | "mobile_court_staff"
+  | "je_civil"
+  | "je_mechanical"
+  | "ae_civil"
+  | "ae_mechanical"
+  | "yojana_prabhari";
 
 export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "jamadar",
@@ -49,6 +54,11 @@ export const ATTENDANCE_ROLES: AttendanceRole[] = [
   "deputy_mayor",
   "encroachment_staff",
   "mobile_court_staff",
+  "je_civil",
+  "je_mechanical",
+  "ae_civil",
+  "ae_mechanical",
+  "yojana_prabhari",
 ];
 
 export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
@@ -76,6 +86,11 @@ export const ATTENDANCE_ROLE_LABELS: Record<AttendanceRole, string> = {
   deputy_mayor: "Deputy Mayor",
   encroachment_staff: "Encroachment Staff",
   mobile_court_staff: "Mobile Court Staff",
+  je_civil: "Junior Engineer (Civil)",
+  je_mechanical: "Junior Engineer (Mechanical)",
+  ae_civil: "Assistant Engineer (Civil)",
+  ae_mechanical: "Assistant Engineer (Mechanical)",
+  yojana_prabhari: "Yojana Prabhari",
 };
 
 /** Ward-scoped roles must have a ward_id; cross-ward roles never do. The 3 fleet roles are cross-ward - they oversee the whole vehicle/asset registry, not one ward's workers.
@@ -104,7 +119,17 @@ export const CROSS_WARD_ROLES: AttendanceRole[] = [
   "deputy_mayor",
   "encroachment_staff",
   "mobile_court_staff",
+  // Engineers work in the wards the Commissioner assigns them (engineer_wards), not one fixed ward_id.
+  "je_civil",
+  "je_mechanical",
+  "ae_civil",
+  "ae_mechanical",
+  "yojana_prabhari",
 ];
+
+/** The single engineer logins by discipline (they also carry the streetlight / pyau JE and AE work - mechanical). */
+export const ENGINEER_ROLES = ["je_civil", "je_mechanical", "ae_civil", "ae_mechanical"] as const;
+export type EngineerRole = (typeof ENGINEER_ROLES)[number];
 
 export interface AttendanceUserRow {
   id: number;

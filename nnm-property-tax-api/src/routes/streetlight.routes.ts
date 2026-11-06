@@ -66,6 +66,9 @@ const REGISTRY_MANAGE_ROLES = [
   "streetlight_nodal_clerk",
   "streetlight_ae",
   "streetlight_je",
+  // The single Mechanical JE / AE logins also do the streetlight JE / AE work.
+  "je_mechanical",
+  "ae_mechanical",
   "city_manager",
   "municipal_commissioner",
   "deputy_municipal_commissioner",
@@ -110,7 +113,7 @@ streetlightRouter.patch("/lights/:id/gps", requireAttendanceRole([...REGISTRY_MA
 // city_manager -> deputy_municipal_commissioner ->
 // municipal_commissioner in order. Nothing applies until the final
 // approval. See lightChangeRequest.controller.ts. ---
-const LIGHT_CHANGE_REQUESTER_ROLES = ["streetlight_je", "streetlight_ae", "streetlight_nodal_clerk", "streetlight_contractor"] as const;
+const LIGHT_CHANGE_REQUESTER_ROLES = ["streetlight_je", "streetlight_ae", "je_mechanical", "ae_mechanical", "streetlight_nodal_clerk", "streetlight_contractor"] as const;
 const LIGHT_CHANGE_APPROVER_ROLES = ["city_manager", "deputy_municipal_commissioner", "municipal_commissioner"] as const;
 streetlightRouter.post("/light-change-requests", requireAttendanceRole([...LIGHT_CHANGE_REQUESTER_ROLES]), postRequestLightChangeHandler);
 streetlightRouter.get("/light-change-requests", requireAttendanceRole(), listLightChangeRequestsHandler);

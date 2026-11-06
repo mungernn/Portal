@@ -17,6 +17,7 @@ import { attendanceRouter } from "./attendance.routes";
 import { taxCollectorRouter } from "./taxCollector.routes";
 import { streetlightRouter } from "./streetlight.routes";
 import { pyauRouter } from "./pyau.routes";
+import { projectRouter } from "./project.routes";
 import { enforcementRouter, encroachmentRouter, mobileCourtRouter } from "./enforcement.routes";
 import { publicDocumentRouter } from "./publicDocument.routes";
 import { documentManagerRouter } from "./documentManager.routes";
@@ -69,6 +70,8 @@ apiRouter.use("/streetlight", streetlightRouter);
 // its own dedicated JE/AE/contractor roles (kept separate from the
 // street light module's, per what was asked for).
 apiRouter.use("/pyau", pyauRouter);
+// Project monitoring - Commissioner, Yojana Prabhari and the JE / AE (Civil / Mechanical) logins (migration 171).
+apiRouter.use("/projects", projectRouter);
 
 // Documents/reports the Commissioner publishes on the public website - read-only and unauthenticated here; managed via /admin/public-documents.
 apiRouter.use("/public-documents", publicDocumentRouter);

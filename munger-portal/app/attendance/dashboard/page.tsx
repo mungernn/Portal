@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ScanFace, LayoutGrid, Truck, Droplet, Lightbulb, MapPin, ClipboardList, CheckCircle2, Trash2, Languages, FileUp, Users, ShieldAlert, Gavel } from "lucide-react";
+import { ScanFace, LayoutGrid, Truck, Droplet, Lightbulb, MapPin, ClipboardList, CheckCircle2, Trash2, Languages, FileUp, Users, ShieldAlert, Gavel, HardHat, UserCog } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { PublicComplaintsCard } from "@/components/public-reports/complaints-card";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
@@ -25,6 +25,12 @@ const STRINGS = {
     baselineSurveyDesc: "The comprehensive opening entry for each vehicle/equipment logbook.",
     surveyProgress: "Survey Progress",
     surveyProgressDesc: "Which assets are surveyed, which aren't, and which have open defects.",
+    projects: "Project Monitoring",
+    projectsDesc: "Projects by stage - approval to payment - with ward-wise reports, photos, estimate / BOQ and GPS.",
+    myProjects: "My Projects",
+    myProjectsDesc: "Projects in your wards - site details, estimate / BOQ, progress photos and GPS points.",
+    engineerWards: "Engineer Ward Assignment",
+    engineerWardsDesc: "Assign wards to the JE / AE (Civil and Mechanical).",
     pyauRegistry: "Submersible Pyau Registry",
     pyauRegistryDesc: "Ward-wise water kiosk inventory, issues, and maintenance log.",
     highMastEntry: "High Mast Light Entry",
@@ -56,6 +62,12 @@ const STRINGS = {
     baselineSurveyDesc: "प्रत्येक वाहन/उपकरण लॉगबुक के लिए पूर्ण प्रारंभिक प्रविष्टि।",
     surveyProgress: "सर्वे प्रगति",
     surveyProgressDesc: "कौन-से एसेट सर्वे हो चुके हैं, कौन-से नहीं, और किनमें खुली खराबियाँ हैं।",
+    projects: "परियोजना निगरानी",
+    projectsDesc: "स्वीकृति से भुगतान तक चरणवार परियोजनाएँ - वार्डवार रिपोर्ट, फोटो, प्राक्कलन / BOQ और GPS।",
+    myProjects: "मेरी परियोजनाएँ",
+    myProjectsDesc: "आपके वार्डों की परियोजनाएँ - साइट विवरण, प्राक्कलन / BOQ, प्रगति फोटो और GPS।",
+    engineerWards: "अभियंता वार्ड आवंटन",
+    engineerWardsDesc: "कनिष्ठ / सहायक अभियंता (सिविल व यांत्रिक) को वार्ड आवंटित करें।",
     pyauRegistry: "सबमर्सिबल प्याऊ रजिस्ट्री",
     pyauRegistryDesc: "वार्ड-वार जल कियोस्क सूची, समस्याएँ, और मेंटेनेंस लॉग।",
     highMastEntry: "हाई मास्ट लाइट एंट्री",
@@ -77,6 +89,8 @@ const STRINGS = {
 
 const FACE_ROLES = ["sanitation_prabhari", "apswmo", "sanitation_officer", "attendance_admin"];
 
+const ENGINEER_PROJECT_ROLES = ["je_civil", "je_mechanical", "ae_civil", "ae_mechanical"];
+const PROJECT_ROLES = [...ENGINEER_PROJECT_ROLES, "municipal_commissioner", "deputy_municipal_commissioner", "yojana_prabhari", "attendance_admin"];
 const NAME_CORRECTION_ROLES = ["attendance_admin", "sanitation_officer", "apswmo", "sanitation_prabhari"];
 
 export default function AttendanceDashboardPage() {
@@ -97,6 +111,11 @@ export default function AttendanceDashboardPage() {
     "pyau_je",
     "pyau_ae",
     "pyau_contractor",
+    "je_civil",
+    "je_mechanical",
+    "ae_civil",
+    "ae_mechanical",
+    "yojana_prabhari",
     // Mayor/Deputy Mayor/Ward Parshad (migration 084) had logins but
     // were missing from this list, so they got bounced straight back
     // to the login page before ever seeing the dashboard - including
@@ -133,6 +152,26 @@ export default function AttendanceDashboardPage() {
         <p className="mb-8 text-sm text-slate-500">{s.pickModule}</p>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {PROJECT_ROLES.includes(user.role) && (
+            <Link href="/attendance/projects" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <HardHat className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjects : s.projects}</h3>
+              <p className="text-sm text-slate-500">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjectsDesc : s.projectsDesc}</p>
+            </Link>
+          )}
+
+          {["municipal_commissioner", "attendance_admin"].includes(user.role) && (
+            <Link href="/attendance/projects/engineers" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <UserCog className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.engineerWards}</h3>
+              <p className="text-sm text-slate-500">{s.engineerWardsDesc}</p>
+            </Link>
+          )}
+
           {FACE_ROLES.includes(user.role) && (
             <Link href="/attendance/face-attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
               <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
@@ -205,7 +244,7 @@ export default function AttendanceDashboardPage() {
             </Link>
           )}
 
-          {["pyau_je", "pyau_ae", "pyau_contractor", "attendance_admin"].includes(user.role) && (
+          {["pyau_je", "pyau_ae", "je_mechanical", "ae_mechanical", "pyau_contractor", "attendance_admin"].includes(user.role) && (
             <Link href="/attendance/manage-pyaus" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
               <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
                 <Droplet className="h-6 w-6" strokeWidth={1.8} />
@@ -219,6 +258,8 @@ export default function AttendanceDashboardPage() {
             "streetlight_nodal_clerk",
             "streetlight_ae",
             "streetlight_je",
+            "je_mechanical",
+            "ae_mechanical",
             "streetlight_contractor",
             "city_manager",
             "municipal_commissioner",

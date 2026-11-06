@@ -23,7 +23,8 @@ export const pyauRouter = Router();
 // attendance_admin included too - the general super-admin login for
 // this module system, missed initially the same way as in the street
 // light module's routes.
-const REGISTRY_MANAGE_ROLES = ["pyau_je", "pyau_ae", "attendance_admin"] as const;
+// je_mechanical / ae_mechanical: the single Mechanical JE / AE logins also do the pyau JE / AE work.
+const REGISTRY_MANAGE_ROLES = ["pyau_je", "pyau_ae", "je_mechanical", "ae_mechanical", "attendance_admin"] as const;
 
 // --- Pyau registry ---
 pyauRouter.get("/pyaus", requireAttendanceRole(), listPyausHandler);
