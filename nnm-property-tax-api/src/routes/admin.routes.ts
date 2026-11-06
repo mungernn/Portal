@@ -201,23 +201,6 @@ import {
   getTradeLicenseDocumentFile,
 } from "../controllers/tradeLicenseApplication.controller";
 import { requireAdmin, requireAdminRole } from "../middleware/requireAdmin";
-import {
-  deletePyauItem,
-  getPyauApplication,
-  getPyauAuditTrail,
-  getPyauDashboard,
-  getPyauHistory,
-  getPyauIssue,
-  getPyauPhoto,
-  postPyau,
-  postPyauAgency,
-  postPyauApplication,
-  postPyauFault,
-  postPyauItem,
-  postPyauRepaired,
-  putPyau,
-} from "../controllers/pyauOfficer.controller";
-import { PYAU_EDIT_ROLES, PYAU_VIEW_ROLES } from "../services/pyauOfficer.service";
 import * as bpc from "../controllers/buildingPermit.controller";
 import {
   getPre2011Entries,
@@ -303,24 +286,7 @@ export const adminRouter = Router();
 
 adminRouter.use(requireAdmin);
 
-// Submersible (pyau) dashboard: AE / JE - Mechanical manage the registry and repairs; Commissioner, DMC and City
-// Manager can view.
-const pyauView = requireAdminRole(...PYAU_VIEW_ROLES);
-const pyauEdit = requireAdminRole(...PYAU_EDIT_ROLES);
-adminRouter.get("/pyau/dashboard", pyauView, getPyauDashboard);
-adminRouter.get("/pyau/audit-trail", pyauView, getPyauAuditTrail);
-adminRouter.post("/pyau/agencies", pyauEdit, postPyauAgency);
-adminRouter.post("/pyau/pyaus", pyauEdit, postPyau);
-adminRouter.put("/pyau/pyaus/:id", pyauEdit, putPyau);
-adminRouter.get("/pyau/pyaus/:id/history", pyauView, getPyauHistory);
-adminRouter.post("/pyau/pyaus/:id/fault", pyauEdit, postPyauFault);
-adminRouter.get("/pyau/issues/:id", pyauView, getPyauIssue);
-adminRouter.post("/pyau/issues/:id/application", pyauEdit, postPyauApplication);
-adminRouter.get("/pyau/issues/:id/application", pyauView, getPyauApplication);
-adminRouter.post("/pyau/issues/:id/items", pyauEdit, postPyauItem);
-adminRouter.delete("/pyau/items/:id", pyauEdit, deletePyauItem);
-adminRouter.post("/pyau/issues/:id/repaired", pyauEdit, postPyauRepaired);
-adminRouter.get("/pyau/photos/:id", pyauView, getPyauPhoto);
+// The submersible (pyau) dashboard of the JE / AE (Mechanical) is on the asset management login (pyau.routes.ts, /pyau/officer).
 
 // Senior-role gate reused across the routes below — operator account
 // management, full data export, and system-wide bulk mutations are
@@ -464,8 +430,6 @@ const requireStreetlightReporterRole = requireAdminRole(
   "tax_surveyor",
   "tax_collector",
   "stall_prabhari",
-  "je_mechanical",
-  "ae_mechanical",
   "commissioner",
   "deputy_commissioner",
   "city_manager",
@@ -479,7 +443,7 @@ adminRouter.get("/streetlight-faults", listStreetlightFaultsHandler);
 // Ward-wise / street-wise / agency-wise street light reports (on-screen + CSV download).
 adminRouter.get(
   "/streetlight-reports/:kind",
-  requireAdminRole("commissioner", "deputy_commissioner", "city_manager", "je_mechanical", "ae_mechanical"),
+  requireAdminRole("commissioner", "deputy_commissioner", "city_manager"),
   getStreetlightReportHandler,
 );
 

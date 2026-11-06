@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ImageOff, Loader2 } from "lucide-react";
 import { getAdminToken } from "@/lib/admin-auth";
+import { getAttendanceToken } from "@/lib/attendance-auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_PROPERTY_TAX_API_URL || "http://localhost:4000/api/v1";
 
@@ -30,7 +31,18 @@ function Photo({ id, kind, label }: { id: number; kind: PhotoKind; label: string
 }
 
 /** Photos are behind the admin login, so they are fetched with the token and shown from a blob URL. `path` is under the API base. */
-export function AuthPhoto({ path, label, large }: { path: string; label: string; large?: boolean }) {
+/** portal: whose login fetches the photo - the admin portal (default) or asset management (attendance). */
+export function AuthPhoto({
+  path,
+  label,
+  large,
+  portal = "admin",
+}: {
+  path: string;
+  label: string;
+  large?: boolean;
+  portal?: "admin" | "attendance";
+}) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -39,7 +51,7 @@ export function AuthPhoto({ path, label, large }: { path: string; label: string;
     let cancelled = false;
     (async () => {
       try {
-        const token = getAdminToken();
+        const token = portal === "attendance" ? getAttendanceToken() : getAdminToken();
         const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token ?? ""}` } });
         if (!res.ok) throw new Error();
         objectUrl = URL.createObjectURL(await res.blob());
@@ -52,7 +64,7 @@ export function AuthPhoto({ path, label, large }: { path: string; label: string;
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [path]);
+  }, [path, portal]);
 
   return (
     <figure className={large ? "w-56" : "w-36"}>

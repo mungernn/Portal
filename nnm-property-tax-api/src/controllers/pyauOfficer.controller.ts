@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { z } from "zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
+import { assertRecordWard, assertWard, wardScope } from "../services/wardScope";
 import {
   addAgency,
   addItem,
@@ -23,9 +24,23 @@ import {
   type Officer,
 } from "../services/pyauOfficer.service";
 
+/** The admin-portal login or the asset management (attendance) login. */
 function officer(req: Request): Officer {
-  if (!req.admin) throw new ApiError(401, "Not signed in.");
-  return { username: req.admin.username, displayName: req.admin.displayName, role: req.admin.role };
+  if (req.admin) return { username: req.admin.username, displayName: req.admin.displayName, role: req.admin.role };
+  if (req.attendanceUser)
+    return { username: req.attendanceUser.username, displayName: req.attendanceUser.displayName, role: req.attendanceUser.role };
+  throw new ApiError(401, "Not signed in.");
+}
+
+const PYAU_WARD = `SELECT ward_id FROM pyaus WHERE id = $1`;
+const ISSUE_WARD = `SELECT p.ward_id FROM pyau_issues i JOIN pyaus p ON p.id = i.pyau_id WHERE i.id = $1`;
+const ITEM_WARD = `SELECT p.ward_id FROM pyau_issue_items it JOIN pyau_issues i ON i.id = it.issue_id JOIN pyaus p ON p.id = i.pyau_id WHERE it.id = $1`;
+const PHOTO_WARD = `SELECT p.ward_id FROM pyau_issue_photos ph JOIN pyau_issues i ON i.id = ph.issue_id JOIN pyaus p ON p.id = i.pyau_id WHERE ph.id = $1`;
+/** The id from the URL, after checking a ward-limited JE / AE may act on that record. */
+async function scopedId(req: Request, sql: string): Promise<number> {
+  const id = parseId(req);
+  await assertRecordWard(req, sql, id);
+  return id;
 }
 
 const idParam = z.object({ id: z.coerce.number().int().positive() });
@@ -109,7 +124,7 @@ export const getPyauDashboard = asyncHandler(async (req: Request, res: Response)
     .optional()
     .safeParse(req.query.wardId || undefined);
   const [data, agencies, contractors] = await Promise.all([
-    dashboard(w.success ? (w.data ?? null) : null),
+    dashboard(w.success ? (w.data ?? null) : null, await wardScope(req)),
     listAgencies(),
     listContractors(),
   ]);
@@ -124,11 +139,12 @@ export const postPyauAgency = asyncHandler(async (req: Request, res: Response) =
 export const postPyau = asyncHandler(async (req: Request, res: Response) => {
   const b = parse(detailsSchema.extend({ wardId: z.coerce.number().int().positive() }), req.body);
   const { wardId, ...d } = b;
+  await assertWard(req, wardId);
   res.json({ pyau: await createPyau(wardId, d, officer(req)) });
 });
 
 export const putPyau = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ pyau: await updatePyau(parseId(req), parse(detailsSchema, req.body), officer(req)) });
+  res.json({ pyau: await updatePyau(await scopedId(req, PYAU_WARD), parse(detailsSchema, req.body), officer(req)) });
 });
 
 export const postPyauFault = asyncHandler(async (req: Request, res: Response) => {
@@ -142,16 +158,16 @@ export const postPyauFault = asyncHandler(async (req: Request, res: Response) =>
     }),
     req.body,
   );
-  res.json({ issue: await reportFault(parseId(req), b, officer(req)) });
+  res.json({ issue: await reportFault(await scopedId(req, PYAU_WARD), b, officer(req)) });
 });
 
 export const getPyauIssue = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ issue: await getIssue(parseId(req)) });
+  res.json({ issue: await getIssue(await scopedId(req, ISSUE_WARD)) });
 });
 
 export const postPyauApplication = asyncHandler(async (req: Request, res: Response) => {
   const b = parse(z.object({ file: fileSchema, applicationDate: date }), req.body);
-  res.json({ issue: await setParshadApplication(parseId(req), b.file, b.applicationDate, officer(req)) });
+  res.json({ issue: await setParshadApplication(await scopedId(req, ISSUE_WARD), b.file, b.applicationDate, officer(req)) });
 });
 
 export const postPyauItem = asyncHandler(async (req: Request, res: Response) => {
@@ -167,11 +183,11 @@ export const postPyauItem = asyncHandler(async (req: Request, res: Response) => 
     }),
     req.body,
   );
-  res.json({ issue: await addItem(parseId(req), b, officer(req)) });
+  res.json({ issue: await addItem(await scopedId(req, ISSUE_WARD), b, officer(req)) });
 });
 
 export const deletePyauItem = asyncHandler(async (req: Request, res: Response) => {
-  res.json({ issue: await removeItem(parseId(req), officer(req)) });
+  res.json({ issue: await removeItem(await scopedId(req, ITEM_WARD), officer(req)) });
 });
 
 export const postPyauRepaired = asyncHandler(async (req: Request, res: Response) => {
@@ -179,11 +195,11 @@ export const postPyauRepaired = asyncHandler(async (req: Request, res: Response)
     z.object({ dateOfRepair: date, notes: text, photos: z.array(fileSchema).length(4, "Take all 4 photos after the repair.") }),
     req.body,
   );
-  res.json({ issue: await markRepaired(parseId(req), b, officer(req)) });
+  res.json({ issue: await markRepaired(await scopedId(req, ISSUE_WARD), b, officer(req)) });
 });
 
 export const getPyauHistory = asyncHandler(async (req: Request, res: Response) => {
-  res.json(await pyauHistory(parseId(req)));
+  res.json(await pyauHistory(await scopedId(req, PYAU_WARD)));
 });
 
 export const getPyauAuditTrail = asyncHandler(async (req: Request, res: Response) => {
@@ -197,18 +213,24 @@ export const getPyauAuditTrail = asyncHandler(async (req: Request, res: Response
     .safeParse(Object.fromEntries(Object.entries(req.query).filter(([, v]) => v !== "")));
   if (!q.success) throw ApiError.badRequest("Invalid filter.");
   res.json({
-    events: await auditTrail({ wardId: q.data.wardId ?? null, from: q.data.from ?? null, to: q.data.to ?? null, limit: q.data.limit }),
+    events: await auditTrail({
+      wardId: q.data.wardId ?? null,
+      from: q.data.from ?? null,
+      to: q.data.to ?? null,
+      limit: q.data.limit,
+      scope: await wardScope(req),
+    }),
   });
 });
 
 export const getPyauPhoto = asyncHandler(async (req: Request, res: Response) => {
-  const p = await photoPath(parseId(req));
+  const p = await photoPath(await scopedId(req, PHOTO_WARD));
   if (!fs.existsSync(p)) throw ApiError.notFound("Photo file is missing from storage.");
   res.sendFile(p);
 });
 
 export const getPyauApplication = asyncHandler(async (req: Request, res: Response) => {
-  const a = await applicationPath(parseId(req));
+  const a = await applicationPath(await scopedId(req, ISSUE_WARD));
   if (!fs.existsSync(a.path)) throw ApiError.notFound("File is missing from storage.");
   res.type(a.mime).sendFile(a.path);
 });

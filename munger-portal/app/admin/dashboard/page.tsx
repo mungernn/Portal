@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck, Trash2, RefreshCw, Upload, MapPin, Map as MapIcon, ClipboardCheck, UserCheck, ClipboardList, Receipt, RotateCcw, AlertTriangle, List, Flag, Home, FileText, Printer, Landmark, FileSpreadsheet, CalendarDays, Droplets } from "lucide-react";
+import { Users, FileClock, FileWarning, LayoutGrid, ShoppingBag, Store, BarChart3, Award, Archive, Download, XCircle, ShieldCheck, Trash2, RefreshCw, Upload, MapPin, Map as MapIcon, ClipboardCheck, UserCheck, ClipboardList, Receipt, RotateCcw, AlertTriangle, List, Flag, Home, FileText, Printer, Landmark, FileSpreadsheet, CalendarDays } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { MapSectionDashboard } from "@/components/building-permit/map-section-dashboard";
 import { AgencyOperatorDashboard } from "@/components/agency/agency-operator-dashboard";
@@ -151,10 +151,10 @@ export default function AdminDashboardPage() {
   const showTlSurvey = admin.role === "tax_collector";
   const showTlNotices = ["tax_collector", "city_manager", "deputy_commissioner", "commissioner", "trade_license_nodal"].includes(admin.role);
   const isStreetlightReporterRole =
-    admin.role === "tax_daroga" || admin.role === "tax_surveyor" || admin.role === "tax_collector" || admin.role === "stall_prabhari" || admin.role === "je_mechanical" || admin.role === "ae_mechanical" ||
+    admin.role === "tax_daroga" || admin.role === "tax_surveyor" || admin.role === "tax_collector" || admin.role === "stall_prabhari" ||
     admin.role === "commissioner" || admin.role === "deputy_commissioner" || admin.role === "city_manager";
   const showStreetlightReports =
-    admin.role === "commissioner" || admin.role === "deputy_commissioner" || admin.role === "city_manager" || admin.role === "je_mechanical" || admin.role === "ae_mechanical";
+    admin.role === "commissioner" || admin.role === "deputy_commissioner" || admin.role === "city_manager";
   const showPropertyWiseReport = ["commissioner", "deputy_commissioner", "city_manager", "tax_daroga"].includes(admin.role);
   // The agency Team Leader / Project Manager see these two in their own card group.
   const showAgencyPropertyReports = isAgencyRole;
@@ -957,15 +957,6 @@ export default function AdminDashboardPage() {
                 </Link>
               )}
 
-              {showStreetlightReports && (
-                <Link href="/admin/submersibles" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <Droplets className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Submersible Pyau Dashboard</h3>
-                  <p className="text-sm text-slate-500">Ward-wise submersibles: details, faults, repairs with items, cost, photos and the ward parshad&apos;s application.</p>
-                </Link>
-              )}
             </div>
           </>
         )}

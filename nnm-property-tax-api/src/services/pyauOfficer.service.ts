@@ -10,7 +10,7 @@ import { pyauContractorWardRepository } from "../repositories/pyauContractorWard
 import type { PyauRow } from "../types/pyau.types";
 
 /**
- * The submersible (pyau) dashboard of the AE / JE - Mechanical (admin portal): the registry with ward filter,
+ * The submersible (pyau) dashboard of the AE / JE - Mechanical (asset management login, limited to their wards): the registry with ward filter,
  * add / edit with agency, maintenance contractor and the "under builder maintenance" checkbox, and the repair record -
  * fault (date + 4 photos), ward parshad's application (with date), items replaced with their cost (one by one),
  * repair (date + 4 photos). Every change is written to pyau_audit_log.
@@ -21,9 +21,6 @@ export interface Officer {
   displayName: string;
   role: string;
 }
-
-export const PYAU_EDIT_ROLES = ["je_mechanical", "ae_mechanical"] as const;
-export const PYAU_VIEW_ROLES = [...PYAU_EDIT_ROLES, "commissioner", "deputy_commissioner", "city_manager"] as const;
 
 export interface FileInput {
   base64: string;
@@ -111,7 +108,8 @@ export async function listContractors() {
 // Dashboard
 // ---------------------------------------------------------------------------------------------------------------------
 
-export async function dashboard(wardId: number | null) {
+/** scope: the wards of a ward-limited JE / AE (null = every ward). */
+export async function dashboard(wardId: number | null, scope: number[] | null = null) {
   const { rows: wards } = await pool.query(
     `SELECT w.id, w.ward_name,
             COUNT(p.id)::int AS total,
@@ -120,8 +118,10 @@ export async function dashboard(wardId: number | null) {
             COUNT(p.id) FILTER (WHERE p.under_builder_maintenance)::int AS under_builder
        FROM attendance_wards w
        JOIN pyaus p ON p.ward_id = w.id AND p.active
+      WHERE ($1::bigint[] IS NULL OR w.id = ANY($1))
       GROUP BY w.id, w.ward_name
       ORDER BY NULLIF(regexp_replace(w.ward_name, '\\D', '', 'g'), '')::int NULLS LAST, w.ward_name`,
+    [scope],
   );
   const { rows: pyaus } = await pool.query(
     `SELECT p.*, w.ward_name, a.name AS agency_name,
@@ -140,12 +140,14 @@ export async function dashboard(wardId: number | null) {
        LEFT JOIN pyau_contractor_wards cw ON cw.ward_id = p.ward_id
        LEFT JOIN attendance_users wc ON wc.id = cw.contractor_id
        LEFT JOIN LATERAL (SELECT * FROM pyau_issues i WHERE i.pyau_id = p.id AND i.status = 'open' ORDER BY i.id DESC LIMIT 1) oi ON TRUE
-      WHERE p.active AND ($1::bigint IS NULL OR p.ward_id = $1)
+      WHERE p.active AND ($1::bigint IS NULL OR p.ward_id = $1) AND ($2::bigint[] IS NULL OR p.ward_id = ANY($2))
       ORDER BY NULLIF(regexp_replace(w.ward_name, '\\D', '', 'g'), '')::int NULLS LAST, p.serial_number`,
-    [wardId],
+    [wardId, scope],
   );
   const { rows: allWards } = await pool.query(
-    `SELECT id, ward_name FROM attendance_wards ORDER BY NULLIF(regexp_replace(ward_name, '\\D', '', 'g'), '')::int NULLS LAST, ward_name`,
+    `SELECT id, ward_name FROM attendance_wards WHERE ($1::bigint[] IS NULL OR id = ANY($1))
+      ORDER BY NULLIF(regexp_replace(ward_name, '\\D', '', 'g'), '')::int NULLS LAST, ward_name`,
+    [scope],
   );
   return { wards, allWards, pyaus };
 }
@@ -474,7 +476,13 @@ export async function pyauHistory(pyauId: number) {
 }
 
 /** The audit trail across all submersibles, newest first. */
-export async function auditTrail(filter: { wardId: number | null; from: string | null; to: string | null; limit: number }) {
+export async function auditTrail(filter: {
+  wardId: number | null;
+  from: string | null;
+  to: string | null;
+  limit: number;
+  scope?: number[] | null;
+}) {
   const { rows } = await pool.query(
     `SELECT l.*, p.serial_number, p.location_address, w.ward_name
        FROM pyau_audit_log l
@@ -483,9 +491,10 @@ export async function auditTrail(filter: { wardId: number | null; from: string |
       WHERE ($1::bigint IS NULL OR p.ward_id = $1)
         AND ($2::date IS NULL OR (l.at AT TIME ZONE 'Asia/Kolkata')::date >= $2)
         AND ($3::date IS NULL OR (l.at AT TIME ZONE 'Asia/Kolkata')::date <= $3)
+        AND ($5::bigint[] IS NULL OR p.ward_id = ANY($5))
       ORDER BY l.at DESC, l.id DESC
       LIMIT $4`,
-    [filter.wardId, filter.from, filter.to, filter.limit],
+    [filter.wardId, filter.from, filter.to, filter.limit, filter.scope ?? null],
   );
   return rows;
 }

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Droplets, History, Pencil, PlusCircle, Search, Wrench, AlertTriangle } from "lucide-react";
-import { AdminHeader } from "@/components/admin-header";
-import { useAdminGuard } from "@/lib/use-admin-guard";
-import { FaultModal, HistoryModal, PyauFormModal, RepairModal, inputClass } from "@/components/admin/pyau-dashboard-parts";
+import { AttendanceHeader } from "@/components/attendance/attendance-header";
+import { useAttendanceGuard } from "@/lib/use-attendance-guard";
+import type { AttendanceRole } from "@/lib/attendance-auth";
+import { FaultModal, HistoryModal, PyauFormModal, RepairModal, inputClass } from "@/components/pyau-dashboard-parts";
 import {
   PYAU_EDIT_ROLES,
   PYAU_VIEW_ROLES,
@@ -19,7 +20,7 @@ import {
 type StatusFilter = "all" | "functional" | "non_functional" | "builder";
 
 export default function SubmersiblesDashboardPage() {
-  const admin = useAdminGuard();
+  const admin = useAttendanceGuard(PYAU_VIEW_ROLES as AttendanceRole[]);
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [wardId, setWardId] = useState("");
@@ -73,7 +74,7 @@ export default function SubmersiblesDashboardPage() {
   if (!allowed) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <AdminHeader admin={admin} />
+        <AttendanceHeader user={admin} />
         <main className="mx-auto max-w-2xl px-6 py-10">
           <div role="alert" className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <AlertCircle className="h-4 w-4 shrink-0" />
@@ -97,7 +98,7 @@ export default function SubmersiblesDashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <AdminHeader admin={admin} />
+      <AttendanceHeader user={admin} />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -108,7 +109,7 @@ export default function SubmersiblesDashboardPage() {
           </div>
           <div className="flex gap-2">
             <Link
-              href="/admin/submersible-audit-trail"
+              href="/attendance/submersible-audit-trail"
               className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
             >
               Repair audit trail

@@ -521,7 +521,7 @@ function PhotoStrip({ repair, stage }: { repair: Repair; stage: "fault" | "repai
   return (
     <div className="flex flex-wrap gap-2">
       {list.map((p) => (
-        <AuthPhoto key={p.id} path={`/admin/pyau/photos/${p.id}`} label={`Photo ${p.slot}`} />
+        <AuthPhoto key={p.id} path={`/pyau/officer/photos/${p.id}`} label={`Photo ${p.slot}`} portal="attendance" />
       ))}
     </div>
   );

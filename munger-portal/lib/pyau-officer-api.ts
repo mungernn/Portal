@@ -1,17 +1,17 @@
-import { getAdminToken } from "./admin-auth";
+import { getAttendanceToken } from "./attendance-auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_PROPERTY_TAX_API_URL || "http://localhost:4000/api/v1";
 
-/** Submersible (pyau) dashboard of the AE / JE - Mechanical (admin portal). */
+/** Submersible (pyau) dashboard of the AE / JE - Mechanical (asset management login; JE / AE see their assigned wards). */
 
 function headers(): HeadersInit {
-  const token = getAdminToken();
+  const token = getAttendanceToken();
   if (!token) throw new Error("Not logged in - please log in again.");
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await fetch(`${API_BASE_URL}/pyau/officer${path}`, {
     method,
     headers: headers(),
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -21,8 +21,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   return data as T;
 }
 
-export const PYAU_EDIT_ROLES = ["je_mechanical", "ae_mechanical"];
-export const PYAU_VIEW_ROLES = [...PYAU_EDIT_ROLES, "commissioner", "deputy_commissioner", "city_manager"];
+export const PYAU_EDIT_ROLES = ["je_mechanical", "ae_mechanical", "attendance_admin"];
+export const PYAU_VIEW_ROLES = [...PYAU_EDIT_ROLES, "municipal_commissioner", "deputy_municipal_commissioner", "city_manager"];
 
 export type StructureType = "pcc_structure" | "iron_stand" | "nothing";
 export const STRUCTURE_LABELS: Record<StructureType, string> = {
@@ -184,34 +184,34 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   repaired: "Repaired - marked functional",
 };
 
-export const fetchDashboard = (wardId?: string) => call<DashboardData>("GET", `/admin/pyau/dashboard${wardId ? `?wardId=${wardId}` : ""}`);
-export const addAgency = (name: string) => call<{ agency: Option }>("POST", "/admin/pyau/agencies", { name }).then((r) => r.agency);
-export const createPyau = (wardId: number, d: PyauDetails) => call("POST", "/admin/pyau/pyaus", { wardId, ...d });
-export const updatePyau = (id: string, d: PyauDetails) => call("PUT", `/admin/pyau/pyaus/${id}`, d);
+export const fetchDashboard = (wardId?: string) => call<DashboardData>("GET", `/dashboard${wardId ? `?wardId=${wardId}` : ""}`);
+export const addAgency = (name: string) => call<{ agency: Option }>("POST", "/agencies", { name }).then((r) => r.agency);
+export const createPyau = (wardId: number, d: PyauDetails) => call("POST", "/pyaus", { wardId, ...d });
+export const updatePyau = (id: string, d: PyauDetails) => call("PUT", `/pyaus/${id}`, d);
 export const reportFault = (
   pyauId: string,
   input: { dateOfIssue: string; notes: string; photos: FilePayload[]; application?: FilePayload | null; applicationDate?: string | null },
-) => call<{ issue: Repair }>("POST", `/admin/pyau/pyaus/${pyauId}/fault`, input).then((r) => r.issue);
-export const fetchRepair = (issueId: string) => call<{ issue: Repair }>("GET", `/admin/pyau/issues/${issueId}`).then((r) => r.issue);
+) => call<{ issue: Repair }>("POST", `/pyaus/${pyauId}/fault`, input).then((r) => r.issue);
+export const fetchRepair = (issueId: string) => call<{ issue: Repair }>("GET", `/issues/${issueId}`).then((r) => r.issue);
 export const uploadApplication = (issueId: string, file: FilePayload, applicationDate: string) =>
-  call<{ issue: Repair }>("POST", `/admin/pyau/issues/${issueId}/application`, { file, applicationDate }).then((r) => r.issue);
+  call<{ issue: Repair }>("POST", `/issues/${issueId}/application`, { file, applicationDate }).then((r) => r.issue);
 export const addRepairItem = (issueId: string, input: { itemName: string; quantity: number | null; cost: number }) =>
-  call<{ issue: Repair }>("POST", `/admin/pyau/issues/${issueId}/items`, input).then((r) => r.issue);
-export const removeRepairItem = (itemId: string) => call<{ issue: Repair }>("DELETE", `/admin/pyau/items/${itemId}`).then((r) => r.issue);
+  call<{ issue: Repair }>("POST", `/issues/${issueId}/items`, input).then((r) => r.issue);
+export const removeRepairItem = (itemId: string) => call<{ issue: Repair }>("DELETE", `/items/${itemId}`).then((r) => r.issue);
 export const markRepaired = (issueId: string, input: { dateOfRepair: string; notes: string | null; photos: FilePayload[] }) =>
-  call<{ issue: Repair }>("POST", `/admin/pyau/issues/${issueId}/repaired`, input).then((r) => r.issue);
+  call<{ issue: Repair }>("POST", `/issues/${issueId}/repaired`, input).then((r) => r.issue);
 export const fetchHistory = (pyauId: string) =>
-  call<{ pyau: PyauRecord; issues: Repair[]; audit: AuditEvent[] }>("GET", `/admin/pyau/pyaus/${pyauId}/history`);
+  call<{ pyau: PyauRecord; issues: Repair[]; audit: AuditEvent[] }>("GET", `/pyaus/${pyauId}/history`);
 export const fetchAuditTrail = (f: { wardId?: string; from?: string; to?: string }) => {
   const q = new URLSearchParams(Object.entries(f).filter(([, v]) => !!v) as [string, string][]).toString();
-  return call<{ events: AuditEvent[] }>("GET", `/admin/pyau/audit-trail${q ? `?${q}` : ""}`).then((r) => r.events);
+  return call<{ events: AuditEvent[] }>("GET", `/audit-trail${q ? `?${q}` : ""}`).then((r) => r.events);
 };
 
 /** Opens the ward parshad's application (behind the login) in a new tab. */
 export async function openApplication(issueId: string): Promise<void> {
   const win = window.open("", "_blank");
-  const res = await fetch(`${API_BASE_URL}/admin/pyau/issues/${issueId}/application`, {
-    headers: { Authorization: `Bearer ${getAdminToken() ?? ""}` },
+  const res = await fetch(`${API_BASE_URL}/pyau/officer/issues/${issueId}/application`, {
+    headers: { Authorization: `Bearer ${getAttendanceToken() ?? ""}` },
   });
   if (!res.ok) {
     win?.close();

@@ -53,6 +53,7 @@ import {
   deleteLightMistakeHandler,
   deleteStreetSegmentMistakeHandler,
 } from "../controllers/streetlightCommissioner.controller";
+import { getStreetlightReportHandler } from "../controllers/streetlightReport.controller";
 import { requireAttendanceRole } from "../middleware/requireAttendanceRole";
 
 export const streetlightRouter = Router();
@@ -177,3 +178,11 @@ streetlightRouter.patch("/faults/:id/link-light", requireAttendanceRole([...REGI
 streetlightRouter.get("/faults/:id/penalties", requireAttendanceRole(), listFaultPenaltiesHandler);
 streetlightRouter.get("/penalties", requireAttendanceRole([...OVERSIGHT_ROLES]), listAllPenaltiesHandler);
 streetlightRouter.get("/penalties/mine", requireAttendanceRole(), myPenaltyTotalHandler);
+
+// --- Ward-wise / street-wise / agency-wise / light-wise reports (on-screen + CSV) - moved here from the admin portal.
+// A JE / AE (Mechanical) gets only their assigned wards. ---
+streetlightRouter.get(
+  "/reports/:kind",
+  requireAttendanceRole(["je_mechanical", "ae_mechanical", "municipal_commissioner", "deputy_municipal_commissioner", "city_manager", "attendance_admin"]),
+  getStreetlightReportHandler,
+);

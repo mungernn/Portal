@@ -15,6 +15,7 @@ import { streetlightCityManagerAssignmentRepository } from "../repositories/stre
 import { attendanceUserRepository } from "../repositories/attendanceUser.repository";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
+import { assertRecordWard, filterByWard } from "../services/wardScope";
 
 // ---------------------------------------------------------------------------
 // Asset-management-side (attendance login) versions of the
@@ -37,8 +38,8 @@ export const uploadStreetWiseLightsAttendanceHandler = asyncHandler(async (req: 
   res.status(200).json(result);
 });
 
-export const listStreetSegmentsAttendanceHandler = asyncHandler(async (_req: Request, res: Response) => {
-  const segments = await streetSegmentRepository.listAll();
+export const listStreetSegmentsAttendanceHandler = asyncHandler(async (req: Request, res: Response) => {
+  const segments = await filterByWard(req, await streetSegmentRepository.listAll(), (s) => s.ward_id);
   res.status(200).json({ segments });
 });
 
@@ -70,6 +71,7 @@ export const setStreetSegmentGpsAttendanceHandler = asyncHandler(async (req: Req
 export const listLightsForSegmentAttendanceHandler = asyncHandler(async (req: Request, res: Response) => {
   const paramsParsed = segmentIdParamSchema.safeParse(req.params);
   if (!paramsParsed.success) throw ApiError.badRequest("Invalid segment id");
+  await assertRecordWard(req, `SELECT ward_id FROM street_segments WHERE id = $1`, paramsParsed.data.id);
   const lights = await lightRepository.listBySegment(paramsParsed.data.id);
   res.status(200).json({ lights });
 });

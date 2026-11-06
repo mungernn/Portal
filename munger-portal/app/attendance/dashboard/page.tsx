@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ScanFace, LayoutGrid, Truck, Droplet, Lightbulb, MapPin, ClipboardList, CheckCircle2, Trash2, Languages, FileUp, Users, ShieldAlert, Gavel, HardHat, UserCog } from "lucide-react";
+import { ScanFace, LayoutGrid, Truck, Droplet, Lightbulb, MapPin, ClipboardList, CheckCircle2, Trash2, Languages, FileUp, Users, ShieldAlert, Gavel, HardHat, UserCog, BarChart3 } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { PublicComplaintsCard } from "@/components/public-reports/complaints-card";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
@@ -25,6 +25,10 @@ const STRINGS = {
     baselineSurveyDesc: "The comprehensive opening entry for each vehicle/equipment logbook.",
     surveyProgress: "Survey Progress",
     surveyProgressDesc: "Which assets are surveyed, which aren't, and which have open defects.",
+    pyauDashboard: "Submersible Dashboard",
+    pyauDashboardDesc: "Submersibles: details, agency, contractor, faults, repairs with items, cost, photos and the ward parshad's application.",
+    streetlightReports: "Street Light Reports",
+    streetlightReportsDesc: "Ward-wise, street-wise, agency-wise and light-wise reports, downloadable for Excel.",
     projects: "Project Monitoring",
     projectsDesc: "Projects by stage - approval to payment - with ward-wise reports, photos, estimate / BOQ and GPS.",
     myProjects: "My Projects",
@@ -62,6 +66,10 @@ const STRINGS = {
     baselineSurveyDesc: "प्रत्येक वाहन/उपकरण लॉगबुक के लिए पूर्ण प्रारंभिक प्रविष्टि।",
     surveyProgress: "सर्वे प्रगति",
     surveyProgressDesc: "कौन-से एसेट सर्वे हो चुके हैं, कौन-से नहीं, और किनमें खुली खराबियाँ हैं।",
+    pyauDashboard: "सबमर्सिबल डैशबोर्ड",
+    pyauDashboardDesc: "सबमर्सिबल: विवरण, एजेंसी, ठेकेदार, खराबी, मरम्मत - सामान, लागत, फोटो और वार्ड पार्षद का आवेदन।",
+    streetlightReports: "स्ट्रीट लाइट रिपोर्ट",
+    streetlightReportsDesc: "वार्डवार, सड़कवार, एजेंसीवार और लाइटवार रिपोर्ट, Excel हेतु डाउनलोड।",
     projects: "परियोजना निगरानी",
     projectsDesc: "स्वीकृति से भुगतान तक चरणवार परियोजनाएँ - वार्डवार रिपोर्ट, फोटो, प्राक्कलन / BOQ और GPS।",
     myProjects: "मेरी परियोजनाएँ",
@@ -91,6 +99,8 @@ const FACE_ROLES = ["sanitation_prabhari", "apswmo", "sanitation_officer", "atte
 
 const ENGINEER_PROJECT_ROLES = ["je_civil", "je_mechanical", "ae_civil", "ae_mechanical"];
 const PROJECT_ROLES = [...ENGINEER_PROJECT_ROLES, "municipal_commissioner", "deputy_municipal_commissioner", "yojana_prabhari", "attendance_admin"];
+// The submersible dashboard and street light reports (moved from the admin portal's JE / AE - Mechanical logins).
+const MECH_VIEW_ROLES = ["je_mechanical", "ae_mechanical", "municipal_commissioner", "deputy_municipal_commissioner", "city_manager", "attendance_admin"];
 const NAME_CORRECTION_ROLES = ["attendance_admin", "sanitation_officer", "apswmo", "sanitation_prabhari"];
 
 export default function AttendanceDashboardPage() {
@@ -159,6 +169,26 @@ export default function AttendanceDashboardPage() {
               </span>
               <h3 className="mb-1.5 text-base font-semibold text-slate-900">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjects : s.projects}</h3>
               <p className="text-sm text-slate-500">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjectsDesc : s.projectsDesc}</p>
+            </Link>
+          )}
+
+          {MECH_VIEW_ROLES.includes(user.role) && (
+            <Link href="/attendance/submersibles" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <Droplet className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.pyauDashboard}</h3>
+              <p className="text-sm text-slate-500">{s.pyauDashboardDesc}</p>
+            </Link>
+          )}
+
+          {MECH_VIEW_ROLES.includes(user.role) && (
+            <Link href="/attendance/streetlight-reports" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
+              </span>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.streetlightReports}</h3>
+              <p className="text-sm text-slate-500">{s.streetlightReportsDesc}</p>
             </Link>
           )}
 
