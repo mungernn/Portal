@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { DEFAULT_LAMP_TYPE, LAMP_TYPES } from "../types/streetlight.types";
 import { z } from "zod";
 import ExcelJS from "exceljs";
 import { importStreetWiseLightsCsv } from "../services/streetWiseLightImport.service";
@@ -184,7 +185,12 @@ export const setLightSwitchStatusHandler = asyncHandler(async (req: Request, res
   res.status(200).json({ light: updated });
 });
 
-const insertLightSchema = z.object({ segmentId: z.coerce.number().int().positive(), afterSeq: z.coerce.number().int().min(0) });
+const lampTypeSchema = z.enum(LAMP_TYPES).default(DEFAULT_LAMP_TYPE);
+const insertLightSchema = z.object({
+  segmentId: z.coerce.number().int().positive(),
+  afterSeq: z.coerce.number().int().min(0),
+  lampType: lampTypeSchema,
+});
 
 /**
  * Inserts a light into a street at a specific position (e.g. between
@@ -195,7 +201,7 @@ const insertLightSchema = z.object({ segmentId: z.coerce.number().int().positive
 export const insertLightHandler = asyncHandler(async (req: Request, res: Response) => {
   const parsed = insertLightSchema.safeParse(req.body);
   if (!parsed.success) throw ApiError.badRequest("Invalid input", parsed.error.flatten().fieldErrors);
-  const light = await insertLightAfterSequence(parsed.data.segmentId, parsed.data.afterSeq);
+  const light = await insertLightAfterSequence(parsed.data.segmentId, parsed.data.afterSeq, parsed.data.lampType);
   res.status(200).json({ light });
 });
 
@@ -207,6 +213,7 @@ const createStreetSegmentSchema = z.object({
   intermediatePoint: z.string().trim().nullish(),
   endPoint: z.string().trim().nullish(),
   lightCount: z.coerce.number().int().min(0),
+  lampType: lampTypeSchema,
 });
 
 /** POST /api/v1/streetlight/street-segments - "Add new street" on the status dashboard's ward-wise view, as opposed to the bulk CSV upload. */
@@ -221,6 +228,7 @@ export const createStreetSegmentHandler = asyncHandler(async (req: Request, res:
     endPoint: parsed.data.endPoint ?? null,
     lightCount: parsed.data.lightCount,
     createdBy: req.attendanceUser!.displayName,
+    lampType: parsed.data.lampType,
   });
   res.status(200).json({ segment });
 });
