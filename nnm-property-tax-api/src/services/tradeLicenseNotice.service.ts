@@ -74,6 +74,7 @@ export interface SurveyInput {
   phone?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  gpsAccuracyM?: number | null;
   isNnmShop?: boolean | null;
   nnmShopNo?: string | null;
 }
@@ -97,6 +98,10 @@ export async function recordSurvey(input: SurveyInput, admin: AdminTokenPayload)
   if (needsNotice && (!input.personName?.trim() || !input.businessName?.trim() || !input.address?.trim() || !input.phone)) {
     throw ApiError.badRequest("Enter the person's name, business name, address and phone number - a notice will be issued.");
   }
+  // The shop's location is needed to find the business again for the second notice / legal action.
+  if (needsNotice && (input.latitude == null || input.longitude == null || (input.latitude === 0 && input.longitude === 0))) {
+    throw ApiError.badRequest("Capture the shop's GPS location - stand at the shop and press \"Capture shop location\".");
+  }
 
   const me = await adminRepository.findByUsername(admin.username);
   const photoPath = input.licensePhoto ? await saveFile(input.licensePhoto.base64, input.licensePhoto.mime, "licence") : null;
@@ -114,8 +119,9 @@ export async function recordSurvey(input: SurveyInput, admin: AdminTokenPayload)
     }
     const { rows } = await client.query<{ id: string }>(
       `INSERT INTO trade_license_surveys (holding_no, financial_year, has_license, license_year, license_no, license_photo_path, person_name, business_name,
-         address, phone, latitude, longitude, status, recorded_by_username, recorded_by_name, recorded_by_code, license_valid_till, is_nnm_shop, nnm_shop_no)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING id`,
+         address, phone, latitude, longitude, status, recorded_by_username, recorded_by_name, recorded_by_code, license_valid_till, is_nnm_shop, nnm_shop_no,
+         gps_accuracy_m)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
       [
         input.holdingNo,
         fy,
@@ -136,6 +142,7 @@ export async function recordSurvey(input: SurveyInput, admin: AdminTokenPayload)
         input.hasLicense ? input.licenseValidTill : null,
         input.isNnmShop ?? null,
         input.isNnmShop ? input.nnmShopNo?.trim() || null : null,
+        input.gpsAccuracyM ?? null,
       ],
     );
     const surveyId = rows[0]!.id;
@@ -272,7 +279,7 @@ export async function listSurveys(filter: { status?: string; date?: string; reco
   if (filter.recordedBy) add("s.recorded_by_username = ?", filter.recordedBy);
   if (filter.q) add("(s.holding_no ILIKE ? OR s.business_name ILIKE ? OR s.person_name ILIKE ?)", `%${filter.q}%`);
   const { rows } = await pool.query(
-    `SELECT s.id, s.holding_no, p.ward, s.financial_year, s.has_license, s.license_year, s.license_valid_till, s.license_no, s.is_nnm_shop, s.nnm_shop_no, s.person_name, s.business_name, s.address, s.phone,
+    `SELECT s.id, s.holding_no, p.ward, s.financial_year, s.latitude, s.longitude, s.gps_accuracy_m, s.has_license, s.license_year, s.license_valid_till, s.license_no, s.is_nnm_shop, s.nnm_shop_no, s.person_name, s.business_name, s.address, s.phone,
             s.status, s.recorded_by_name, s.recorded_by_code, s.recorded_at, s.complied_at, s.complied_by, s.complied_license_year, s.complied_valid_till, s.complied_license_no,
             (s.license_photo_path IS NOT NULL) AS has_license_photo, (s.complied_photo_path IS NOT NULL) AS has_complied_photo,
             (SELECT json_agg(json_build_object('id', n.id, 'noticeNo', n.notice_no, 'level', n.level, 'issuedOn', n.issued_on, 'dueOn', n.due_on, 'printedAt', n.printed_at,

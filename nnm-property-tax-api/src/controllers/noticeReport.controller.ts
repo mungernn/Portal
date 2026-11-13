@@ -129,7 +129,8 @@ export const exportNoticeReportHandler = asyncHandler(async (req: Request, res: 
   sheet(
     wb,
     "TL notices - list",
-    ["Issued on", "Ward", "Tax Collector", "Notice no.", "Notice", "Due on", "Holding no.", "Business", "Person", "Phone", "Status now", "Receiving copy uploaded"],
+    ["Issued on", "Ward", "Tax Collector", "Notice no.", "Notice", "Due on", "Holding no.", "Business", "Person", "Phone", "Status now", "Receiving copy uploaded",
+      "Shop location (GPS)"],
     r.tlNotices.rows.map((x) => [
       dmy(x.issued_on),
       String(x.ward ?? ""),
@@ -143,6 +144,7 @@ export const exportNoticeReportHandler = asyncHandler(async (req: Request, res: 
       String(x.phone ?? ""),
       String(x.status),
       x.receiving_uploaded_at ? dmyTime(x.receiving_uploaded_at) : "No",
+      x.latitude && x.longitude ? `https://www.google.com/maps?q=${x.latitude},${x.longitude}` : "",
     ]),
   );
   summarySheets(wb, "TL applications", r.tlApplications);

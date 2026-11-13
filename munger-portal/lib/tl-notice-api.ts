@@ -80,6 +80,7 @@ export interface TlSurveyInput {
   phone?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  gpsAccuracyM?: number | null;
   isNnmShop: boolean;
   nnmShopNo?: string | null;
 }
@@ -166,6 +167,9 @@ export interface TlSurvey {
   complied_license_year: string | null;
   complied_valid_till: string | null;
   complied_license_no: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  gps_accuracy_m: string | null;
   has_license_photo: boolean;
   has_complied_photo: boolean;
   notices:

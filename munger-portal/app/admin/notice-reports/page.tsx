@@ -448,7 +448,19 @@ export default function NoticeReportsPage() {
                       <td className="px-3 py-1.5 text-right">{Number(r.level) === 1 ? "First" : "Second"}</td>
                       <td className="whitespace-nowrap px-3 py-1.5 text-right">{when(r.due_on)}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.holding_no)}</td>
-                      <td className="px-3 py-1.5 text-right">{String(r.business_name ?? "")}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {String(r.business_name ?? "")}
+                        {!!r.latitude && !!r.longitude && (
+                          <a
+                            href={`https://www.google.com/maps?q=${String(r.latitude)},${String(r.longitude)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block text-xs text-nnm-blue hover:underline"
+                          >
+                            📍 map
+                          </a>
+                        )}
+                      </td>
                       <td className="px-3 py-1.5 text-right">{String(r.phone ?? "")}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.status).replace(/_/g, " ")}</td>
                       <td className="px-3 py-1.5 text-right">

@@ -231,7 +231,20 @@ export default function TlNoticesPage() {
                         </span>
                       )}
                     </td>
-                    <td className="p-2">{r.phone ?? "-"}</td>
+                    <td className="p-2">
+                      {r.phone ?? "-"}
+                      {r.latitude && r.longitude && (
+                        <a
+                          href={`https://www.google.com/maps?q=${r.latitude},${r.longitude}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-0.5 block text-xs text-nnm-blue hover:underline"
+                          title={r.gps_accuracy_m ? `Within about ${Number(r.gps_accuracy_m)} m` : undefined}
+                        >
+                          📍 Shop on map
+                        </a>
+                      )}
+                    </td>
                     <td className="p-2">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TL_STATUS[r.status]?.tone}`}>
                         {TL_STATUS[r.status]?.label ?? r.status}
