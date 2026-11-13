@@ -1,3 +1,4 @@
+import { exportNoticeReportHandler, getNoticeReportCollectorsHandler, getNoticeReportHandler } from "../controllers/noticeReport.controller";
 import { collectorHoldingParam, collectorDemandNoticeParam } from "../middleware/collectorWardGuard";
 import {
   assignSurveyorHandler,
@@ -604,6 +605,19 @@ const requireAgencyReportRole = requireAdminRole(
   "agency_operator",
 );
 adminRouter.get("/agency/report-filters", requireAgencyReportRole, getReportFilterOptionsHandler);
+// Notices report (served demand notices, trade licence notices and applications) - date / period, ward-wise and
+// Tax Collector-wise. For the agency Team Leader and Project Manager, and the officers above them.
+const requireNoticeReportRole = requireAdminRole(
+  "agency_team_leader",
+  "agency_project_manager",
+  "tax_daroga",
+  "city_manager",
+  "deputy_commissioner",
+  "commissioner",
+);
+adminRouter.get("/notice-reports", requireNoticeReportRole, getNoticeReportHandler);
+adminRouter.get("/notice-reports/filters", requireNoticeReportRole, getNoticeReportCollectorsHandler);
+adminRouter.get("/notice-reports/export.xlsx", requireNoticeReportRole, exportNoticeReportHandler);
 adminRouter.get("/agency/reports", requireAgencyReportRole, getAgencyReportHandler);
 adminRouter.get("/agency/reports/export", requireAgencyReportRole, exportAgencyReportHandler);
 adminRouter.get("/agency/wards", requireAdminRole("agency_team_leader"), listAgencyWardsHandler);

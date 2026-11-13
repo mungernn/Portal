@@ -567,6 +567,16 @@ export default function AdminDashboardPage() {
               )}
 
               {showDuesReport && (
+                <Link href="/admin/notice-reports" className={cardClass}>
+                  <span className={iconWrapClass}>
+                    <CalendarDays className="h-6 w-6" strokeWidth={1.8} />
+                  </span>
+                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Notices Report</h3>
+                  <p className="text-sm text-slate-500">Demand notices served, trade licence notices issued and applications received - by day or period, ward-wise and Tax Collector-wise.</p>
+                </Link>
+              )}
+
+              {showDuesReport && (
                 <Link href="/admin/dues-report" className={cardClass}>
                   <span className={iconWrapClass}>
                     <FileSpreadsheet className="h-6 w-6" strokeWidth={1.8} />
