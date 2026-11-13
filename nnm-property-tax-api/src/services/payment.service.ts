@@ -1,3 +1,4 @@
+import { assertNoDiscrepancyPending } from "./discrepancyHold.service";
 import { pool } from "../config/db";
 import { assertSolidWasteReady } from "./solidWasteGuard.service";
 import { assertDocumentsForCollection } from "./holdingDocuments.service";
@@ -459,6 +460,9 @@ export async function submitPayment(
   }
   assertNotDisputed(property);
   assertNoResurveyPending(property);
+  // Not while a property discrepancy reported on the holding is unresolved. (The online callback - money already
+  // taken - is not refused; initiateOnlinePayment checked this before sending the citizen to the gateway.)
+  if (actor) await assertNoDiscrepancyPending(holdingNo);
   // A counter / Tax Collector / Agency payment (these pass an actor) is refused while any pending year has no
   // assessment - paying would mark those years paid. The online gateway callback (no actor) is not refused here: the
   // citizen's money is already taken, and initiateOnlinePayment ran the same check before sending them to the gateway.
