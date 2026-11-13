@@ -40,11 +40,26 @@ export function licenseYearOptions(): string[] {
 }
 
 export const TL_STATUS: Record<string, { label: string; tone: string }> = {
-  licensed: { label: "Valid licence shown", tone: "bg-green-100 text-green-800" },
-  notice_1: { label: "1st notice running", tone: "bg-amber-100 text-amber-800" },
-  notice_2: { label: "2nd notice running", tone: "bg-orange-100 text-orange-800" },
-  legal_action_due: { label: "Legal action due", tone: "bg-red-100 text-red-700" },
-  complied: { label: "Licence obtained after notice", tone: "bg-blue-100 text-blue-800" },
+  licensed: {
+    label: "Valid licence shown",
+    tone: "bg-green-100 text-green-800",
+  },
+  notice_1: {
+    label: "1st notice running",
+    tone: "bg-amber-100 text-amber-800",
+  },
+  notice_2: {
+    label: "2nd notice running",
+    tone: "bg-orange-100 text-orange-800",
+  },
+  legal_action_due: {
+    label: "Legal action due",
+    tone: "bg-red-100 text-red-700",
+  },
+  complied: {
+    label: "Licence obtained after notice",
+    tone: "bg-blue-100 text-blue-800",
+  },
 };
 
 export interface FileUpload {
@@ -70,7 +85,11 @@ export interface TlSurveyInput {
 }
 
 export async function submitTlSurvey(input: TlSurveyInput): Promise<{ surveyId: string; status: string; noticeNo: string | null }> {
-  const res = await fetch(`${API_BASE_URL}/admin/tl-survey`, { method: "POST", headers: headers(), body: JSON.stringify(input) });
+  const res = await fetch(`${API_BASE_URL}/admin/tl-survey`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(input),
+  });
   return json(res, "Could not save the visit");
 }
 
@@ -92,23 +111,34 @@ export interface TlNotice {
   firstNoticeNo: string | null;
   firstNoticeDate: string | null;
   printedAt: string | null;
+  receivingUploadedAt: string | null;
 }
 
 export async function fetchPrintQueue(opts: { date?: string; all?: boolean } = {}): Promise<TlNotice[]> {
   const q = new URLSearchParams();
   if (opts.date) q.set("date", opts.date);
   if (opts.all) q.set("all", "1");
-  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/print-queue?${q}`, { headers: headers(), cache: "no-store" });
+  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/print-queue?${q}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
   return (await json<{ notices: TlNotice[] }>(res, "Could not load the notices")).notices;
 }
 
 export async function markNoticesPrinted(ids: string[]): Promise<number> {
-  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/mark-printed`, { method: "POST", headers: headers(), body: JSON.stringify({ ids }) });
+  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/mark-printed`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ ids }),
+  });
   return (await json<{ marked: number }>(res, "Could not mark the notices printed")).marked;
 }
 
 export async function fetchTlNotice(id: string): Promise<TlNotice> {
-  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/${id}`, { headers: headers(), cache: "no-store" });
+  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/${id}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
   return (await json<{ notice: TlNotice }>(res, "Could not load the notice")).notice;
 }
 
@@ -138,18 +168,44 @@ export interface TlSurvey {
   complied_license_no: string | null;
   has_license_photo: boolean;
   has_complied_photo: boolean;
-  notices: { id: string; noticeNo: string; level: number; issuedOn: string; dueOn: string; printedAt: string | null }[] | null;
+  notices:
+    | {
+        id: string;
+        noticeNo: string;
+        level: number;
+        issuedOn: string;
+        dueOn: string;
+        printedAt: string | null;
+        receivingUploadedAt: string | null;
+        receivingBy: string | null;
+      }[]
+    | null;
 }
 
 export async function fetchTlSurveys(filter: { status?: string; date?: string; q?: string }): Promise<TlSurvey[]> {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(filter)) if (v) q.set(k, v);
-  const res = await fetch(`${API_BASE_URL}/admin/tl-surveys?${q}`, { headers: headers(), cache: "no-store" });
+  const res = await fetch(`${API_BASE_URL}/admin/tl-surveys?${q}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
   return (await json<{ surveys: TlSurvey[] }>(res, "Could not load the records")).surveys;
 }
 
-export async function markTlComplied(id: string, body: { licenseYear: string; licenseValidTill: string; licenseNo?: string; photo: FileUpload }): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}/admin/tl-surveys/${id}/complied`, { method: "POST", headers: headers(), body: JSON.stringify(body) });
+export async function markTlComplied(
+  id: string,
+  body: {
+    licenseYear: string;
+    licenseValidTill: string;
+    licenseNo?: string;
+    photo: FileUpload;
+  },
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/tl-surveys/${id}/complied`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
   await json(res, "Could not save");
 }
 
@@ -161,6 +217,35 @@ export async function openTlSurveyFile(id: string, which: "license" | "complied"
     win?.close();
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || "Could not open the file.");
+  }
+  const url = URL.createObjectURL(await res.blob());
+  if (win) win.location.href = url;
+  else window.location.href = url;
+}
+
+/** The signed receiving half of a printed notice, photographed with the camera. */
+export async function uploadTlReceivingCopy(
+  noticeId: string,
+  photo: FileUpload,
+  latitude: number | null,
+  longitude: number | null,
+): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/${noticeId}/receiving`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ photo, latitude, longitude }),
+  });
+  await json(res, "Could not upload the receiving copy");
+}
+
+/** Opens the receiving copy photo in a new tab. */
+export async function openTlReceivingCopy(noticeId: string): Promise<void> {
+  const win = window.open("", "_blank");
+  const res = await fetch(`${API_BASE_URL}/admin/tl-notices/${noticeId}/receiving`, { headers: headers(false) });
+  if (!res.ok) {
+    win?.close();
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "Could not open the receiving copy.");
   }
   const url = URL.createObjectURL(await res.blob());
   if (win) win.location.href = url;

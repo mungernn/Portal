@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Download, Image as ImageIcon, Loader2 } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import { useAdminGuard } from "@/lib/use-admin-guard";
+import { openTlReceivingCopy } from "@/lib/tl-notice-api";
 import {
   NOTICE_REPORT_ROLES,
   downloadNoticeReport,
@@ -339,7 +340,12 @@ export default function NoticeReportsPage() {
               <Kpi
                 label="Trade licence notices issued"
                 value={String(report.tlNotices.total)}
-                sub={report.tlNotices.split.map((s) => `${s.count} ${s.label.toLowerCase()}`).join(" · ") || undefined}
+                sub={
+                  [
+                    ...report.tlNotices.split.map((s) => `${s.count} ${s.label.toLowerCase()}`),
+                    `${report.tlNotices.rows.filter((r) => r.receiving_uploaded_at).length} receiving copies uploaded`,
+                  ].join(" · ") || undefined
+                }
                 active={tab === "tlNotices"}
                 onClick={() => setTab("tlNotices")}
               />
@@ -427,10 +433,11 @@ export default function NoticeReportsPage() {
                   "Business",
                   "Phone",
                   "Status now",
+                  "Receiving copy",
                 ]}
               >
                 {b.rows.length === 0 ? (
-                  <Empty cols={10} />
+                  <Empty cols={11} />
                 ) : (
                   b.rows.map((r) => (
                     <tr key={String(r.notice_no)} className="border-t border-slate-100">
@@ -444,6 +451,19 @@ export default function NoticeReportsPage() {
                       <td className="px-3 py-1.5 text-right">{String(r.business_name ?? "")}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.phone ?? "")}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.status).replace(/_/g, " ")}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {r.receiving_uploaded_at ? (
+                          <button
+                            title="Signed receiving copy"
+                            className="text-nnm-blue hover:underline"
+                            onClick={() => openTlReceivingCopy(String(r.notice_id)).catch((e) => setError(e.message))}
+                          >
+                            <ImageIcon className="inline h-4 w-4" />
+                          </button>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}

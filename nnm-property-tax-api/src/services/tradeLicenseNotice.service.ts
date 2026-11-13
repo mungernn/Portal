@@ -214,13 +214,15 @@ export interface PrintableNotice {
   firstNoticeNo: string | null;
   firstNoticeDate: string | null;
   printedAt: string | null;
+  receivingUploadedAt: string | null;
 }
 
 const NOTICE_SELECT = `
   SELECT n.id, n.notice_no AS "noticeNo", n.level, to_char(n.issued_on, 'DD-MM-YYYY') AS "issuedOn", to_char(n.due_on, 'DD-MM-YYYY') AS "dueOn",
          s.financial_year AS "financialYear", s.holding_no AS "holdingNo", p.ward, s.person_name AS "personName", s.business_name AS "businessName",
          s.address, s.phone, s.license_year AS "licenseYearShown", s.license_valid_till AS "licenseValidTill",
-         f.notice_no AS "firstNoticeNo", to_char(f.issued_on, 'DD-MM-YYYY') AS "firstNoticeDate", n.printed_at AS "printedAt"
+         f.notice_no AS "firstNoticeNo", to_char(f.issued_on, 'DD-MM-YYYY') AS "firstNoticeDate", n.printed_at AS "printedAt",
+         n.receiving_uploaded_at AS "receivingUploadedAt"
     FROM trade_license_notices n
     JOIN trade_license_surveys s ON s.id = n.survey_id
     JOIN properties p ON p.holding_no = s.holding_no
@@ -273,7 +275,8 @@ export async function listSurveys(filter: { status?: string; date?: string; reco
     `SELECT s.id, s.holding_no, p.ward, s.financial_year, s.has_license, s.license_year, s.license_valid_till, s.license_no, s.is_nnm_shop, s.nnm_shop_no, s.person_name, s.business_name, s.address, s.phone,
             s.status, s.recorded_by_name, s.recorded_by_code, s.recorded_at, s.complied_at, s.complied_by, s.complied_license_year, s.complied_valid_till, s.complied_license_no,
             (s.license_photo_path IS NOT NULL) AS has_license_photo, (s.complied_photo_path IS NOT NULL) AS has_complied_photo,
-            (SELECT json_agg(json_build_object('id', n.id, 'noticeNo', n.notice_no, 'level', n.level, 'issuedOn', n.issued_on, 'dueOn', n.due_on, 'printedAt', n.printed_at) ORDER BY n.level)
+            (SELECT json_agg(json_build_object('id', n.id, 'noticeNo', n.notice_no, 'level', n.level, 'issuedOn', n.issued_on, 'dueOn', n.due_on, 'printedAt', n.printed_at,
+                                      'receivingUploadedAt', n.receiving_uploaded_at, 'receivingBy', n.receiving_uploaded_by_name) ORDER BY n.level)
                FROM trade_license_notices n WHERE n.survey_id = s.id) AS notices
        FROM trade_license_surveys s JOIN properties p ON p.holding_no = s.holding_no
       WHERE ${where.join(" AND ")}
@@ -314,6 +317,61 @@ export async function surveyFile(id: string, which: "license" | "complied", admi
   if (!rel) throw ApiError.notFound("No file.");
   const base = path.resolve(env.PHOTO_UPLOAD_DIR);
   const full = path.resolve(base, rel);
+  if (!full.startsWith(base + path.sep) || !fs.existsSync(full)) throw ApiError.notFound("The file is missing from storage.");
+  return full;
+}
+
+/**
+ * The signed receiving half of a printed notice, photographed by the Tax Collector who raised it (camera photo, JPG /
+ * PNG). Allowed once the notice is printed; once uploaded it cannot be replaced.
+ */
+export async function uploadReceivingCopy(
+  noticeId: string,
+  input: { photo: { base64: string; mime: string }; latitude?: number | null; longitude?: number | null },
+  admin: AdminTokenPayload,
+): Promise<void> {
+  if (!["image/jpeg", "image/jpg", "image/png"].includes(input.photo.mime)) throw ApiError.badRequest("Take a photo of the receiving copy (JPG / PNG).");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<{ recorded_by_username: string; printed_at: string | null; receiving_photo_path: string | null }>(
+      `SELECT s.recorded_by_username, n.printed_at, n.receiving_photo_path
+         FROM trade_license_notices n JOIN trade_license_surveys s ON s.id = n.survey_id
+        WHERE n.id = $1 FOR UPDATE OF n`,
+      [noticeId],
+    );
+    const n = rows[0];
+    if (!n) throw ApiError.notFound("Notice not found.");
+    if (n.recorded_by_username !== admin.username) throw new ApiError(403, "Only the Tax Collector who raised the notice can upload its receiving copy.");
+    if (!n.printed_at) throw ApiError.badRequest("Print the notice first - the receiving copy is the bottom half of the printed sheet.");
+    if (n.receiving_photo_path) throw ApiError.badRequest("The receiving copy of this notice is already uploaded.");
+    const rel = await saveFile(input.photo.base64, input.photo.mime, `notice-receiving-${noticeId}`);
+    await client.query(
+      `UPDATE trade_license_notices SET receiving_photo_path = $2, receiving_latitude = $3, receiving_longitude = $4,
+              receiving_uploaded_by_username = $5, receiving_uploaded_by_name = $6, receiving_uploaded_at = now()
+        WHERE id = $1`,
+      [noticeId, rel, input.latitude ?? null, input.longitude ?? null, admin.username, admin.displayName],
+    );
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+export async function receivingCopyFile(noticeId: string, admin: AdminTokenPayload): Promise<string> {
+  const { rows } = await pool.query<{ receiving_photo_path: string | null; recorded_by_username: string }>(
+    `SELECT n.receiving_photo_path, s.recorded_by_username FROM trade_license_notices n JOIN trade_license_surveys s ON s.id = n.survey_id WHERE n.id = $1`,
+    [noticeId],
+  );
+  const r = rows[0];
+  if (!r) throw ApiError.notFound("Not found.");
+  if (admin.role === "tax_collector" && r.recorded_by_username !== admin.username) throw new ApiError(403, "Not your record.");
+  if (!r.receiving_photo_path) throw ApiError.notFound("No receiving copy uploaded yet.");
+  const base = path.resolve(env.PHOTO_UPLOAD_DIR);
+  const full = path.resolve(base, r.receiving_photo_path);
   if (!full.startsWith(base + path.sep) || !fs.existsSync(full)) throw ApiError.notFound("The file is missing from storage.");
   return full;
 }

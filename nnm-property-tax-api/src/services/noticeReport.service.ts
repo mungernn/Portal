@@ -176,13 +176,13 @@ const TL_NOTICES: Spec = {
                 COALESCE(a.display_name, s.recorded_by_name) AS coll_name,
                 0::numeric AS amount,
                 CASE n.level WHEN 1 THEN 'First notice' ELSE 'Second notice' END AS split,
-                n.notice_no, n.level, n.issued_on, n.due_on, s.holding_no, s.business_name, s.person_name, s.phone, s.status
+                n.id AS notice_id, n.receiving_uploaded_at, n.notice_no, n.level, n.issued_on, n.due_on, s.holding_no, s.business_name, s.person_name, s.phone, s.status
            FROM trade_license_notices n
            JOIN trade_license_surveys s ON s.id = n.survey_id
            LEFT JOIN properties p ON p.holding_no = s.holding_no
            LEFT JOIN admins a ON a.username = s.recorded_by_username
           WHERE n.issued_on BETWEEN $1::date AND $2::date`,
-  listCols: `day, ward, coll_user, coll_name, notice_no, level, issued_on, due_on, holding_no, business_name, person_name, phone, status`,
+  listCols: `day, ward, coll_user, coll_name, notice_id, receiving_uploaded_at, notice_no, level, issued_on, due_on, holding_no, business_name, person_name, phone, status`,
   listOrder: `issued_on DESC, notice_no DESC`,
 };
 

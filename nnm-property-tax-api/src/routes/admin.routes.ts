@@ -275,6 +275,8 @@ import {
 } from "../controllers/newHoldingRequest.controller";
 import {
   getTlNotice,
+  getTlReceivingCopy,
+  postTlReceivingCopy,
   getTlPrintQueue,
   getTlSurveyFile,
   getTlSurveys,
@@ -810,6 +812,12 @@ adminRouter.post("/tl-surveys/:id/complied", requireAdminRole("tax_collector", "
 adminRouter.get("/tl-notices/print-queue", requireAdminRole("tax_collector"), getTlPrintQueue);
 adminRouter.post("/tl-notices/mark-printed", requireAdminRole("tax_collector"), postTlMarkPrinted);
 adminRouter.get("/tl-notices/:id", requireTlViewRole, getTlNotice);
+adminRouter.post("/tl-notices/:id/receiving", requireAdminRole("tax_collector"), postTlReceivingCopy);
+adminRouter.get(
+  "/tl-notices/:id/receiving",
+  requireAdminRole("tax_collector", "city_manager", "tax_daroga", "deputy_commissioner", "commissioner", "agency_team_leader", "agency_project_manager"),
+  getTlReceivingCopy,
+);
 
 adminRouter.get("/collection-issues/mine", requireAdminRole("tax_collector"), listMyCollectionIssues);
 adminRouter.get("/collection-issues", requireAdminRole("tax_daroga", "commissioner", "city_manager"), listAllCollectionIssues);

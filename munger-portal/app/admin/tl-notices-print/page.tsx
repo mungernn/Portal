@@ -14,7 +14,6 @@ export default function TlNoticesPrintPage() {
   const [mode, setMode] = useState<"pending" | "date">("pending");
   const [date, setDate] = useState(() => new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10));
   const [notices, setNotices] = useState<TlNotice[] | null>(null);
-  const [withOfficeCopy, setWithOfficeCopy] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -65,22 +64,36 @@ export default function TlNoticesPrintPage() {
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">Print Trade Licence Notices</h1>
         <p className="mb-6 text-sm text-slate-500">
-          Notices from your visits, plus second notices raised automatically where the 14 days ran out. Print them at the end of the day for the City
-          Manager&apos;s signature. <Link href="/admin/tl-notices" className="font-semibold text-nnm-blue hover:underline">All my visits →</Link>
+          Notices from your visits, plus second notices raised automatically where the 14 days ran out. Print them at the end of the day for
+          the City Manager&apos;s signature. Give the top half to the business; get the bottom half signed as received, then photograph it
+          under &quot;All my visits&quot; (Receiving copy).{" "}
+          <Link href="/admin/tl-notices" className="font-semibold text-nnm-blue hover:underline">
+            All my visits →
+          </Link>
         </p>
 
         <div className="mb-4 flex flex-wrap items-center gap-3">
-          <button onClick={() => setMode("pending")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "pending" ? "bg-nnm-blue text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
+          <button
+            onClick={() => setMode("pending")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "pending" ? "bg-nnm-blue text-white" : "border border-slate-300 bg-white text-slate-700"}`}
+          >
             Not yet printed
           </button>
-          <button onClick={() => setMode("date")} className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "date" ? "bg-nnm-blue text-white" : "border border-slate-300 bg-white text-slate-700"}`}>
+          <button
+            onClick={() => setMode("date")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${mode === "date" ? "bg-nnm-blue text-white" : "border border-slate-300 bg-white text-slate-700"}`}
+          >
             Reprint a day
           </button>
-          {mode === "date" && <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm" />}
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" checked={withOfficeCopy} onChange={(e) => setWithOfficeCopy(e.target.checked)} />
-            Office copy with receiving (same sheet)
-          </label>
+          {mode === "date" && (
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            />
+          )}
+          <span className="text-sm text-slate-600">Each notice prints on one sheet: business copy on top, receiving copy below.</span>
           <button
             onClick={printAll}
             disabled={!notices?.length || busy}
@@ -130,9 +143,7 @@ export default function TlNoticesPrintPage() {
             </table>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-100 p-4">
               <div ref={sheetRef}>
-                <TlNoticePages
-                  sheets={notices.flatMap((n) => (withOfficeCopy ? [{ key: n.id, n }, { key: `${n.id}-o`, n, officeCopy: true }] : [{ key: n.id, n }]))}
-                />
+                <TlNoticePages notices={notices} />
               </div>
             </div>
           </>

@@ -5,7 +5,17 @@ import { z } from "zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
 import { holdingNoSchema } from "../utils/holdingNoSchema";
-import { getNotice, listSurveys, markComplied, markPrinted, noticesToPrint, recordSurvey, surveyFile } from "../services/tradeLicenseNotice.service";
+import {
+  getNotice,
+  listSurveys,
+  markComplied,
+  markPrinted,
+  noticesToPrint,
+  receivingCopyFile,
+  recordSurvey,
+  surveyFile,
+  uploadReceivingCopy,
+} from "../services/tradeLicenseNotice.service";
 
 const fyRegex = /^\d{4}-\d{4}$/;
 const mobile = z.string().trim().transform((s) => s.replace(/[\s-]/g, "").replace(/^(\+91|91|0)(?=\d{10}$)/, "")).pipe(z.string().regex(/^[6-9]\d{9}$/, "Enter a valid 10-digit phone number."));
@@ -90,4 +100,23 @@ export const getTlSurveyFile = asyncHandler(async (req: Request, res: Response) 
   res.setHeader("Content-Type", ext === ".pdf" ? "application/pdf" : ext === ".png" ? "image/png" : "image/jpeg");
   res.setHeader("X-Content-Type-Options", "nosniff");
   fs.createReadStream(full).pipe(res);
+});
+
+/** POST /api/v1/admin/tl-notices/:id/receiving { photo, latitude, longitude } - the signed receiving half, photographed. */
+export const postTlReceivingCopy = asyncHandler(async (req: Request, res: Response) => {
+  const id = z.coerce.number().int().positive().safeParse(req.params.id);
+  const b = z
+    .object({ photo: fileSchema, latitude: z.number().min(-90).max(90).nullish(), longitude: z.number().min(-180).max(180).nullish() })
+    .safeParse(req.body);
+  if (!id.success) throw ApiError.badRequest("Invalid id");
+  if (!b.success) throw ApiError.badRequest("Take a photo of the receiving copy.");
+  await uploadReceivingCopy(String(id.data), b.data, req.admin!);
+  res.status(200).json({ ok: true });
+});
+
+/** GET /api/v1/admin/tl-notices/:id/receiving - the receiving copy photo. */
+export const getTlReceivingCopy = asyncHandler(async (req: Request, res: Response) => {
+  const id = z.coerce.number().int().positive().safeParse(req.params.id);
+  if (!id.success) throw ApiError.badRequest("Invalid id");
+  res.sendFile(await receivingCopyFile(String(id.data), req.admin!));
 });
