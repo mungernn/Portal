@@ -159,6 +159,15 @@ export default function TlNoticesPage() {
           </div>
         )}
 
+        {rows && rows.some((r) => r.application_number) && (
+          <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+            {rows.filter((r) => r.application_number).length} trade licence application(s) received against {isTc ? "your" : "these"}{" "}
+            notices - counted in
+            {isTc ? " your" : " the Tax Collector's"} collection. Applications that came without a notice are automatic and not credited to
+            a Tax Collector.
+          </p>
+        )}
+
         <div className="mb-4 flex flex-wrap items-center gap-2">
           {FILTERS.map((f) => (
             <button
@@ -258,6 +267,11 @@ export default function TlNoticesPage() {
                       )}
                     </td>
                     <td className="p-2 text-xs">
+                      {r.application_number && (
+                        <p className="mb-1.5 rounded bg-green-50 px-1.5 py-1 font-medium text-green-800">
+                          Application {r.application_number} received {fmt(r.application_received_at)} ({r.application_status})
+                        </p>
+                      )}
                       {(r.notices ?? []).map((n) => (
                         <div key={n.id} className="mb-1.5">
                           <button

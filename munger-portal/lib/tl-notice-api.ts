@@ -172,6 +172,10 @@ export interface TlSurvey {
   gps_accuracy_m: string | null;
   has_license_photo: boolean;
   has_complied_photo: boolean;
+  /** The trade licence application this notice brought in - credited to the Tax Collector who issued the notice. */
+  application_number: string | null;
+  application_status: string | null;
+  application_received_at: string | null;
   notices:
     | {
         id: string;

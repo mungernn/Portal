@@ -154,7 +154,8 @@ export const exportNoticeReportHandler = asyncHandler(async (req: Request, res: 
     [
       "Received on",
       "Ward",
-      "Ward's Tax Collector",
+      "Credited to (Tax Collector)",
+      "Against notice",
       "Application no.",
       "Type",
       "Applicant",
@@ -166,13 +167,14 @@ export const exportNoticeReportHandler = asyncHandler(async (req: Request, res: 
     r.tlApplications.rows.map((x) => [
       dmyTime(x.requested_at),
       String(x.ward ?? ""),
-      String(x.coll_name ?? ""),
+      x.source === "notice" ? String(x.coll_name ?? "") : "Automatic application",
+      String(x.tl_notice_no ?? ""),
       String(x.application_number),
       String(x.application_type),
       String(x.applicant_name),
       String(x.entity_name),
       String(x.holding_no ?? ""),
-      String(x.split),
+      String(x.channel),
       String(x.status),
     ]),
   );

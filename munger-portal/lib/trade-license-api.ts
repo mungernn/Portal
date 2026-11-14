@@ -26,6 +26,8 @@ export interface TradeLicenseApplicationInput {
   entityType?: TradeLicenseEntityType | null;
   completeAddress: string;
   holdingNo?: string | null;
+  /** The trade licence notice the business received, if any - credits the application to that Tax Collector. */
+  noticeNo?: string | null;
   holdingReceiptAttached: boolean;
   typeOfBusiness?: string | null;
   durationYears: number;
@@ -221,6 +223,10 @@ export interface TradeLicenseApplicationDetail {
     status: "pending" | "approved" | "rejected";
     current_stage: string;
     requested_by: string;
+    /** "notice" = came in against a Tax Collector's notice (credited to him); "automatic" = no notice. */
+    source?: "notice" | "automatic";
+    tl_notice_no?: string | null;
+    credited_collector_name?: string | null;
     requested_at: string;
     reviewed_by: string | null;
     reviewed_role: string | null;

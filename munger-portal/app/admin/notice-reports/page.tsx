@@ -378,8 +378,8 @@ export default function NoticeReportsPage() {
             )}
             {tab === "tlApplications" && (
               <p className="text-xs text-slate-500">
-                Applications are entered at the counter or online, not by a Tax Collector, so they are shown against the Tax Collector(s)
-                assigned to the holding&apos;s ward. Applications without a holding number have no ward.
+                An application that came in against a Tax Collector&apos;s notice is credited to that Tax Collector (his collection). Any
+                other application is an automatic application and is not credited to a Tax Collector.
               </p>
             )}
 
@@ -488,28 +488,30 @@ export default function NoticeReportsPage() {
                 head={[
                   "Received on",
                   "Ward",
-                  "Ward's Tax Collector",
+                  "Credited to",
                   "Application no.",
                   "Type",
                   "Applicant",
                   "Business",
+                  "Notice",
                   "Through",
                   "Status",
                 ]}
               >
                 {b.rows.length === 0 ? (
-                  <Empty cols={9} />
+                  <Empty cols={10} />
                 ) : (
                   b.rows.map((r) => (
                     <tr key={String(r.application_number)} className="border-t border-slate-100">
                       <td className="whitespace-nowrap px-3 py-1.5">{when(r.requested_at, true)}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.ward ?? "-")}</td>
-                      <td className="px-3 py-1.5 text-right">{String(r.coll_name ?? "-")}</td>
+                      <td className="px-3 py-1.5 text-right">{r.source === "notice" ? String(r.coll_name ?? "-") : "Automatic"}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.application_number)}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.application_type)}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.applicant_name)}</td>
                       <td className="px-3 py-1.5 text-right">{String(r.entity_name)}</td>
-                      <td className="px-3 py-1.5 text-right">{String(r.split)}</td>
+                      <td className="px-3 py-1.5 text-right">{r.tl_notice_no ? String(r.tl_notice_no) : "-"}</td>
+                      <td className="px-3 py-1.5 text-right">{String(r.channel)}</td>
                       <td className="px-3 py-1.5 text-right capitalize">{String(r.status)}</td>
                     </tr>
                   ))

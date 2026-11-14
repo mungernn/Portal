@@ -6,9 +6,8 @@ import { pool } from "../config/db";
  *   - property tax demand notices SERVED: the signed receiving copy uploaded by the Tax Collector (the date served is
  *     the upload date; the collector is the one who uploaded it), with the notices generated in the period alongside;
  *   - trade licence notices ISSUED (first / second notice from the Tax Collector's field survey);
- *   - trade licence APPLICATIONS received. An application is not entered by a Tax Collector (the counter operator
- *     or the citizen online enters it), so it is credited to the Tax Collector(s) assigned to the holding's ward, and
- *     the channel it came through is shown separately.
+ *   - trade licence APPLICATIONS received: one that came in against a Tax Collector's notice is credited to him (his
+ *     collection); every other is an automatic application, credited to no one (tradeLicenseCredit.service.ts).
  * All dates are Indian calendar dates.
  */
 
@@ -55,6 +54,8 @@ interface Spec {
   listOrder: string;
   /** Count for byWard.extra (e.g. notices generated in the period - a separate query). */
   extraByWard?: { sql: string };
+  /** How the rows credited to no Tax Collector are named. */
+  unattributed?: string;
 }
 
 async function run(spec: Spec, f: NoticeReportFilters): Promise<Breakdown> {
@@ -111,7 +112,12 @@ async function run(spec: Spec, f: NoticeReportFilters): Promise<Breakdown> {
     w.amount += r.amt;
     byWard.set(wk, w);
     const ck = r.coll_user ?? "";
-    const c = byColl.get(ck) ?? { username: r.coll_user, name: r.coll_name ?? "Not attributed to a Tax Collector", count: 0, amount: 0 };
+    const c = byColl.get(ck) ?? {
+      username: r.coll_user,
+      name: r.coll_name ?? spec.unattributed ?? "Not attributed to a Tax Collector",
+      count: 0,
+      amount: 0,
+    };
     c.count += r.n;
     c.amount += r.amt;
     byColl.set(ck, c);
@@ -186,25 +192,26 @@ const TL_NOTICES: Spec = {
   listOrder: `issued_on DESC, notice_no DESC`,
 };
 
-/** Trade licence applications received - credited to the ward's Tax Collector(s). */
+/**
+ * Trade licence applications received. One brought in by a Tax Collector's notice is credited to him (his
+ * collection); any other is an automatic application, credited to no one.
+ */
 const TL_APPLICATIONS: Spec = {
   base: `SELECT ${dayOf("t.requested_at")} AS day, btrim(p.ward) AS ward,
-                tc.coll_user, tc.coll_name,
+                CASE WHEN t.source = 'notice' THEN COALESCE(a.username, t.credited_collector_username) END AS coll_user,
+                CASE WHEN t.source = 'notice' THEN COALESCE(a.display_name, t.credited_collector_name) END AS coll_name,
                 0::numeric AS amount,
-                CASE WHEN t.requested_by = t.applicant_name THEN 'Online (citizen)' ELSE 'At the counter' END AS split,
+                CASE WHEN t.source = 'notice' THEN 'Against a Tax Collector''s notice' ELSE 'Automatic application' END AS split,
+                CASE WHEN t.requested_by = t.applicant_name THEN 'Online (citizen)' ELSE 'At the counter' END AS channel,
                 t.application_number, t.application_type, t.requested_at, t.requested_by, t.applicant_name, t.entity_name,
-                t.holding_no, t.status, t.current_stage
+                t.holding_no, t.status, t.current_stage, t.source, t.tl_notice_no
            FROM trade_license_applications t
            LEFT JOIN properties p ON p.holding_no = t.holding_no
-           LEFT JOIN LATERAL (
-             SELECT string_agg(a.username, ',' ORDER BY a.display_name) AS coll_user,
-                    string_agg(a.display_name, ' / ' ORDER BY a.display_name) AS coll_name
-               FROM tax_collector_login_wards w JOIN admins a ON a.username = w.tax_collector_username AND a.active
-              WHERE w.ward = btrim(p.ward)
-           ) tc ON TRUE
+           LEFT JOIN admins a ON a.username = t.credited_collector_username
           WHERE ${inRange("t.requested_at")}`,
-  listCols: `day, ward, coll_user, coll_name, application_number, application_type, requested_at, requested_by, applicant_name, entity_name, holding_no, status, current_stage, split`,
+  listCols: `day, ward, coll_user, coll_name, application_number, application_type, requested_at, requested_by, applicant_name, entity_name, holding_no, status, current_stage, split, channel, source, tl_notice_no`,
   listOrder: `requested_at DESC`,
+  unattributed: "Automatic applications (no notice)",
 };
 
 export interface NoticeReport {
@@ -217,15 +224,7 @@ export interface NoticeReport {
 }
 
 export async function buildNoticeReport(f: NoticeReportFilters): Promise<NoticeReport> {
-  // The collector filter on applications matches a collector who shares a ward with others too.
-  const appSpec: Spec = f.collector
-    ? { ...TL_APPLICATIONS, base: TL_APPLICATIONS.base.replace("tc.coll_user, tc.coll_name", "tc.coll_user AS coll_list, tc.coll_name") }
-    : TL_APPLICATIONS;
-  const [served, tlNotices, tlApplications] = await Promise.all([
-    run(SERVED, f),
-    run(TL_NOTICES, f),
-    f.collector ? runApplicationsForCollector(appSpec, f) : run(appSpec, f),
-  ]);
+  const [served, tlNotices, tlApplications] = await Promise.all([run(SERVED, f), run(TL_NOTICES, f), run(TL_APPLICATIONS, f)]);
   const statusCount = new Map<string, number>();
   for (const r of tlApplications.rows) statusCount.set(String(r.status), (statusCount.get(String(r.status)) ?? 0) + 1);
   return {
@@ -235,10 +234,4 @@ export async function buildNoticeReport(f: NoticeReportFilters): Promise<NoticeR
     tlApplications,
     applicationStatus: [...statusCount.entries()].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count),
   };
-}
-
-/** Applications in the wards of one Tax Collector (who may share a ward with another). */
-async function runApplicationsForCollector(spec: Spec, f: NoticeReportFilters): Promise<Breakdown> {
-  const base = `SELECT q.*, $${3}::text AS coll_user FROM (${spec.base}) q WHERE $${3}::text = ANY(string_to_array(q.coll_list, ','))`;
-  return run({ ...spec, base, extraParams: [f.collector] }, { ...f, collector: undefined });
 }

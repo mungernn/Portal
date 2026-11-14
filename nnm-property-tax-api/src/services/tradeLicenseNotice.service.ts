@@ -284,8 +284,11 @@ export async function listSurveys(filter: { status?: string; date?: string; reco
             (s.license_photo_path IS NOT NULL) AS has_license_photo, (s.complied_photo_path IS NOT NULL) AS has_complied_photo,
             (SELECT json_agg(json_build_object('id', n.id, 'noticeNo', n.notice_no, 'level', n.level, 'issuedOn', n.issued_on, 'dueOn', n.due_on, 'printedAt', n.printed_at,
                                       'receivingUploadedAt', n.receiving_uploaded_at, 'receivingBy', n.receiving_uploaded_by_name) ORDER BY n.level)
-               FROM trade_license_notices n WHERE n.survey_id = s.id) AS notices
+               FROM trade_license_notices n WHERE n.survey_id = s.id) AS notices,
+            -- The application this notice brought in (credited to the Tax Collector who issued it).
+            app.application_number AS application_number, app.status AS application_status, app.requested_at AS application_received_at
        FROM trade_license_surveys s JOIN properties p ON p.holding_no = s.holding_no
+       LEFT JOIN trade_license_applications app ON app.tl_survey_id = s.id
       WHERE ${where.join(" AND ")}
       ORDER BY s.recorded_at DESC LIMIT 2000`,
     params,

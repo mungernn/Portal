@@ -31,6 +31,7 @@ const applicationInputSchema = z.object({
   entityType: z.enum(["fully_owned", "partnership", "pvt_limited", "public_ltd"]).nullish(),
   completeAddress: z.string().min(1),
   holdingNo: holdingNoSchema.nullish(),
+  noticeNo: z.string().trim().max(40).nullish(),
   holdingReceiptAttached: z.boolean().default(false),
   typeOfBusiness: z.string().nullish(),
   durationYears: z.coerce.number().refine((v) => [1, 3, 5].includes(v), "Duration must be 1, 3, or 5 years"),
