@@ -59,6 +59,8 @@ interface ReportRow {
   verification_remarks: string | null;
   light_fault_id: string | null;
   pyau_issue_id: string | null;
+  reported_latitude: string | null;
+  reported_longitude: string | null;
 }
 
 /** Validates the "not working since" date the citizen gives: not in the future and within the last year. */
@@ -103,7 +105,8 @@ export async function pendingMap(assetType: AssetType, assetIds: number[]): Prom
 
 export async function submit(input: {
   assetType: AssetType;
-  assetId: number;
+  /** null = reported by location (the City Manager identifies the asset). */
+  assetId: number | null;
   wardId: number;
   phone: string;
   holdingNo: string;
@@ -111,11 +114,23 @@ export async function submit(input: {
   switchStatus?: string | null;
   problem?: string | null;
   remarks?: string | null;
+  location?: { lat: number; lng: number; accuracy: number | null; landmark: string; lightKind?: "streetlight" | "high_mast" | null } | null;
 }): Promise<{ reportId: number }> {
+  // The same mobile reporting the same spot again while the first is still waiting (about 30 m) is a repeat.
+  if (input.location) {
+    const { rows: dup } = await pool.query(
+      `SELECT 1 FROM public_asset_reports
+        WHERE reporter_phone = $1 AND asset_type = $2 AND status = 'pending' AND reported_latitude IS NOT NULL
+          AND abs(reported_latitude - $3) < 0.0003 AND abs(reported_longitude - $4) < 0.0003 LIMIT 1`,
+      [input.phone, input.assetType, input.location.lat, input.location.lng],
+    );
+    if (dup[0]) throw ApiError.badRequest("You have already reported this spot - it is waiting for the officer's verification. See \"My reports\".");
+  }
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `INSERT INTO public_asset_reports (asset_type, light_id, pyau_id, ward_id, reporter_phone, reporter_holding_no, non_functional_since, switch_status, problem, remarks)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      `INSERT INTO public_asset_reports (asset_type, light_id, pyau_id, ward_id, reporter_phone, reporter_holding_no, non_functional_since, switch_status, problem, remarks,
+                                         reported_latitude, reported_longitude, reported_accuracy_m, landmark, reported_light_kind)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
       [
         input.assetType,
         input.assetType === "light" ? input.assetId : null,
@@ -127,6 +142,11 @@ export async function submit(input: {
         input.switchStatus ?? null,
         input.problem ?? null,
         input.remarks?.trim().slice(0, 500) || null,
+        input.location?.lat ?? null,
+        input.location?.lng ?? null,
+        input.location?.accuracy ?? null,
+        input.location?.landmark.trim().slice(0, 300) || null,
+        input.location?.lightKind ?? null,
       ],
     );
     return { reportId: Number(rows[0]!.id) };
@@ -142,14 +162,15 @@ export async function submit(input: {
 export async function myReports(phone: string, assetType: AssetType) {
   const assetJoin =
     assetType === "light"
-      ? `JOIN lights a ON a.id = r.light_id
+      ? `LEFT JOIN lights a ON a.id = r.light_id
          LEFT JOIN light_faults f ON f.id = r.light_fault_id`
-      : `JOIN pyaus a ON a.id = r.pyau_id
+      : `LEFT JOIN pyaus a ON a.id = r.pyau_id
          LEFT JOIN pyau_issues f ON f.id = r.pyau_issue_id`;
   const assetCols =
     assetType === "light"
-      ? `a.serial_number, a.light_type, a.locality_name, to_char(f.repaired_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS repaired_on`
-      : `a.serial_number, a.location_address, to_char(f.date_of_repair, 'YYYY-MM-DD') AS repaired_on`;
+      ? `COALESCE(a.serial_number, 'By location') AS serial_number, COALESCE(a.light_type, r.reported_light_kind) AS light_type,
+         COALESCE(a.locality_name, r.landmark) AS locality_name, to_char(f.repaired_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS repaired_on`
+      : `COALESCE(a.serial_number, 'By location') AS serial_number, COALESCE(a.location_address, r.landmark) AS location_address, to_char(f.date_of_repair, 'YYYY-MM-DD') AS repaired_on`;
   const { rows } = await pool.query(
     `SELECT r.id, r.reported_at, r.status AS verification, r.verification_remarks, r.switch_status, r.problem,
             f.status AS repair_status, ${assetCols}, w.ward_name
@@ -207,7 +228,7 @@ export async function listForStaff(filter: {
   else if (filter.assetType === "light") where.push(`r.asset_type = 'light'`);
   else if (filter.assetType === "streetlight" || filter.assetType === "high_mast") {
     params.push(filter.assetType);
-    where.push(`r.asset_type = 'light' AND l.light_type = $${params.length}`);
+    where.push(`r.asset_type = 'light' AND COALESCE(l.light_type, r.reported_light_kind) = $${params.length}`);
   }
   if (filter.wardId) {
     params.push(filter.wardId);
@@ -219,7 +240,9 @@ export async function listForStaff(filter: {
             r.status, r.reported_at, r.verified_at, r.verification_remarks, vu.display_name AS verified_by_name,
             r.light_fault_id, r.pyau_issue_id, w.id AS ward_id, w.ward_name,
             COALESCE(l.serial_number, p.serial_number) AS serial_number,
-            CASE WHEN r.asset_type = 'pyau' THEN 'submersible' ELSE l.light_type END AS kind,
+            CASE WHEN r.asset_type = 'pyau' THEN 'submersible' ELSE COALESCE(l.light_type, r.reported_light_kind) END AS kind,
+            (r.reported_latitude IS NOT NULL) AS by_location,
+            r.reported_latitude, r.reported_longitude, r.reported_accuracy_m, r.landmark,
             COALESCE(l.locality_name, p.location_address) AS location,
             s.start_point, s.end_point,
             COALESCE(l.latitude, p.latitude) AS latitude, COALESCE(l.longitude, p.longitude) AS longitude,
@@ -240,16 +263,48 @@ export async function listForStaff(filter: {
       LIMIT 500`,
     params,
   );
-  return rows.map((r) => ({
+  const out = rows.map((r) => ({
     ...r,
     latitude: r.latitude == null ? null : Number(r.latitude),
     longitude: r.longitude == null ? null : Number(r.longitude),
+    reported_latitude: r.reported_latitude == null ? null : Number(r.reported_latitude),
+    reported_longitude: r.reported_longitude == null ? null : Number(r.reported_longitude),
+    nearby: [] as Nearby[],
   }));
+  // For a complaint by location, the registered assets nearest the spot, for the City Manager to pick from.
+  for (const r of out) if (r.by_location && r.status === "pending" && !r.light_id && !r.pyau_id) r.nearby = await nearbyAssets(r.asset_type, r.reported_latitude!, r.reported_longitude!);
+  return out;
+}
+
+export interface Nearby {
+  id: string;
+  serial_number: string | null;
+  label: string | null;
+  ward_name: string;
+  distance_m: number | null;
+}
+
+/** Registered assets within about 300 m of a point (nearest first, at most 8); without coordinates on file they are skipped. */
+export async function nearbyAssets(assetType: AssetType, lat: number, lng: number): Promise<Nearby[]> {
+  const dist = (t: string) =>
+    `6371000 * 2 * asin(sqrt(power(sin(radians(${t}.latitude - $1) / 2), 2) + cos(radians($1)) * cos(radians(${t}.latitude)) * power(sin(radians(${t}.longitude - $2) / 2), 2)))`;
+  const sql =
+    assetType === "light"
+      ? `SELECT x.id, x.serial_number, concat_ws(' - ', x.light_type, x.locality_name) AS label, w.ward_name, round(${dist("x")})::int AS distance_m
+           FROM lights x JOIN attendance_wards w ON w.id = x.ward_id
+          WHERE x.active AND x.deleted_at IS NULL AND x.latitude IS NOT NULL AND x.longitude IS NOT NULL
+            AND abs(x.latitude - $1) < 0.004 AND abs(x.longitude - $2) < 0.004`
+      : `SELECT x.id, x.serial_number, x.location_address AS label, w.ward_name, round(${dist("x")})::int AS distance_m
+           FROM pyaus x JOIN attendance_wards w ON w.id = x.ward_id
+          WHERE x.active AND x.latitude IS NOT NULL AND x.longitude IS NOT NULL
+            AND abs(x.latitude - $1) < 0.004 AND abs(x.longitude - $2) < 0.004`;
+  const { rows } = await pool.query<Nearby>(`SELECT * FROM (${sql}) q WHERE distance_m <= 300 ORDER BY distance_m LIMIT 8`, [lat, lng]);
+  return rows;
 }
 
 export async function pendingCounts() {
   const { rows } = await pool.query<{ kind: string; n: number }>(
-    `SELECT CASE WHEN r.asset_type = 'pyau' THEN 'submersible' ELSE l.light_type END AS kind, count(*)::int AS n
+    `SELECT CASE WHEN r.asset_type = 'pyau' THEN 'submersible' ELSE COALESCE(l.light_type, r.reported_light_kind) END AS kind, count(*)::int AS n
        FROM public_asset_reports r LEFT JOIN lights l ON l.id = r.light_id
       WHERE r.status = 'pending' GROUP BY 1`,
   );
@@ -291,9 +346,36 @@ async function findReport(id: number): Promise<ReportRow> {
  * Approves a complaint: it becomes an ordinary fault / issue for the contractor. If the asset already has an open fault
  * (staff reported it meanwhile) the complaint is linked to that one instead of creating a second.
  */
-export async function approve(user: AttendanceTokenPayload, id: number, remarks: string | null) {
+export async function approve(
+  user: AttendanceTokenPayload,
+  id: number,
+  remarks: string | null,
+  assetIdIn?: number | null,
+  assetSerial?: string | null,
+) {
   const report = await findReport(id);
   await assertCanVerify(user, report.asset_type);
+  // A complaint by location: the City Manager names the registered asset at that spot (picked from the nearby list,
+  // or by its serial number) before approving.
+  if (!report.light_id && !report.pyau_id) {
+    if (!assetIdIn && !assetSerial)
+      throw ApiError.badRequest("Choose the registered streetlight / submersible at this location before approving.");
+    const table = report.asset_type === "light" ? "lights" : "pyaus";
+    const live = `active${report.asset_type === "light" ? " AND deleted_at IS NULL" : ""}`;
+    const { rows } = assetIdIn
+      ? await pool.query<{ id: string; ward_id: string }>(`SELECT id, ward_id FROM ${table} WHERE id = $1 AND ${live}`, [assetIdIn])
+      : await pool.query<{ id: string; ward_id: string }>(
+          `SELECT id, ward_id FROM ${table} WHERE upper(btrim(serial_number)) = upper($1) AND ${live} LIMIT 2`,
+          [assetSerial],
+        );
+    if (!rows[0]) throw ApiError.badRequest("That asset is not in the registry - check the number.");
+    if (rows.length > 1) throw ApiError.badRequest("More than one asset has that number - pick it from the list instead.");
+    const assetId = Number(rows[0].id);
+    const col = report.asset_type === "light" ? "light_id" : "pyau_id";
+    const { rows: dup } = await pool.query(`SELECT 1 FROM public_asset_reports WHERE ${col} = $1 AND status = 'pending' AND id <> $2`, [assetId, id]);
+    if (dup[0]) throw ApiError.badRequest("Another complaint about that asset is already waiting - approve or reject that one instead.");
+    await pool.query(`UPDATE public_asset_reports SET ${col} = $2, ward_id = $3 WHERE id = $1 AND status = 'pending'`, [id, assetId, rows[0].ward_id]);
+  }
   const r = await claim(id, "approved", user, remarks);
   try {
     if (r.asset_type === "light") {
