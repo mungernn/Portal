@@ -1,3 +1,13 @@
+import {
+  getStaffKycFile,
+  getStaffKycList,
+  getStaffKycOne,
+  getStaffKycPending,
+  postStaffKycReview,
+  postStaffKycSubmit,
+  putStaffKycDoc,
+  putStaffKycNumbers,
+} from "../controllers/staffKyc.controller";
 import { exportNoticeReportHandler, getNoticeReportCollectorsHandler, getNoticeReportHandler } from "../controllers/noticeReport.controller";
 import { collectorHoldingParam, collectorDemandNoticeParam } from "../middleware/collectorWardGuard";
 import {
@@ -617,6 +627,17 @@ const requireNoticeReportRole = requireAdminRole(
   "deputy_commissioner",
   "commissioner",
 );
+// Staff identity documents (KYC) - access is checked in staffKyc.service.ts (Tax Daroga uploads, City Manager + DMC review).
+adminRouter.get("/staff-kyc", getStaffKycList);
+adminRouter.get("/staff-kyc/pending-count", getStaffKycPending);
+adminRouter.get("/staff-kyc/me", getStaffKycOne);
+adminRouter.get("/staff-kyc/me/file/:doc", getStaffKycFile);
+adminRouter.get("/staff-kyc/:username", getStaffKycOne);
+adminRouter.get("/staff-kyc/:username/file/:doc", getStaffKycFile);
+adminRouter.put("/staff-kyc/:username/numbers", putStaffKycNumbers);
+adminRouter.put("/staff-kyc/:username/doc/:doc", putStaffKycDoc);
+adminRouter.post("/staff-kyc/:username/submit", postStaffKycSubmit);
+adminRouter.post("/staff-kyc/:username/review", postStaffKycReview);
 adminRouter.get("/notice-reports", requireNoticeReportRole, getNoticeReportHandler);
 adminRouter.get("/notice-reports/filters", requireNoticeReportRole, getNoticeReportCollectorsHandler);
 adminRouter.get("/notice-reports/export.xlsx", requireNoticeReportRole, exportNoticeReportHandler);

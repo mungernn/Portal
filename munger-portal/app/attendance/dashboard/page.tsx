@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ScanFace, LayoutGrid, Truck, Droplet, Lightbulb, MapPin, ClipboardList, CheckCircle2, Trash2, Languages, FileUp, Users, ShieldAlert, Gavel, HardHat, UserCog, BarChart3 } from "lucide-react";
 import { AttendanceHeader } from "@/components/attendance/attendance-header";
 import { PublicComplaintsCard } from "@/components/public-reports/complaints-card";
+import { DashboardGroup } from "@/components/admin/dashboard-group";
 import { useAttendanceGuard } from "@/lib/use-attendance-guard";
 import { useAttendanceLang } from "@/lib/attendance-i18n";
 import { transliterateName } from "@/lib/hindi-name-transliterate";
@@ -51,6 +52,20 @@ const STRINGS = {
     correctNamesDesc: "Fix a wrongly auto-guessed Hindi name for a staff member, driver, or assistant.",
     faceAttendance: "Face Attendance",
     faceAttendanceDesc: "Mark Safai staff by face check, enrol faces, and review manual marks.",
+    grpProjects: "Projects",
+    grpProjectsDesc: "Project monitoring and the JE / AE ward assignment.",
+    grpStreetlights: "Streetlights & High Mast",
+    grpStreetlightsDesc: "Streetlight status and faults, reports, High Mast entry and deactivated lights.",
+    grpSubmersibles: "Submersibles",
+    grpSubmersiblesDesc: "Submersible dashboard and the pyau registry.",
+    grpSanitation: "Sanitation Staff",
+    grpSanitationDesc: "Attendance, face attendance, deactivated staff, Hindi names and wards.",
+    grpFleet: "Fleet & Assets",
+    grpFleetDesc: "Vehicle registry, baseline survey, survey progress and deactivated vehicles.",
+    grpEnforcement: "Enforcement",
+    grpEnforcementDesc: "Encroachment removal and the mobile court.",
+    grpWebsite: "Website",
+    grpWebsiteDesc: "Website documents and Who's Who.",
   },
   hi: {
     loading: "लोड हो रहा है...",
@@ -92,6 +107,20 @@ const STRINGS = {
     correctNamesDesc: "स्टाफ, ड्राइवर या सहायक के गलत ऑटो-अनुमानित हिंदी नाम को ठीक करें।",
     faceAttendance: "चेहरा हाज़िरी",
     faceAttendanceDesc: "चेहरा जाँच से सफ़ाई कर्मियों की हाज़िरी, चेहरा पंजीकरण, और मैन्युअल मार्क की समीक्षा।",
+    grpProjects: "परियोजनाएँ",
+    grpProjectsDesc: "परियोजना निगरानी और कनिष्ठ / सहायक अभियंता वार्ड आवंटन।",
+    grpStreetlights: "स्ट्रीट लाइट व हाई मास्ट",
+    grpStreetlightsDesc: "स्ट्रीट लाइट स्थिति व खराबी, रिपोर्ट, हाई मास्ट एंट्री और निष्क्रिय लाइटें।",
+    grpSubmersibles: "सबमर्सिबल",
+    grpSubmersiblesDesc: "सबमर्सिबल डैशबोर्ड और प्याऊ रजिस्ट्री।",
+    grpSanitation: "सफ़ाई कर्मी",
+    grpSanitationDesc: "हाज़िरी, चेहरा हाज़िरी, निष्क्रिय स्टाफ, हिंदी नाम और वार्ड।",
+    grpFleet: "फ्लीट व एसेट",
+    grpFleetDesc: "वाहन रजिस्ट्री, बेसलाइन सर्वे, सर्वे प्रगति और निष्क्रिय वाहन।",
+    grpEnforcement: "प्रवर्तन",
+    grpEnforcementDesc: "अतिक्रमण हटाना और मोबाइल कोर्ट।",
+    grpWebsite: "वेबसाइट",
+    grpWebsiteDesc: "वेबसाइट दस्तावेज़ और Who's Who।",
   },
 };
 
@@ -162,250 +191,251 @@ export default function AttendanceDashboardPage() {
         <p className="mb-8 text-sm text-slate-500">{s.pickModule}</p>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {PROJECT_ROLES.includes(user.role) && (
-            <Link href="/attendance/projects" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <HardHat className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjects : s.projects}</h3>
-              <p className="text-sm text-slate-500">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjectsDesc : s.projectsDesc}</p>
-            </Link>
-          )}
+          {["city_manager", "municipal_commissioner", "deputy_municipal_commissioner", "attendance_admin"].includes(user.role) && <PublicComplaintsCard role={user.role} />}
 
-          {MECH_VIEW_ROLES.includes(user.role) && (
-            <Link href="/attendance/submersibles" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Droplet className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.pyauDashboard}</h3>
-              <p className="text-sm text-slate-500">{s.pyauDashboardDesc}</p>
-            </Link>
-          )}
+          <DashboardGroup id="am-projects" title={s.grpProjects} description={s.grpProjectsDesc} icon={<HardHat className="h-6 w-6" strokeWidth={1.8} />}>
+            {PROJECT_ROLES.includes(user.role) && (
+              <Link href="/attendance/projects" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <HardHat className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjects : s.projects}</h3>
+                <p className="text-sm text-slate-500">{ENGINEER_PROJECT_ROLES.includes(user.role) ? s.myProjectsDesc : s.projectsDesc}</p>
+              </Link>
+            )}
+            {["municipal_commissioner", "attendance_admin"].includes(user.role) && (
+              <Link href="/attendance/projects/engineers" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <UserCog className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.engineerWards}</h3>
+                <p className="text-sm text-slate-500">{s.engineerWardsDesc}</p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          {MECH_VIEW_ROLES.includes(user.role) && (
-            <Link href="/attendance/streetlight-reports" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.streetlightReports}</h3>
-              <p className="text-sm text-slate-500">{s.streetlightReportsDesc}</p>
-            </Link>
-          )}
-
-          {["municipal_commissioner", "attendance_admin"].includes(user.role) && (
-            <Link href="/attendance/projects/engineers" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <UserCog className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.engineerWards}</h3>
-              <p className="text-sm text-slate-500">{s.engineerWardsDesc}</p>
-            </Link>
-          )}
-
-          {FACE_ROLES.includes(user.role) && (
-            <Link href="/attendance/face-attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <ScanFace className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.faceAttendance}</h3>
-              <p className="text-sm text-slate-500">{s.faceAttendanceDesc}</p>
-            </Link>
-          )}
-
-          {CORE_ATTENDANCE_ROLES.includes(user.role) && (
-            <Link
-              href="/attendance/attendance-management"
-              className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
-            >
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <LayoutGrid className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.attendanceManagement}</h3>
-              <p className="text-sm text-slate-500">
-                {s.attendanceManagementDesc}
-              </p>
-            </Link>
-          )}
-
-          {[
-            "attendance_admin",
-            "junior_engineer",
-            "assistant_engineer_mechanical",
-            "maintenance_nodal_clerk",
-            "sanitation_officer",
-            "sanitation_prabhari",
-          ].includes(user.role) && (
-            <Link href="/attendance/manage-assets" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Truck className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.fleetRegistry}</h3>
-              <p className="text-sm text-slate-500">{s.fleetRegistryDesc}</p>
-            </Link>
-          )}
-
-          {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
-            <Link href="/attendance/assets-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Trash2 className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedVehicles}</h3>
-              <p className="text-sm text-slate-500">{s.deactivatedVehiclesDesc}</p>
-            </Link>
-          )}
-
-          {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
-            <Link href="/attendance/baseline-survey" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <ClipboardList className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.baselineSurvey}</h3>
-              <p className="text-sm text-slate-500">{s.baselineSurveyDesc}</p>
-            </Link>
-          )}
-
-          {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
-            <Link href="/attendance/fleet-survey-summary" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <CheckCircle2 className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.surveyProgress}</h3>
-              <p className="text-sm text-slate-500">{s.surveyProgressDesc}</p>
-            </Link>
-          )}
-
-          {["pyau_je", "pyau_ae", "je_mechanical", "ae_mechanical", "pyau_contractor", "attendance_admin"].includes(user.role) && (
-            <Link href="/attendance/manage-pyaus" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Droplet className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.pyauRegistry}</h3>
-              <p className="text-sm text-slate-500">{s.pyauRegistryDesc}</p>
-            </Link>
-          )}
-
-          {[
-            "streetlight_nodal_clerk",
-            "streetlight_ae",
-            "streetlight_je",
-            "je_mechanical",
-            "ae_mechanical",
-            "streetlight_contractor",
-            "city_manager",
-            "municipal_commissioner",
-            "deputy_municipal_commissioner",
-            "attendance_admin",
-          ].includes(user.role) && (
-            <Link href="/attendance/manage-lights" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+          <DashboardGroup id="am-streetlights" title={s.grpStreetlights} description={s.grpStreetlightsDesc} icon={<Lightbulb className="h-6 w-6" strokeWidth={1.8} />}>
+            <Link href="/attendance/streetlights" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
               <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
                 <Lightbulb className="h-6 w-6" strokeWidth={1.8} />
               </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.highMastEntry}</h3>
-              <p className="text-sm text-slate-500">{s.highMastEntryDesc}</p>
+              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.streetlights}</h3>
+              <p className="text-sm text-slate-500">{s.streetlightsDesc}</p>
             </Link>
-          )}
+            {MECH_VIEW_ROLES.includes(user.role) && (
+              <Link href="/attendance/streetlight-reports" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.streetlightReports}</h3>
+                <p className="text-sm text-slate-500">{s.streetlightReportsDesc}</p>
+              </Link>
+            )}
+            {[
+              "streetlight_nodal_clerk",
+              "streetlight_ae",
+              "streetlight_je",
+              "je_mechanical",
+              "ae_mechanical",
+              "streetlight_contractor",
+              "city_manager",
+              "municipal_commissioner",
+              "deputy_municipal_commissioner",
+              "attendance_admin",
+            ].includes(user.role) && (
+              <Link href="/attendance/manage-lights" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Lightbulb className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.highMastEntry}</h3>
+                <p className="text-sm text-slate-500">{s.highMastEntryDesc}</p>
+              </Link>
+            )}
+            {["municipal_commissioner", "attendance_admin"].includes(user.role) && (
+              <Link href="/attendance/streetlights-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Trash2 className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedStreetlights}</h3>
+                <p className="text-sm text-slate-500">{s.deactivatedStreetlightsDesc}</p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          {["city_manager", "municipal_commissioner", "deputy_municipal_commissioner", "attendance_admin"].includes(user.role) && <PublicComplaintsCard role={user.role} />}
+          <DashboardGroup id="am-submersibles" title={s.grpSubmersibles} description={s.grpSubmersiblesDesc} icon={<Droplet className="h-6 w-6" strokeWidth={1.8} />}>
+            {MECH_VIEW_ROLES.includes(user.role) && (
+              <Link href="/attendance/submersibles" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Droplet className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.pyauDashboard}</h3>
+                <p className="text-sm text-slate-500">{s.pyauDashboardDesc}</p>
+              </Link>
+            )}
+            {["pyau_je", "pyau_ae", "je_mechanical", "ae_mechanical", "pyau_contractor", "attendance_admin"].includes(user.role) && (
+              <Link href="/attendance/manage-pyaus" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Droplet className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.pyauRegistry}</h3>
+                <p className="text-sm text-slate-500">{s.pyauRegistryDesc}</p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          <Link href="/attendance/streetlights" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-            <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-              <Lightbulb className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.streetlights}</h3>
-            <p className="text-sm text-slate-500">{s.streetlightsDesc}</p>
-          </Link>
+          <DashboardGroup id="am-sanitation" title={s.grpSanitation} description={s.grpSanitationDesc} icon={<LayoutGrid className="h-6 w-6" strokeWidth={1.8} />}>
+            {CORE_ATTENDANCE_ROLES.includes(user.role) && (
+              <Link
+                href="/attendance/attendance-management"
+                className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md"
+              >
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <LayoutGrid className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.attendanceManagement}</h3>
+                <p className="text-sm text-slate-500">
+                  {s.attendanceManagementDesc}
+                </p>
+              </Link>
+            )}
+            {FACE_ROLES.includes(user.role) && (
+              <Link href="/attendance/face-attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <ScanFace className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.faceAttendance}</h3>
+                <p className="text-sm text-slate-500">{s.faceAttendanceDesc}</p>
+              </Link>
+            )}
+            {["apswmo", "attendance_admin"].includes(user.role) && (
+              <Link href="/attendance/users-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Trash2 className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedStaff}</h3>
+                <p className="text-sm text-slate-500">{s.deactivatedStaffDesc}</p>
+              </Link>
+            )}
+            {NAME_CORRECTION_ROLES.includes(user.role) && (
+              <Link href="/attendance/correct-names" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Languages className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.correctNames}</h3>
+                <p className="text-sm text-slate-500">{s.correctNamesDesc}</p>
+              </Link>
+            )}
 
-          {user.role === "attendance_admin" && (
-            <Link href="/attendance/manage-wards" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <MapPin className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.manageWards}</h3>
-              <p className="text-sm text-slate-500">{s.manageWardsDesc}</p>
-            </Link>
-          )}
+            {user.role === "attendance_admin" && (
+              <Link href="/attendance/manage-wards" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <MapPin className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.manageWards}</h3>
+                <p className="text-sm text-slate-500">{s.manageWardsDesc}</p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          {["municipal_commissioner", "attendance_admin"].includes(user.role) && (
-            <Link href="/attendance/streetlights-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Trash2 className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedStreetlights}</h3>
-              <p className="text-sm text-slate-500">{s.deactivatedStreetlightsDesc}</p>
-            </Link>
-          )}
+          <DashboardGroup id="am-fleet" title={s.grpFleet} description={s.grpFleetDesc} icon={<Truck className="h-6 w-6" strokeWidth={1.8} />}>
+            {[
+              "attendance_admin",
+              "junior_engineer",
+              "assistant_engineer_mechanical",
+              "maintenance_nodal_clerk",
+              "sanitation_officer",
+              "sanitation_prabhari",
+            ].includes(user.role) && (
+              <Link href="/attendance/manage-assets" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Truck className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.fleetRegistry}</h3>
+                <p className="text-sm text-slate-500">{s.fleetRegistryDesc}</p>
+              </Link>
+            )}
+            {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
+              <Link href="/attendance/baseline-survey" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <ClipboardList className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.baselineSurvey}</h3>
+                <p className="text-sm text-slate-500">{s.baselineSurveyDesc}</p>
+              </Link>
+            )}
+            {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
+              <Link href="/attendance/fleet-survey-summary" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <CheckCircle2 className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.surveyProgress}</h3>
+                <p className="text-sm text-slate-500">{s.surveyProgressDesc}</p>
+              </Link>
+            )}
+            {["attendance_admin", "junior_engineer", "assistant_engineer_mechanical", "maintenance_nodal_clerk"].includes(user.role) && (
+              <Link href="/attendance/assets-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Trash2 className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedVehicles}</h3>
+                <p className="text-sm text-slate-500">{s.deactivatedVehiclesDesc}</p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          {["apswmo", "city_manager", "deputy_municipal_commissioner", "municipal_commissioner"].includes(user.role) && (
-            <Link href="/document-upload?as=attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <FileUp className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{user.role === "apswmo" ? "Website Documents - Upload & Approve" : "Upload Website Document"}</h3>
-              <p className="text-sm text-slate-500">
-                {user.role === "apswmo" ? "Approve documents uploaded by others, or upload your own." : user.role === "municipal_commissioner" ? "Upload a report, notice or circular to the public website." : "Upload a report, notice or circular. It goes live after APSWMO approval."}
-              </p>
-            </Link>
-          )}
+          <DashboardGroup id="am-enforcement" title={s.grpEnforcement} description={s.grpEnforcementDesc} icon={<ShieldAlert className="h-6 w-6" strokeWidth={1.8} />}>
+            {["city_manager", "encroachment_staff", "municipal_commissioner", "deputy_municipal_commissioner"].includes(user.role) && (
+              <Link href="/attendance/encroachment" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <ShieldAlert className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">Encroachment Removal</h3>
+                <p className="text-sm text-slate-500">
+                  Temporary encroachments (24-hour notice, then fine) and permanent encroachment cases with notice, Amin report and final order.
+                </p>
+              </Link>
+            )}
+            {["apswmo", "mobile_court_staff", "city_manager", "municipal_commissioner", "deputy_municipal_commissioner"].includes(user.role) && (
+              <Link href="/attendance/mobile-court" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Gavel className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">Mobile Court</h3>
+                <p className="text-sm text-slate-500">
+                  Notices and fines for waste-management violations, with the miking videos kept for the notices.
+                </p>
+              </Link>
+            )}
+          </DashboardGroup>
 
-          {["city_manager", "deputy_municipal_commissioner", "municipal_commissioner"].includes(user.role) && (
-            <Link href="/whos-who-manager?as=attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Users className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Website Who&apos;s Who</h3>
-              <p className="text-sm text-slate-500">
-                {user.role === "city_manager"
-                  ? "Verify Who's Who entries made by operators and forward them to the DMC."
-                  : user.role === "deputy_municipal_commissioner"
-                    ? "Approve verified Who's Who entries and publish them on the website."
-                    : "See the Who's Who entries and where each one is in the approval chain."}
-              </p>
-            </Link>
-          )}
-
-          {["city_manager", "encroachment_staff", "municipal_commissioner", "deputy_municipal_commissioner"].includes(user.role) && (
-            <Link href="/attendance/encroachment" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <ShieldAlert className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Encroachment Removal</h3>
-              <p className="text-sm text-slate-500">
-                Temporary encroachments (24-hour notice, then fine) and permanent encroachment cases with notice, Amin report and final order.
-              </p>
-            </Link>
-          )}
-
-          {["apswmo", "mobile_court_staff", "city_manager", "municipal_commissioner", "deputy_municipal_commissioner"].includes(user.role) && (
-            <Link href="/attendance/mobile-court" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Gavel className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">Mobile Court</h3>
-              <p className="text-sm text-slate-500">
-                Notices and fines for waste-management violations, with the miking videos kept for the notices.
-              </p>
-            </Link>
-          )}
-
-          {["apswmo", "attendance_admin"].includes(user.role) && (
-            <Link href="/attendance/users-deactivated" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Trash2 className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.deactivatedStaff}</h3>
-              <p className="text-sm text-slate-500">{s.deactivatedStaffDesc}</p>
-            </Link>
-          )}
-
-          {NAME_CORRECTION_ROLES.includes(user.role) && (
-            <Link href="/attendance/correct-names" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
-              <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
-                <Languages className="h-6 w-6" strokeWidth={1.8} />
-              </span>
-              <h3 className="mb-1.5 text-base font-semibold text-slate-900">{s.correctNames}</h3>
-              <p className="text-sm text-slate-500">{s.correctNamesDesc}</p>
-            </Link>
-          )}
+          <DashboardGroup id="am-website" title={s.grpWebsite} description={s.grpWebsiteDesc} icon={<FileUp className="h-6 w-6" strokeWidth={1.8} />}>
+            {["apswmo", "city_manager", "deputy_municipal_commissioner", "municipal_commissioner"].includes(user.role) && (
+              <Link href="/document-upload?as=attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <FileUp className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">{user.role === "apswmo" ? "Website Documents - Upload & Approve" : "Upload Website Document"}</h3>
+                <p className="text-sm text-slate-500">
+                  {user.role === "apswmo" ? "Approve documents uploaded by others, or upload your own." : user.role === "municipal_commissioner" ? "Upload a report, notice or circular to the public website." : "Upload a report, notice or circular. It goes live after APSWMO approval."}
+                </p>
+              </Link>
+            )}
+            {["city_manager", "deputy_municipal_commissioner", "municipal_commissioner"].includes(user.role) && (
+              <Link href="/whos-who-manager?as=attendance" className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 transition-shadow hover:shadow-md">
+                <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-nnm-blue">
+                  <Users className="h-6 w-6" strokeWidth={1.8} />
+                </span>
+                <h3 className="mb-1.5 text-base font-semibold text-slate-900">Website Who&apos;s Who</h3>
+                <p className="text-sm text-slate-500">
+                  {user.role === "city_manager"
+                    ? "Verify Who's Who entries made by operators and forward them to the DMC."
+                    : user.role === "deputy_municipal_commissioner"
+                      ? "Approve verified Who's Who entries and publish them on the website."
+                      : "See the Who's Who entries and where each one is in the approval chain."}
+                </p>
+              </Link>
+            )}
+          </DashboardGroup>
         </div>
       </main>
     </div>

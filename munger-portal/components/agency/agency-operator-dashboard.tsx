@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Award, FileSpreadsheet, Printer, Receipt } from "lucide-react";
+import { BarChart3, Award, FileSpreadsheet, Printer, Receipt, ShieldCheck } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
 import type { AdminInfo } from "@/lib/admin-auth";
 
@@ -41,6 +41,12 @@ export function AgencyOperatorDashboard({ admin }: { admin: AdminInfo }) {
       icon: Award,
       title: "Trade Licences",
       text: "Trade licence applications and their status, and the trade licence survey notices - view only.",
+    },
+    {
+      href: "/admin/staff-kyc",
+      icon: ShieldCheck,
+      title: "My Identity Documents",
+      text: "Your Aadhaar, PAN, appointment letter, ID card and police verification uploaded by the Tax Daroga, and their approval.",
     },
   ];
   return (

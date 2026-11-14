@@ -43,6 +43,9 @@ const envSchema = z.object({
   // mount (e.g. /image-upload) so photos survive an App server redeploy.
   PHOTO_UPLOAD_DIR: z.string().default("./uploads/attendance-photos"),
   // Face-verified attendance (CompreFace, self-hosted on the APP server). Off until CompreFace is installed.
+  // Collection staff (Tax Collector, Team Leader, Project Manager, Agency Operator) can sign in only after their
+  // identity documents are approved by the City Manager and DMC. Off until switched on (staffKyc.service.ts).
+  STAFF_KYC_REQUIRED: z.preprocess((v) => (typeof v === "string" ? ["true", "1", "yes"].includes(v.trim().toLowerCase()) : v), z.boolean().default(false)),
   FACE_ATTENDANCE_ENABLED: z.preprocess((v) => (typeof v === "string" ? ["true", "1", "yes"].includes(v.trim().toLowerCase()) : v), z.boolean().default(false)),
   COMPREFACE_URL: z.string().default("http://127.0.0.1:8000"),
   // API key of the CompreFace *Recognition* service (CompreFace web UI > application > service). Server .env only.

@@ -88,6 +88,9 @@ export async function adminLogin(username: string, password: string, rememberMe:
 
   if (!res.ok) {
     if (res.status === 401) throw new Error("Incorrect username or password.");
+    // 403: e.g. a collection staff login whose identity documents are not approved yet - the server says why.
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 403 && body.error) throw new Error(body.error);
     throw new Error("Login failed. Please try again.");
   }
 

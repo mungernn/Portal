@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { agencyOperatorScope } from "../middleware/agencyOperatorScope";
+import { staffKycGate } from "../middleware/staffKycGate";
 import { propertyRouter } from "./property.routes";
 import { operatorRouter } from "./operator.routes";
 import { shopRouter } from "./shop.routes";
@@ -33,6 +34,8 @@ export const apiRouter = Router();
 
 // The Agency Operator login (a private agency) may only reach an allowlist of routes - checked here, before every route.
 apiRouter.use(agencyOperatorScope);
+// Collection staff whose identity documents are not approved yet (only with STAFF_KYC_REQUIRED on).
+apiRouter.use(staffKycGate);
 
 apiRouter.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
