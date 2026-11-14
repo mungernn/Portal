@@ -22,7 +22,7 @@ async function call<T>(path: string, init: RequestInit = {}, fallback = "Somethi
 }
 
 export type KycStatus = "not_started" | "draft" | "submitted" | "returned" | "approved";
-export type KycDoc = "aadhaar" | "pan" | "appointment_letter" | "id_card" | "police_application" | "police_certificate";
+export type KycDoc = "photo" | "aadhaar" | "pan" | "appointment_letter" | "id_card" | "police_application" | "police_certificate";
 
 export const KYC_STATUS: Record<KycStatus, { label: string; tone: string }> = {
   not_started: { label: "Not started", tone: "bg-slate-100 text-slate-600" },
@@ -33,6 +33,7 @@ export const KYC_STATUS: Record<KycStatus, { label: string; tone: string }> = {
 };
 
 export const DOC_SHORT: Record<KycDoc, string> = {
+  photo: "Photo",
   aadhaar: "Aadhaar",
   pan: "PAN",
   appointment_letter: "Appointment",
@@ -112,6 +113,14 @@ export const reviewKyc = (username: string, decision: "approve" | "return", rema
     { method: "POST", body: JSON.stringify({ decision, remarks }) },
     "Could not save.",
   );
+
+/** An uploaded image as an object URL (for showing the passport photograph). */
+export async function kycImageUrl(username: string | "me", doc: KycDoc): Promise<string> {
+  const path = username === "me" ? `/me/file/${doc}` : `/${encodeURIComponent(username)}/file/${doc}`;
+  const res = await fetch(`${API_BASE_URL}/admin/staff-kyc${path}`, { headers: headers(false) });
+  if (!res.ok) throw new Error("Could not load the photograph.");
+  return URL.createObjectURL(await res.blob());
+}
 
 /** Opens an uploaded document in a new tab. */
 export async function openKycDoc(username: string | "me", doc: KycDoc): Promise<void> {

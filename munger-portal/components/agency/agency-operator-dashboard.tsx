@@ -46,7 +46,7 @@ export function AgencyOperatorDashboard({ admin }: { admin: AdminInfo }) {
       href: "/admin/staff-kyc",
       icon: ShieldCheck,
       title: "My Identity Documents",
-      text: "Your Aadhaar, PAN, appointment letter, ID card and police verification uploaded by the Tax Daroga, and their approval.",
+      text: "Your passport photograph, Aadhaar, PAN, appointment letter, ID card and police verification uploaded by the Tax Daroga, and their approval.",
     },
   ];
   return (

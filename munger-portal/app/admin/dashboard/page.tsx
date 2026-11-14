@@ -717,10 +717,10 @@ export default function AdminDashboardPage() {
                     </h3>
                     <p className="text-sm text-slate-500">
                       {isKycStaff
-                        ? "Your Aadhaar, PAN, appointment letter, ID card and police verification, and their approval."
+                        ? "Your passport photograph, Aadhaar, PAN, appointment letter, ID card and police verification, and their approval."
                         : admin.role === "tax_daroga"
-                          ? "Upload Aadhaar, PAN, appointment letter, ID card and police verification of collection staff for approval."
-                          : "Aadhaar, PAN, appointment letter, ID card and police verification of collection staff - review to activate their logins."}
+                          ? "Upload passport photograph, Aadhaar, PAN, appointment letter, ID card and police verification of collection staff for approval."
+                          : "Passport photograph, Aadhaar, PAN, appointment letter, ID card and police verification of collection staff - review to activate their logins."}
                     </p>
                   </Link>
                 )}

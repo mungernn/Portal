@@ -16,6 +16,7 @@ import {
   saveKycNumbers,
   submitKyc,
   uploadKycDoc,
+  kycImageUrl,
   type KycDetail,
   type KycDoc,
   type KycListRow,
@@ -93,7 +94,7 @@ export default function StaffKycPage() {
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <h1 className="mb-1 text-2xl font-semibold text-slate-900">{isStaff ? "My Identity Documents" : "Collection Staff Documents"}</h1>
         <p className="mb-6 text-sm text-slate-500">
-          Aadhaar, PAN, appointment letter, ID card and police verification of every Tax Collector, Team Leader, Project Manager and Agency
+          Passport photograph, Aadhaar, PAN, appointment letter, ID card and police verification of every Tax Collector, Team Leader, Project Manager and Agency
           Operator. The Tax Daroga uploads them; the City Manager and the DMC review. The login becomes active for collection when both
           approve. Police verification certificate is optional for activation. Approved documents cannot be changed.
         </p>
@@ -257,7 +258,8 @@ function KycPanel({ who, viewerRole, onChanged }: { who: string | "me"; viewerRo
   if (!k) return err ? <p className="text-sm text-red-700">{err}</p> : <p className="text-sm text-slate-400">Loading…</p>;
   const user = who === "me" ? "me" : k.username;
   const canUpload = (d: KycDetail["docs"][number]) =>
-    k.can.edit || (k.can.addPolice && !d.uploaded && (d.key === "police_application" || d.key === "police_certificate"));
+    k.can.edit || (k.can.addPolice && !d.uploaded && (d.key === "photo" || d.key === "police_application" || d.key === "police_certificate"));
+  const photoUploaded = k.docs.some((d) => d.key === "photo" && d.uploaded);
   const missing = [
     ...(!k.aadhaarNo ? ["Aadhaar number"] : []),
     ...(!k.panNo ? ["PAN"] : []),
@@ -268,11 +270,14 @@ function KycPanel({ who, viewerRole, onChanged }: { who: string | "me"; viewerRo
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">{k.displayName}</h2>
-            <p className="text-sm text-slate-500">
-              {k.roleLabel} · {k.username}
-            </p>
+          <div className="flex items-start gap-4">
+            <StaffPhoto who={user} uploaded={photoUploaded} version={k.events.length} />
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">{k.displayName}</h2>
+              <p className="text-sm text-slate-500">
+                {k.roleLabel} · {k.username}
+              </p>
+            </div>
           </div>
           <div className="text-right">
             <StatusPill status={k.status} />
@@ -361,7 +366,7 @@ function KycPanel({ who, viewerRole, onChanged }: { who: string | "me"; viewerRo
                 {d.uploaded ? "Replace" : "Upload"}
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,application/pdf"
+                  accept={d.key === "photo" ? "image/jpeg,image/png" : "image/jpeg,image/png,application/pdf"}
                   className="hidden"
                   disabled={busy !== null}
                   onChange={(e) => {
@@ -476,6 +481,37 @@ function KycPanel({ who, viewerRole, onChanged }: { who: string | "me"; viewerRo
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** The staff member's passport photograph (or an empty frame until it is uploaded). */
+function StaffPhoto({ who, uploaded, version }: { who: string | "me"; uploaded: boolean; version: number }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!uploaded) return setUrl(null);
+    let live = true;
+    let made: string | null = null;
+    kycImageUrl(who, "photo")
+      .then((u) => {
+        made = u;
+        if (live) setUrl(u);
+        else URL.revokeObjectURL(u);
+      })
+      .catch(() => live && setUrl(null));
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [who, uploaded, version]);
+  return (
+    <div className="flex h-24 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-200 bg-slate-50">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="Passport photograph" className="h-full w-full object-cover" />
+      ) : (
+        <span className="px-1 text-center text-[10px] text-slate-400">No photo</span>
       )}
     </div>
   );

@@ -22,9 +22,10 @@ import type { AdminRole, AdminTokenPayload } from "../types/admin.types";
 export const KYC_ROLES: AdminRole[] = ["tax_collector", "agency_team_leader", "agency_project_manager", "agency_operator"];
 const VIEW_ALL: AdminRole[] = ["commissioner", "deputy_commissioner", "city_manager", "tax_daroga"];
 
-export const KYC_DOCS = ["aadhaar", "pan", "appointment_letter", "id_card", "police_application", "police_certificate"] as const;
+export const KYC_DOCS = ["photo", "aadhaar", "pan", "appointment_letter", "id_card", "police_application", "police_certificate"] as const;
 export type KycDoc = (typeof KYC_DOCS)[number];
 const DOC_COL: Record<KycDoc, string> = {
+  photo: "photo_path",
   aadhaar: "aadhaar_path",
   pan: "pan_path",
   appointment_letter: "appointment_letter_path",
@@ -33,6 +34,7 @@ const DOC_COL: Record<KycDoc, string> = {
   police_certificate: "police_certificate_path",
 };
 export const DOC_LABEL: Record<KycDoc, string> = {
+  photo: "Passport size photograph",
   aadhaar: "Aadhaar card",
   pan: "PAN card",
   appointment_letter: "Appointment letter",
@@ -41,8 +43,10 @@ export const DOC_LABEL: Record<KycDoc, string> = {
   police_certificate: "Police verification / character certificate",
 };
 /** Needed before the record can go for review. */
-const REQUIRED: KycDoc[] = ["aadhaar", "pan", "appointment_letter", "id_card", "police_application"];
+const REQUIRED: KycDoc[] = ["photo", "aadhaar", "pan", "appointment_letter", "id_card", "police_application"];
 const POLICE: KycDoc[] = ["police_application", "police_certificate"];
+/** Can be added after submission / approval when still blank (the photograph: for records approved before it was asked). */
+const FILL_LATER: KycDoc[] = ["photo", ...POLICE];
 
 const ROLE_LABEL: Partial<Record<AdminRole, string>> = {
   tax_collector: "Tax Collector",
@@ -223,7 +227,7 @@ export async function getStaffKyc(u: AdminTokenPayload, username: string) {
     // What this viewer can do now.
     can: {
       edit: u.role === "tax_daroga" && (status === "not_started" || status === "draft" || status === "returned"),
-      addPolice: u.role === "tax_daroga" && (status === "submitted" || status === "approved") && POLICE.some((d) => !k?.[DOC_COL[d]]),
+      addPolice: u.role === "tax_daroga" && (status === "submitted" || status === "approved") && FILL_LATER.some((d) => !k?.[DOC_COL[d]]),
       review:
         status === "submitted" &&
         ((u.role === "city_manager" && !k?.cm_reviewed_at) || (u.role === "deputy_commissioner" && !k?.dmc_reviewed_at)),
@@ -338,12 +342,13 @@ async function saveFile(base64: string, mime: string, username: string, doc: Kyc
 export async function uploadDoc(u: AdminTokenPayload, username: string, doc: KycDoc, file: { base64: string; mime: string }) {
   assertDaroga(u);
   await staffRow(username);
+  if (doc === "photo" && file.mime === "application/pdf") throw ApiError.badRequest("The passport photograph must be a photo (JPG / PNG), not a PDF.");
   const rel = await saveFile(file.base64, file.mime, username, doc);
   await tx(async (c) => {
     const k = await lockRow(c, username);
     const col = DOC_COL[doc];
     // After it goes for review, only a police verification document still blank can be added.
-    const fillBlank = (k.status === "submitted" || k.status === "approved") && POLICE.includes(doc) && !k[col];
+    const fillBlank = (k.status === "submitted" || k.status === "approved") && FILL_LATER.includes(doc) && !k[col];
     if (!editable(k.status) && !fillBlank) throw ApiError.badRequest(lockedMessage(k.status));
     await c.query(`UPDATE staff_kyc SET ${col} = $2 WHERE admin_username = $1`, [username, rel]);
     await event(c, username, k[col] ? `replaced:${doc}` : `uploaded:${doc}`, u, fillBlank ? "added after submission" : null);
