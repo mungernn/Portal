@@ -113,6 +113,8 @@ export interface TlNotice {
   firstNoticeDate: string | null;
   printedAt: string | null;
   receivingUploadedAt: string | null;
+  /** QR code link: the public application form filled in from this notice. */
+  applyUrl?: string;
 }
 
 export async function fetchPrintQueue(opts: { date?: string; all?: boolean } = {}): Promise<TlNotice[]> {

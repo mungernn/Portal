@@ -1,3 +1,4 @@
+import { buildTlNoticeApplyUrl, verifyDocumentSignature } from "../utils/verificationSignature";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -222,7 +223,11 @@ export interface PrintableNotice {
   firstNoticeDate: string | null;
   printedAt: string | null;
   receivingUploadedAt: string | null;
+  /** The QR code's link: the public application form filled in from this notice (applications from it are credited to the Tax Collector). */
+  applyUrl?: string;
 }
+
+const withApplyUrl = (n: PrintableNotice): PrintableNotice => ({ ...n, applyUrl: buildTlNoticeApplyUrl(n.noticeNo) });
 
 const NOTICE_SELECT = `
   SELECT n.id, n.notice_no AS "noticeNo", n.level, to_char(n.issued_on, 'DD-MM-YYYY') AS "issuedOn", to_char(n.due_on, 'DD-MM-YYYY') AS "dueOn",
@@ -246,7 +251,7 @@ export async function noticesToPrint(username: string, opts: { date?: string; in
   }
   if (!opts.includePrinted) where += ` AND n.printed_at IS NULL`;
   const { rows } = await pool.query<PrintableNotice>(`${NOTICE_SELECT} WHERE ${where} ORDER BY n.issued_on, n.notice_no`, params);
-  return rows;
+  return rows.map(withApplyUrl);
 }
 
 export async function markPrinted(ids: string[], username: string, by: string): Promise<number> {
@@ -262,7 +267,41 @@ export async function markPrinted(ids: string[], username: string, by: string): 
 export async function getNotice(id: string): Promise<PrintableNotice> {
   const { rows } = await pool.query<PrintableNotice>(`${NOTICE_SELECT} WHERE n.id = $1`, [id]);
   if (!rows[0]) throw ApiError.notFound("Notice not found.");
-  return rows[0];
+  return withApplyUrl(rows[0]);
+}
+
+/**
+ * The public form's prefill from a notice's QR code (signed link): the business's details as recorded on the visit.
+ * The application made from it carries the notice number, so it is credited to the Tax Collector who issued it.
+ */
+export async function noticePrefill(noticeNo: string, sig: string) {
+  if (!verifyDocumentSignature("tl-notice", noticeNo, sig)) throw ApiError.badRequest("This link is not valid. Please scan the QR code on the notice again.");
+  const { rows } = await pool.query<{
+    notice_no: string;
+    person_name: string | null;
+    business_name: string | null;
+    address: string | null;
+    holding_no: string;
+    phone: string | null;
+    application_number: string | null;
+  }>(
+    `SELECT n.notice_no, s.person_name, s.business_name, s.address, s.holding_no, s.phone,
+            (SELECT application_number FROM trade_license_applications a WHERE a.tl_survey_id = s.id) AS application_number
+       FROM trade_license_notices n JOIN trade_license_surveys s ON s.id = n.survey_id
+      WHERE n.notice_no = $1`,
+    [noticeNo],
+  );
+  const r = rows[0];
+  if (!r) throw ApiError.notFound("Notice not found.");
+  return {
+    noticeNo: r.notice_no,
+    applicantName: r.person_name ?? "",
+    entityName: r.business_name ?? "",
+    completeAddress: r.address ?? "",
+    holdingNo: r.holding_no,
+    mobile: r.phone ?? "",
+    alreadyApplied: r.application_number,
+  };
 }
 
 /** Survey list - a Tax Collector sees their own; the City Manager and senior officers see all (with who recorded it). */

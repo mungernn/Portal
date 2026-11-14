@@ -134,11 +134,14 @@ function FileField({
 export function TradeLicenseApplicationForm({
   mode,
   onSubmitted,
+  prefill,
 }: {
   mode: "public" | "operator";
   onSubmitted: (result: SubmitResult) => void;
+  /** Filled in from a trade licence notice (its QR code) - the application is credited to that notice's Tax Collector. */
+  prefill?: Partial<TradeLicenseApplicationInput>;
 }) {
-  const [form, setForm] = useState<TradeLicenseApplicationInput>(emptyForm);
+  const [form, setForm] = useState<TradeLicenseApplicationInput>(() => ({ ...emptyForm, ...prefill }));
   const [autofillChecking, setAutofillChecking] = useState(false);
   const [renewalMobile, setRenewalMobile] = useState("");
   const [autofillMessage, setAutofillMessage] = useState<string | null>(null);

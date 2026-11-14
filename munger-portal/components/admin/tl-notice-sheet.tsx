@@ -1,3 +1,4 @@
+import { QRCodeSVG } from "qrcode.react";
 import type { TlNotice } from "@/lib/tl-notice-api";
 
 /**
@@ -10,22 +11,31 @@ export function TlNoticeSheet({ n, receiving = false }: { n: TlNotice; receiving
   const second = n.level === 2;
   const fy = n.financialYear;
   const cell = "border border-black px-1.5 py-[1px]";
+  // The QR code (application form filled in from this notice) is on the business's copy only.
+  const qr = !receiving && n.applyUrl ? n.applyUrl : null;
   return (
     <div
       className="tl-notice relative mx-auto overflow-hidden bg-white px-6 py-3 text-[12px] leading-snug text-black"
       style={{ width: "190mm", height: "128mm", boxSizing: "border-box" }}
     >
+      {qr && (
+        // Scanning it opens the trade licence application form, already filled in from this notice.
+        <div className="absolute left-4 top-2 w-[21mm] text-center">
+          <QRCodeSVG value={qr} size={68} level="M" />
+          <p className="mt-0.5 text-[7px] font-semibold leading-tight">आवेदन हेतु स्कैन करें / Scan to apply</p>
+        </div>
+      )}
       <p className="absolute right-6 top-2 border border-black px-1 text-[9px] font-bold">
         {receiving ? "प्राप्ति प्रति / RECEIVING COPY" : "व्यापारी प्रति / BUSINESS COPY"}
       </p>
-      <div className="mt-3 border-b-2 border-black pb-1 text-center">
+      <div className={`mt-3 border-b-2 border-black pb-1 text-center ${qr ? "pl-[19mm]" : ""}`}>
         <p className="text-[15px] font-bold leading-tight">मुंगेर नगर निगम / MUNGER NAGAR NIGAM, MUNGER (BIHAR)</p>
         <p className="mt-1 inline-block border border-black px-2 text-[11px] font-bold">
           {second ? "द्वितीय एवं अंतिम सूचना / SECOND & FINAL NOTICE" : "सूचना / NOTICE"} — व्यापार अनुज्ञप्ति / TRADE LICENCE
         </p>
       </div>
 
-      <div className="mt-1 flex justify-between">
+      <div className={`mt-1 flex justify-between ${qr ? "pl-[19mm]" : ""}`}>
         <p>
           सूचना क्रमांक / Notice No: <b>{n.noticeNo}</b>
         </p>

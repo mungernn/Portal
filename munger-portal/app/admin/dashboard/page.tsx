@@ -7,6 +7,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { MapSectionDashboard } from "@/components/building-permit/map-section-dashboard";
 import { AgencyOperatorDashboard } from "@/components/agency/agency-operator-dashboard";
 import { Pre2011ArvCard } from "@/components/admin/pre2011-arv-card";
+import { DashboardGroup } from "@/components/admin/dashboard-group";
 import { DashboardSummaryWidget } from "@/components/dashboard-summary-widget";
 import { MutationPendingSummary } from "@/components/admin/mutation-pending-summary";
 import { useAdminGuard } from "@/lib/use-admin-guard";
@@ -315,45 +316,45 @@ export default function AdminDashboardPage() {
           <>
             <h2 className={groupHeadingClass}>Property Tax</h2>
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {showMutationApprovals && (
-                <Link href="/admin/change-requests" className={deskCardClass(myStagePendingCount)}>
-                  <span className={deskIconWrapClass(myStagePendingCount)}>
-                    <FileClock className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">{admin.role === "tax_surveyor" ? "Mutation Field Reports" : "Mutation Approvals"}</h3>
-                  <p className="text-sm text-slate-500">
-                    {myStagePendingCount === null
-                      ? admin.role === "tax_surveyor"
-                        ? "Mutations assigned to you for a field report."
-                        : "Review property change requests waiting on your desk."
-                      : `${myStagePendingCount} request${myStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-                  </p>
-                </Link>
-              )}
-
-              {showMutationApplications && (
-                <Link href="/admin/mutation-applications" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <FileText className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Online Mutation Applications</h3>
-                  <p className="text-sm text-slate-500">Applications from the public window, their documents and progress; holdings to be identified.</p>
-                </Link>
-              )}
-
-              {showNewHoldingRequests && (
-                <Link href="/admin/new-holding-requests" className={actsOnNewHolding ? deskCardClass(newHoldingWaiting) : cardClass}>
-                  <span className={actsOnNewHolding ? deskIconWrapClass(newHoldingWaiting) : iconWrapClass}>
-                    <Home className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">New Holding Requests</h3>
-                  <p className="text-sm text-slate-500">
-                    {newHoldingWaiting === null || !actsOnNewHolding
-                      ? "Public requests for properties never assessed: demand register no., field report, comments, approval - the MMC- holding is created."
-                      : `${newHoldingWaiting} request${newHoldingWaiting === 1 ? "" : "s"} waiting on your desk.`}
-                  </p>
-                </Link>
-              )}
+              <DashboardGroup id="mutation" title="Mutation" description="Mutation approvals, online mutation applications and new holding requests." icon={<FileClock className="h-6 w-6" strokeWidth={1.8} />} highlight={(myStagePendingCount ?? 0) > 0 || (actsOnNewHolding && (newHoldingWaiting ?? 0) > 0)}>
+                {showMutationApprovals && (
+                  <Link href="/admin/change-requests" className={deskCardClass(myStagePendingCount)}>
+                    <span className={deskIconWrapClass(myStagePendingCount)}>
+                      <FileClock className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">{admin.role === "tax_surveyor" ? "Mutation Field Reports" : "Mutation Approvals"}</h3>
+                    <p className="text-sm text-slate-500">
+                      {myStagePendingCount === null
+                        ? admin.role === "tax_surveyor"
+                          ? "Mutations assigned to you for a field report."
+                          : "Review property change requests waiting on your desk."
+                        : `${myStagePendingCount} request${myStagePendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+                    </p>
+                  </Link>
+                )}
+                {showMutationApplications && (
+                  <Link href="/admin/mutation-applications" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <FileText className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Online Mutation Applications</h3>
+                    <p className="text-sm text-slate-500">Applications from the public window, their documents and progress; holdings to be identified.</p>
+                  </Link>
+                )}
+                {showNewHoldingRequests && (
+                  <Link href="/admin/new-holding-requests" className={actsOnNewHolding ? deskCardClass(newHoldingWaiting) : cardClass}>
+                    <span className={actsOnNewHolding ? deskIconWrapClass(newHoldingWaiting) : iconWrapClass}>
+                      <Home className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">New Holding Requests</h3>
+                    <p className="text-sm text-slate-500">
+                      {newHoldingWaiting === null || !actsOnNewHolding
+                        ? "Public requests for properties never assessed: demand register no., field report, comments, approval - the MMC- holding is created."
+                        : `${newHoldingWaiting} request${newHoldingWaiting === 1 ? "" : "s"} waiting on your desk.`}
+                    </p>
+                  </Link>
+                )}
+              </DashboardGroup>
 
               {showCancellationRequests && (
                 <Link href="/admin/cancellation-requests" className={cardClass}>
@@ -365,27 +366,142 @@ export default function AdminDashboardPage() {
                 </Link>
               )}
 
-              {showBulkReceipts && (
-                <Link href="/admin/bulk-receipts" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <Printer className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Field Collection Receipts</h3>
-                  <p className="text-sm text-slate-500">Print a day&apos;s receipts Tax Collector-wise, to stamp and hand over.</p>
-                </Link>
-              )}
+              <DashboardGroup id="collection" title="Collection" description="Field collection receipts, payment reconciliation, collection &amp; field reports, collection issues and holdings collected on a day." icon={<Landmark className="h-6 w-6" strokeWidth={1.8} />} highlight={false}>
+                {showBulkReceipts && (
+                  <Link href="/admin/bulk-receipts" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <Printer className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Field Collection Receipts</h3>
+                    <p className="text-sm text-slate-500">Print a day&apos;s receipts Tax Collector-wise, to stamp and hand over.</p>
+                  </Link>
+                )}
+                {showInstrumentReconciliation && (
+                  <Link href="/admin/instrument-reconciliation" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <Landmark className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Payment Reconciliation</h3>
+                    <p className="text-sm text-slate-500">Reconcile card, UPI, online banking, cheque and DD collections with the bank credit, or mark them bounced.</p>
+                  </Link>
+                )}
+                {showAgencyReports && (
+                  <Link href="/admin/agency-reports" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Collection & Field Reports</h3>
+                    <p className="text-sm text-slate-500">Collection, notice distribution, resurvey flags, new houses and collection issues - by ward and collector, daily to annual.</p>
+                  </Link>
+                )}
+                {showCollectionIssues && (
+                  <Link href="/admin/collection-issues" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <FileWarning className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Collection Issues</h3>
+                    <p className="text-sm text-slate-500">
+                      {admin.role === "city_manager" ? "Generate the standard legal notice for a reported collection issue." : "See what Tax Collectors have reported."}
+                    </p>
+                  </Link>
+                )}
+                {showCollectedHoldings && (
+                  <Link href="/admin/collected-holdings" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <CalendarDays className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Holdings Collected on a Day</h3>
+                    <p className="text-sm text-slate-500">Every holding whose tax was collected on a chosen day, with amount, mode and collector - each opens its property-wise report.</p>
+                  </Link>
+                )}
+              </DashboardGroup>
 
-              {showInstrumentReconciliation && (
-                <Link href="/admin/instrument-reconciliation" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <Landmark className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Payment Reconciliation</h3>
-                  <p className="text-sm text-slate-500">Reconcile card, UPI, online banking, cheque and DD collections with the bank credit, or mark them bounced.</p>
-                </Link>
-              )}
+              <DashboardGroup id="property-records" title="Property Records" description="Property-wise report, uploaded holdings, disputed holdings, field survey flags, all property changes, old holding rows, pre-2011 ARV entry and discrepancy approvals." icon={<ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />} highlight={(myDiscrepancyPendingCount ?? 0) > 0}>
+                {showAgencyPropertyReports && (
+                  <Link href="/admin/property-wise-report" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <Home className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property-wise Report</h3>
+                    <p className="text-sm text-slate-500">Search a holding for full details, dues, demand notices, payments and field visits.</p>
+                  </Link>
+                )}
+                {showPropertyWiseReport && (
+                  <Link href="/admin/property-wise-report" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <Home className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property-wise Report</h3>
+                    <p className="text-sm text-slate-500">Search a holding for full details, tax pending, change log, discrepancy/re-survey flags, and surveyor visits.</p>
+                  </Link>
+                )}
+                {showHoldingImportReview && (
+                  <Link href="/admin/holding-imports" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">{isCommissioner ? "Uploaded Holdings - Progress" : "Uploaded Holdings - Review"}</h3>
+                    <p className="text-sm text-slate-500">
+                      {isCommissioner
+                        ? "Follow how much of each bulk upload has been integrated into the live data."
+                        : admin.role === "city_manager"
+                          ? "Give final approval - integrate uploaded holdings into the live data: all, selected, or all except a few."
+                          : "Review bulk-uploaded holdings and keep out any that should not go live. The City Manager gives final approval."}
+                    </p>
+                  </Link>
+                )}
+                {showDisputedHoldings && (
+                  <Link href="/admin/disputed-holdings" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <AlertTriangle className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Disputed Holdings</h3>
+                    <p className="text-sm text-slate-500">Flag a holding after an owner objection - no payment, no demand notice and hidden from public search until cleared.</p>
+                  </Link>
+                )}
+                {showResurveyFlags && (
+                  <Link href="/admin/resurvey-flags" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <FileWarning className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Re-Survey Flags</h3>
+                    <p className="text-sm text-slate-500">Holdings flagged by Tax Collectors as looking different on the ground.</p>
+                  </Link>
+                )}
+                {showAllPropertyChanges && (
+                  <Link href="/admin/all-changes" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <LayoutGrid className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">All Property Changes</h3>
+                    <p className="text-sm text-slate-500">Every mutation request, done and in process, grouped by category.</p>
+                  </Link>
+                )}
+                {(isCommissioner || admin.role === "tax_daroga") && (
+                  <Link href="/admin/migrated-holdings-review" className={cardClass}>
+                    <span className={iconWrapClass}>
+                      <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Old Holdings - Rows to Review</h3>
+                    <p className="text-sm text-slate-500">Rows of the old-holding upload that were held back: see the issue, correct and import, or discard - one by one.</p>
+                  </Link>
+                )}
+                {["tax_daroga", "city_manager", "deputy_commissioner", "commissioner"].includes(admin.role) && <Pre2011ArvCard role={admin.role} />}
+                {showPropertyDiscrepancyRequests && (
+                  <Link href="/admin/property-discrepancy-requests" className={deskCardClass(myDiscrepancyPendingCount)}>
+                    <span className={deskIconWrapClass(myDiscrepancyPendingCount)}>
+                      <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
+                    </span>
+                    <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property Discrepancy Approvals</h3>
+                    <p className="text-sm text-slate-500">
+                      {myDiscrepancyPendingCount === null
+                        ? "Review a Tax Collector's field-found correction at your stage."
+                        : `${myDiscrepancyPendingCount} request${myDiscrepancyPendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
+                    </p>
+                  </Link>
+                )}
+              </DashboardGroup>
 
-              {["tax_daroga", "city_manager", "deputy_commissioner", "commissioner"].includes(admin.role) && <Pre2011ArvCard role={admin.role} />}
               {showBulkDemandNotices && (
                 <Link href="/admin/demand-notices" className={cardClass}>
                   <span className={iconWrapClass}>
@@ -393,16 +509,6 @@ export default function AdminDashboardPage() {
                   </span>
                   <h3 className="mb-1.5 text-base font-semibold text-slate-900">Bulk Demand Notices</h3>
                   <p className="text-sm text-slate-500">Generate demand notices for every holding that doesn&apos;t have one yet.</p>
-                </Link>
-              )}
-
-              {showAllPropertyChanges && (
-                <Link href="/admin/all-changes" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <LayoutGrid className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">All Property Changes</h3>
-                  <p className="text-sm text-slate-500">Every mutation request, done and in process, grouped by category.</p>
                 </Link>
               )}
 
@@ -433,16 +539,6 @@ export default function AdminDashboardPage() {
                   </span>
                   <h3 className="mb-1.5 text-base font-semibold text-slate-900">Bulk Upload Old Holdings</h3>
                   <p className="text-sm text-slate-500">Import old paper-record holdings (MUNG-MIG-) pending survey.</p>
-                </Link>
-              )}
-
-              {(isCommissioner || admin.role === "tax_daroga") && (
-                <Link href="/admin/migrated-holdings-review" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Old Holdings - Rows to Review</h3>
-                  <p className="text-sm text-slate-500">Rows of the old-holding upload that were held back: see the issue, correct and import, or discard - one by one.</p>
                 </Link>
               )}
 
@@ -556,16 +652,6 @@ export default function AdminDashboardPage() {
                 </Link>
               )}
 
-              {showAgencyReports && (
-                <Link href="/admin/agency-reports" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <BarChart3 className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Collection & Field Reports</h3>
-                  <p className="text-sm text-slate-500">Collection, notice distribution, resurvey flags, new houses and collection issues - by ward and collector, daily to annual.</p>
-                </Link>
-              )}
-
               {showDuesReport && (
                 <Link href="/admin/notice-reports" className={cardClass}>
                   <span className={iconWrapClass}>
@@ -586,26 +672,6 @@ export default function AdminDashboardPage() {
                 </Link>
               )}
 
-              {showAgencyPropertyReports && (
-                <Link href="/admin/property-wise-report" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <Home className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property-wise Report</h3>
-                  <p className="text-sm text-slate-500">Search a holding for full details, dues, demand notices, payments and field visits.</p>
-                </Link>
-              )}
-
-              {showCollectedHoldings && (
-                <Link href="/admin/collected-holdings" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <CalendarDays className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Holdings Collected on a Day</h3>
-                  <p className="text-sm text-slate-500">Every holding whose tax was collected on a chosen day, with amount, mode and collector - each opens its property-wise report.</p>
-                </Link>
-              )}
-
               {showAgencyNotices && (
                 <Link href="/admin/agency-notices" className={cardClass}>
                   <span className={iconWrapClass}>
@@ -623,30 +689,6 @@ export default function AdminDashboardPage() {
                   </span>
                   <h3 className="mb-1.5 text-base font-semibold text-slate-900">My Discrepancy Reports</h3>
                   <p className="text-sm text-slate-500">See what you&apos;ve reported and its status - including any sent back for correction.</p>
-                </Link>
-              )}
-
-              {showPropertyDiscrepancyRequests && (
-                <Link href="/admin/property-discrepancy-requests" className={deskCardClass(myDiscrepancyPendingCount)}>
-                  <span className={deskIconWrapClass(myDiscrepancyPendingCount)}>
-                    <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property Discrepancy Approvals</h3>
-                  <p className="text-sm text-slate-500">
-                    {myDiscrepancyPendingCount === null
-                      ? "Review a Tax Collector's field-found correction at your stage."
-                      : `${myDiscrepancyPendingCount} request${myDiscrepancyPendingCount === 1 ? "" : "s"} currently waiting on your desk.`}
-                  </p>
-                </Link>
-              )}
-
-              {showResurveyFlags && (
-                <Link href="/admin/resurvey-flags" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <FileWarning className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Re-Survey Flags</h3>
-                  <p className="text-sm text-slate-500">Holdings flagged by Tax Collectors as looking different on the ground.</p>
                 </Link>
               )}
 
@@ -683,54 +725,6 @@ export default function AdminDashboardPage() {
                   <p className="text-sm text-slate-500">
                     {admin.role === "tax_daroga" ? "Approve solid waste user types entered by Tax Collectors (final)." : "Approve solid waste user types still waiting at your stage."}
                   </p>
-                </Link>
-              )}
-
-              {showCollectionIssues && (
-                <Link href="/admin/collection-issues" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <FileWarning className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Collection Issues</h3>
-                  <p className="text-sm text-slate-500">
-                    {admin.role === "city_manager" ? "Generate the standard legal notice for a reported collection issue." : "See what Tax Collectors have reported."}
-                  </p>
-                </Link>
-              )}
-
-              {showPropertyWiseReport && (
-                <Link href="/admin/property-wise-report" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <Home className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Property-wise Report</h3>
-                  <p className="text-sm text-slate-500">Search a holding for full details, tax pending, change log, discrepancy/re-survey flags, and surveyor visits.</p>
-                </Link>
-              )}
-
-              {showHoldingImportReview && (
-                <Link href="/admin/holding-imports" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <ClipboardCheck className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">{isCommissioner ? "Uploaded Holdings - Progress" : "Uploaded Holdings - Review"}</h3>
-                  <p className="text-sm text-slate-500">
-                    {isCommissioner
-                      ? "Follow how much of each bulk upload has been integrated into the live data."
-                      : admin.role === "city_manager"
-                        ? "Give final approval - integrate uploaded holdings into the live data: all, selected, or all except a few."
-                        : "Review bulk-uploaded holdings and keep out any that should not go live. The City Manager gives final approval."}
-                  </p>
-                </Link>
-              )}
-
-              {showDisputedHoldings && (
-                <Link href="/admin/disputed-holdings" className={cardClass}>
-                  <span className={iconWrapClass}>
-                    <AlertTriangle className="h-6 w-6" strokeWidth={1.8} />
-                  </span>
-                  <h3 className="mb-1.5 text-base font-semibold text-slate-900">Disputed Holdings</h3>
-                  <p className="text-sm text-slate-500">Flag a holding after an owner objection - no payment, no demand notice and hidden from public search until cleared.</p>
                 </Link>
               )}
 
