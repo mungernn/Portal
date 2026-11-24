@@ -4,7 +4,7 @@ import { MIGRATED_HOLDING_NO_DIGITS, MIGRATED_HOLDING_NO_PREFIX } from "../const
 import { collectorWardScope } from "../middleware/collectorWardGuard";
 import { normalizeWard } from "../utils/ward";
 import type { AdminTokenPayload } from "../types/admin.types";
-import { nextMigratedNumber } from "./holdingNumberSeries.service";
+import { nextMigratedNumbers } from "./holdingNumberSeries.service";
 import { createMigratedHolding, migratedRowProblems, type MigratedRowData } from "./migratedHoldingImport.service";
 
 /**
@@ -463,29 +463,43 @@ export async function advanceRecords(
   let approved = 0;
   let skipped = 0;
   let skippedWarning = 0;
+  // Done in batches with one statement each (not record by record), so that thousands of records finish well within the
+  // time the web server waits for an answer.
+  const toApprove: { id: string; stage: MigStage }[] = [];
+  const toForward: Record<"operator" | "tax_daroga", string[]> = { operator: [], tax_daroga: [] };
   for (const r of rows) {
-    if (r.blocking) {
-      skipped++;
-      continue;
-    }
-    if (cleanOnly && !r.clean) {
-      skippedWarning++;
-      continue;
-    }
-    if (a.role === "commissioner" || r.stage === "city_manager") {
-      const n = await nextMigratedNumber();
-      const { rowCount } = await pool.query(
-        `UPDATE mig_records SET status = 'approved', mig_number = $2, approved_by = $3, approved_at = now(), sent_back_note = NULL, updated_at = now(),
-                events = events || $4::jsonb WHERE id = $1 AND status = 'pending' AND stage = $5`,
-        [r.id, n, a.name, event("approved", a.name, migNo(n)), r.stage],
-      );
-      approved += rowCount ?? 0;
-    } else {
-      const next: MigStage = r.stage === "operator" ? "tax_daroga" : "city_manager";
+    if (r.blocking) skipped++;
+    else if (cleanOnly && !r.clean) skippedWarning++;
+    else if (a.role === "commissioner" || r.stage === "city_manager") toApprove.push({ id: r.id, stage: r.stage });
+    else toForward[r.stage as "operator" | "tax_daroga"].push(r.id);
+  }
+  const BATCH = 2000;
+  for (let k = 0; k < toApprove.length; k += BATCH) {
+    const part = toApprove.slice(k, k + BATCH);
+    const nums = await nextMigratedNumbers(part.length);
+    const { rowCount } = await pool.query(
+      `UPDATE mig_records m SET status = 'approved', mig_number = u.n, approved_by = $4, approved_at = now(), sent_back_note = NULL, updated_at = now(),
+              events = m.events || jsonb_build_array(jsonb_build_object(
+                'at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'action', 'approved', 'by', $4::text,
+                'note', 'MIG-' || lpad(u.n::text, ${MIGRATED_HOLDING_NO_DIGITS}, '0')))
+         FROM unnest($1::bigint[], $2::bigint[], $3::text[]) AS u(id, n, stage)
+        WHERE m.id = u.id AND m.status = 'pending' AND m.stage = u.stage`,
+      [part.map((r) => r.id), nums, part.map((r) => r.stage), a.name],
+    );
+    approved += rowCount ?? 0;
+  }
+  for (const stage of ["operator", "tax_daroga"] as const) {
+    const next: MigStage = stage === "operator" ? "tax_daroga" : "city_manager";
+    for (let k = 0; k < toForward[stage].length; k += BATCH) {
       const { rowCount } = await pool.query(
         `UPDATE mig_records SET stage = $2, sent_back_note = NULL, updated_at = now(), events = events || $3::jsonb
-          WHERE id = $1 AND status = 'pending' AND stage = $4`,
-        [r.id, next, event(r.stage === "operator" ? "verified" : "reviewed and forwarded", a.name, `to ${STAGE_LABEL[next]}`), r.stage],
+          WHERE id = ANY($1::bigint[]) AND status = 'pending' AND stage = $4`,
+        [
+          toForward[stage].slice(k, k + BATCH),
+          next,
+          event(stage === "operator" ? "verified" : "reviewed and forwarded", a.name, `to ${STAGE_LABEL[next]}`),
+          stage,
+        ],
       );
       moved += rowCount ?? 0;
     }

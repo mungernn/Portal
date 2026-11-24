@@ -43,6 +43,25 @@ export async function nextMigratedNumber(): Promise<number> {
   }
 }
 
+/** `count` numbers of the MIG- / MUNG-MIG- counter at once, in increasing order (for approving many records together). */
+export async function nextMigratedNumbers(count: number): Promise<number[]> {
+  const fmt = (n: number) => MIGRATED_HOLDING_NO_PREFIX + String(n).padStart(MIGRATED_HOLDING_NO_DIGITS, "0");
+  const out: number[] = [];
+  while (out.length < count) {
+    const { rows } = await pool.query<{ n: string }>(`SELECT nextval('migrated_holding_no_seq') AS n FROM generate_series(1, $1)`, [
+      count - out.length,
+    ]);
+    const nums = rows.map((r) => Number(r.n));
+    // Skip numbers already used by a holding (e.g. one created before the counter existed).
+    const { rows: taken } = await pool.query<{ h: string }>(`SELECT upper(holding_no) AS h FROM properties WHERE upper(holding_no) = ANY($1::text[])`, [
+      nums.map(fmt),
+    ]);
+    const t = new Set(taken.map((r) => r.h));
+    out.push(...nums.filter((n) => !t.has(fmt(n))));
+  }
+  return out.sort((x, y) => x - y);
+}
+
 export function getNextFinalizedMigratedHoldingNo(): Promise<string> {
   return getNextHoldingNoForSeries(FINALIZED_MIGRATED_HOLDING_NO_PREFIX, FINALIZED_MIGRATED_HOLDING_NO_DIGITS);
 }
