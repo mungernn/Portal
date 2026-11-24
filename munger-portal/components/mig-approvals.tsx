@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { AlertCircle, AlertTriangle, ChevronLeft, ChevronRight, Download, Loader2, Pencil, Search, Trash2, X } from "lucide-react";
 import { downloadMigratedHoldingsExport } from "@/lib/admin-api";
+import { DeskPanel } from "@/components/admin/desk-panel";
 import {
   advanceMigRecords,
   deleteLegacyHoldings,
@@ -143,6 +144,52 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
           </div>
           {isMC && <DataTrailButton />}
         </div>
+
+        {data?.desks && (
+          <DeskPanel
+            title={`Desk-wise pending${ward ? ` - ward ${ward}` : ""}`}
+            myRole={role}
+            note="Approval of the uploaded record (Operator -> Tax Daroga -> City Manager gives the MIG no.), then the details entry by field staff (Tax Surveyor / Tax Daroga -> City Manager -> DMC -> Commissioner gives the MNN no.)."
+            desks={[
+              { desk: "Operator", role: "operator", items: [{ label: "To verify", count: data.desks.operator }] },
+              {
+                desk: "Tax Surveyor",
+                role: "tax_surveyor",
+                items: [{ label: "Entry first check (Tax Surveyor or Tax Daroga)", count: data.desks.entry_tax_surveyor }],
+              },
+              {
+                desk: "Tax Daroga",
+                role: "tax_daroga",
+                items: [
+                  { label: "Upload to forward", count: data.desks.tax_daroga },
+                  { label: "Entry to check", count: data.desks.entry_tax_daroga },
+                ],
+              },
+              {
+                desk: "City Manager",
+                role: "city_manager",
+                items: [
+                  { label: "Upload to approve (MIG no.)", count: data.desks.city_manager },
+                  { label: "Entry to approve", count: data.desks.entry_city_manager },
+                ],
+              },
+              { desk: "DMC", role: "deputy_commissioner", items: [{ label: "Entry to approve", count: data.desks.entry_dmc }] },
+              {
+                desk: "Commissioner",
+                role: "commissioner",
+                items: [{ label: "Entry final approval (MNN no.)", count: data.desks.entry_commissioner }],
+              },
+              {
+                desk: "Field staff",
+                items: [
+                  { label: "Approved - details to enter", count: data.desks.to_enter },
+                  { label: "Entry started, not submitted", count: data.desks.entry_not_submitted },
+                  { label: "Entry sent back for correction", count: data.desks.entry_sent_back },
+                ],
+              },
+            ]}
+          />
+        )}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
           {mine && tile(`Awaiting me (${MIG_STAGE_LABEL[mine]})`, t?.mine, "mine", "text-red-700")}

@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { ApiError } from "../utils/ApiError";
-import { decide, heldItems, itemDetail, propose, waitingForMe } from "../services/importResolution.service";
+import { decide, deskCounts, heldItems, itemDetail, propose, waitingForMe } from "../services/importResolution.service";
 
 const batchId = (v: unknown) => {
   const r = z.coerce.number().int().positive().safeParse(v);
@@ -67,4 +67,10 @@ export const postResolutionDecision = asyncHandler(async (req: Request, res: Res
 /** GET /admin/import-resolutions/waiting - resolutions waiting for this login. */
 export const getResolutionsWaiting = asyncHandler(async (req: Request, res: Response) => {
   res.json(await waitingForMe(req.admin!));
+});
+
+/** GET /admin/property-imports/desks?ward= (every open upload) and /admin/property-imports/:id/desks?ward= - desk-wise pending work. */
+export const getImportDesks = asyncHandler(async (req: Request, res: Response) => {
+  const ward = typeof req.query.ward === "string" && req.query.ward.trim() ? req.query.ward.trim().slice(0, 16) : undefined;
+  res.json(await deskCounts(req.admin!, req.params.id ? batchId(req.params.id) : null, ward));
 });

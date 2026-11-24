@@ -261,12 +261,34 @@ export async function listAllRecords(
       GROUP BY 1 ORDER BY (substring(normalize_ward(ward) from '^[0-9]+'))::int NULLS LAST, 1`,
     [myStage(a) ?? ""],
   );
+  // Desk-wise pending work (of the chosen ward, if any): approval of the uploaded record, then - once taken up - the
+  // details entry through Tax Surveyor / Tax Daroga, City Manager, DMC and Commissioner.
+  const { rows: desk } = await pool.query(
+    `SELECT count(*) FILTER (WHERE r.status = 'pending' AND r.stage = 'operator')::int AS operator,
+            count(*) FILTER (WHERE r.status = 'pending' AND r.stage = 'tax_daroga')::int AS tax_daroga,
+            count(*) FILTER (WHERE r.status = 'pending' AND r.stage = 'city_manager')::int AS city_manager,
+            count(*) FILTER (WHERE r.status = 'approved')::int AS to_enter,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status IS NULL)::int AS entry_not_submitted,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'pending' AND e.current_stage = 'tax_surveyor')::int AS entry_tax_surveyor,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'pending' AND e.current_stage = 'tax_daroga')::int AS entry_tax_daroga,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'pending' AND e.current_stage = 'city_manager')::int AS entry_city_manager,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'pending' AND e.current_stage = 'deputy_commissioner')::int AS entry_dmc,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'pending' AND e.current_stage = 'commissioner')::int AS entry_commissioner,
+            count(*) FILTER (WHERE r.status = 'taken_up' AND e.status = 'reverted')::int AS entry_sent_back,
+            count(*) FILTER (WHERE r.status = 'finalized')::int AS finalized
+       FROM mig_records r
+       LEFT JOIN LATERAL (SELECT d.status, d.current_stage FROM property_discrepancy_requests d
+                           WHERE d.holding_no = r.holding_no AND d.status IN ('pending', 'reverted') ORDER BY d.id DESC LIMIT 1) e ON true
+      WHERE ($1::text IS NULL OR normalize_ward(r.ward) = $1)`,
+    [f.ward ? normalizeWard(f.ward) : null],
+  );
   return {
     records: rows.map(view),
     total: count[0]?.n ?? 0,
     page,
     pageSize: PAGE,
     totals: totals[0],
+    desks: desk[0],
     wardCounts,
     myStage: myStage(a),
     isCommissioner: a.role === "commissioner",

@@ -719,3 +719,63 @@ async function mergeCarryOut(u: AdminTokenPayload, c: CaseRow, b: Batch, comment
   await closeCase(c, u, "approved", "done", "approved", outcome, comment);
   return { status: "approved", outcome: "merged", holdingNo: result.holdingNo, detail: outcome };
 }
+
+export interface DeskCounts {
+  taxDaroga: { toReview: number; toPropose: number; sentBack: number };
+  cityManager: { toIntegrate: number; cases: number };
+  deputyCommissioner: { cases: number };
+  commissioner: { cases: number };
+  done: { integrated: number; resolved: number };
+}
+
+/**
+ * Desk-wise pending work of uploads (one, or every upload not closed), optionally of one ward: the Tax Daroga reviews
+ * holdings and proposes how to resolve held-back ones (and gets reverted ones back), the City Manager integrates the
+ * reviewed holdings, and resolution cases sit with the City Manager, the DMC or the Commissioner.
+ */
+export async function deskCounts(u: AdminTokenPayload, batchId: number | null, ward?: string): Promise<DeskCounts> {
+  assertViewer(u);
+  const w = ward ? normalizeWard(ward) : null;
+  const { rows: batches } = await pool.query<{ id: string }>(
+    batchId === null ? `SELECT id FROM property_import_batches WHERE status <> 'closed'` : `SELECT id FROM property_import_batches WHERE id = $1`,
+    batchId === null ? [] : [batchId],
+  );
+  const ids = batches.map((b) => Number(b.id));
+  const out: DeskCounts = {
+    taxDaroga: { toReview: 0, toPropose: 0, sentBack: 0 },
+    cityManager: { toIntegrate: 0, cases: 0 },
+    deputyCommissioner: { cases: 0 },
+    commissioner: { cases: 0 },
+    done: { integrated: 0, resolved: 0 },
+  };
+  if (!ids.length) return out;
+  const { rows } = await pool.query<{ to_review: number; to_integrate: number; integrated: number }>(
+    // Failed holdings are counted with the held-back ones (they are resolved there), not here.
+    `SELECT count(*) FILTER (WHERE status = 'pending' AND NOT has_blocker AND reviewed_at IS NULL)::int AS to_review,
+            count(*) FILTER (WHERE status = 'pending' AND NOT has_blocker AND reviewed_at IS NOT NULL)::int AS to_integrate,
+            count(*) FILTER (WHERE status = 'integrated')::int AS integrated
+       FROM property_import_staging WHERE batch_id = ANY($1::bigint[]) AND ($2::text IS NULL OR ward = $2)`,
+    [ids, w],
+  );
+  out.taxDaroga.toReview = rows[0]!.to_review;
+  out.cityManager.toIntegrate = rows[0]!.to_integrate;
+  out.done.integrated = rows[0]!.integrated;
+  // Held-back items: no resolution yet -> Tax Daroga proposes; open case -> its desk; reverted -> back to the Tax Daroga.
+  for (const id of ids) {
+    const held = await heldItems(u, id);
+    for (const i of held.items) {
+      if (w && normalizeWard(i.ward ?? "") !== w) continue;
+      const c = i.case;
+      if (i.resolved) out.done.resolved++;
+      else if (!c || c.status === "failed") out.taxDaroga.toPropose++;
+      else if (c.status === "reverted") out.taxDaroga.sentBack++;
+      else if (c.status === "open") {
+        if (c.stage === "city_manager") out.cityManager.cases++;
+        else if (c.stage === "deputy_commissioner") out.deputyCommissioner.cases++;
+        else if (c.stage === "commissioner") out.commissioner.cases++;
+        else if (c.stage === "tax_daroga") out.taxDaroga.toPropose++;
+      }
+    }
+  }
+  return out;
+}

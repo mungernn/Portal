@@ -11,7 +11,7 @@ import {
   postHistoricalSettlement,
   putHistoricalProof,
 } from "../controllers/historicalPayment.controller";
-import { getHeldItem, getHeldItems, getResolutionsWaiting, postResolution, postResolutionDecision } from "../controllers/importResolution.controller";
+import { getHeldItem, getHeldItems, getImportDesks, getResolutionsWaiting, postResolution, postResolutionDecision } from "../controllers/importResolution.controller";
 import {
   getStaffKycFile,
   getStaffKycList,
@@ -545,6 +545,9 @@ adminRouter.post("/properties/remove-duplicate-floors", requireAdminRole("commis
 // holdings (Tax Daroga can keep holdings out); the FINAL approval - integrating into the live data (all /
 // selected / all except some) or discarding - is the City Manager's alone. The Commissioner sees progress only.
 adminRouter.get("/property-imports", requireAdminRole("tax_daroga", "city_manager", "deputy_commissioner", "commissioner"), listImportBatchesHandler);
+// Desk-wise pending work (all open uploads / one upload), optionally of one ward.
+adminRouter.get("/property-imports/desks", requireAdminRole("tax_daroga", "city_manager", "deputy_commissioner", "commissioner"), getImportDesks);
+adminRouter.get("/property-imports/:id/desks", requireAdminRole("tax_daroga", "city_manager", "deputy_commissioner", "commissioner"), getImportDesks);
 adminRouter.get("/property-imports/:id", requireAdminRole("tax_daroga", "city_manager", "deputy_commissioner", "commissioner"), getImportBatchHandler);
 adminRouter.get("/property-imports/:id/holdings/:holdingNo", requireAdminRole("tax_daroga", "city_manager"), getImportHoldingHandler);
 // Holdings of an upload that did not go live, and their resolution: Tax Daroga -> City Manager -> DMC -> Municipal

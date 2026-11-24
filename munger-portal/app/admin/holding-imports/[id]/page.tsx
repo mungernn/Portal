@@ -8,6 +8,7 @@ import { AdminHeader } from "@/components/admin-header";
 import { ResidentialSolidWastePanel } from "@/components/admin/residential-solid-waste-panel";
 import { useAdminGuard } from "@/lib/use-admin-guard";
 import { HeldHoldings } from "@/components/admin/held-holdings";
+import { ImportDeskPanel } from "@/components/admin/import-desk-panel";
 import {
   discardImport,
   excludeStaged,
@@ -247,6 +248,7 @@ export default function HoldingImportReviewPage() {
           </div>
         )}
 
+        {admin && batch && <ImportDeskPanel batchId={batchId} ward={ward} role={admin.role} refreshKey={`${c?.integrated ?? 0}-${list?.total ?? 0}-${notice ?? ""}`} />}
         {admin && batch && <HeldHoldings
             key={`${batchId}-${c?.integrated ?? 0}`}
             batchId={batchId}

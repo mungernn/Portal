@@ -124,6 +124,22 @@ export interface MigList {
   isCommissioner: boolean;
   /** Per ward: awaiting this login, with each step, to correct, approved, being entered, final. */
   wardCounts: MigWardCount[];
+  /** Desk-wise pending work (of the chosen ward). */
+  desks: Record<
+    | "operator"
+    | "tax_daroga"
+    | "city_manager"
+    | "to_enter"
+    | "entry_not_submitted"
+    | "entry_tax_surveyor"
+    | "entry_tax_daroga"
+    | "entry_city_manager"
+    | "entry_dmc"
+    | "entry_commissioner"
+    | "entry_sent_back"
+    | "finalized",
+    number
+  >;
 }
 export const fetchAllMigRecords = (f: { status?: string; stage?: string; ward?: string; issues?: string; q?: string; page?: number }) =>
   call<MigList>(`/mig-records?${qs(f)}`);

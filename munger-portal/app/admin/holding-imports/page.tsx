@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { AdminHeader } from "@/components/admin-header";
+import { ImportDeskPanel } from "@/components/admin/import-desk-panel";
 import { useAdminGuard } from "@/lib/use-admin-guard";
 import { fetchImportBatches, fetchResolutionsWaiting, type ImportBatch } from "@/lib/holding-import-api";
 
@@ -55,6 +56,8 @@ export default function HoldingImportsPage() {
             </p>
           </div>
         </div>
+
+        <ImportDeskPanel batchId={null} role={admin.role} />
 
         {error && (
           <div role="alert" className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -272,3 +272,14 @@ export const fetchResolutionsWaiting = () => call<{ total: number; byBatch: Reco
 /** City Manager only: integrate every reviewed holding of one ward of the upload. */
 export const integrateWard = (id: number, ward: string) =>
   call<{ started: boolean; holdings: number }>(`/admin/property-imports/${id}/integrate`, { method: "POST", body: JSON.stringify({ mode: "all", ward }) });
+
+/** Desk-wise pending work - of one upload, or of every upload not closed - optionally of one ward. */
+export interface ImportDeskCounts {
+  taxDaroga: { toReview: number; toPropose: number; sentBack: number };
+  cityManager: { toIntegrate: number; cases: number };
+  deputyCommissioner: { cases: number };
+  commissioner: { cases: number };
+  done: { integrated: number; resolved: number };
+}
+export const fetchImportDesks = (batchId: number | null, ward?: string) =>
+  call<ImportDeskCounts>(`/admin/property-imports/${batchId === null ? "" : `${batchId}/`}desks${ward ? `?ward=${encodeURIComponent(ward)}` : ""}`);
