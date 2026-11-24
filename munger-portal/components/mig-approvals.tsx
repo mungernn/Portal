@@ -96,7 +96,7 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
   const act = isMC ? ACTION.city_manager : mine ? ACTION[mine] : null;
   const showActions = !!act && (status === "mine" || (isMC && status === "pending"));
 
-  async function advance(sel: { ids?: number[]; allMine?: { ward?: string } }, confirmText: string) {
+  async function advance(sel: { ids?: number[]; allMine?: { ward?: string; stage?: string; cleanOnly?: boolean } }, confirmText: string) {
     if (!window.confirm(confirmText)) return;
     setBusy(true);
     setMsg(null);
@@ -105,7 +105,7 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
       const r = await advanceMigRecords(sel);
       const n = r.approved + r.forwarded;
       setMsg(
-        `${n.toLocaleString("en-IN")} record(s) ${r.approved ? ACTION.city_manager.done : (act?.done ?? "moved on")}.${r.skippedBlocking ? ` ${r.skippedBlocking} skipped - they have a problem to correct first.` : ""}`,
+        `${n.toLocaleString("en-IN")} record(s) ${r.approved ? ACTION.city_manager.done : (act?.done ?? "moved on")}.${r.skippedBlocking ? ` ${r.skippedBlocking} skipped - they have a problem to correct first.` : ""}${r.skippedWarning ? ` ${r.skippedWarning} with a warning left for checking.` : ""}`,
       );
       await load();
     } catch (e) {
@@ -115,6 +115,22 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
     }
   }
 
+  /** Awaiting approval with a kind of problem (warnings / PID clash) - amber, to check and rectify. */
+  const issueTile = (kind: string, label: string, value: number | undefined, s = mine ? "mine" : "pending") => (
+    <button
+      onClick={() => {
+        setStatus(s || "pending");
+        setStage("");
+        setIssues(kind);
+        setPage(1);
+      }}
+      className={`rounded-lg border p-3 text-left ${issues === kind ? "border-amber-400 ring-2 ring-amber-200" : value ? "border-amber-300" : "border-slate-200"} ${value ? "bg-amber-50" : "bg-white"}`}
+    >
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`text-lg font-semibold ${value ? "text-amber-700" : "text-slate-400"}`}>{(value ?? 0).toLocaleString("en-IN")}</p>
+    </button>
+  );
+
   const tile = (label: string, value: number | undefined, s: string, tone = "", st = "") => (
     <button
       onClick={() => {
@@ -123,7 +139,7 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
         setIssues("");
         setPage(1);
       }}
-      className={`rounded-lg border p-3 text-left ${status === s && stage === st && issues !== "blocking" ? "border-nnm-blue ring-2 ring-nnm-blue/20" : "border-slate-200"} bg-white`}
+      className={`rounded-lg border p-3 text-left ${status === s && stage === st && !issues ? "border-nnm-blue ring-2 ring-nnm-blue/20" : "border-slate-200"} bg-white`}
     >
       <p className="text-xs text-slate-500">{label}</p>
       <p className={`text-lg font-semibold ${tone || "text-slate-900"}`}>{(value ?? 0).toLocaleString("en-IN")}</p>
@@ -216,6 +232,8 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
               {(mine ? (t?.mine ?? 0) - (t?.mine_ready ?? 0) : (t?.pending_blocking ?? 0)).toLocaleString("en-IN")}
             </p>
           </button>
+          {issueTile("warning", `Warnings to check${mine ? " (with me)" : ""}`, mine ? t?.mine_warning : t?.pending_warning)}
+          {issueTile("pid", "Old PID on another record / holding", t?.pending_pid, "")}
         </div>
 
         {data && data.wardCounts.length > 0 && (
@@ -231,6 +249,8 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
                     <th>With Tax Daroga</th>
                     <th>With City Manager</th>
                     <th>To correct</th>
+                    <th>Warnings</th>
+                    <th>No problems</th>
                     <th>Approved (MIG)</th>
                     <th>Being entered</th>
                     <th>Final (MNN)</th>
@@ -252,6 +272,8 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
                       <td>{w.at_tax_daroga}</td>
                       <td>{w.at_city_manager}</td>
                       <td className={w.blocking ? "text-red-700" : "text-slate-400"}>{w.blocking}</td>
+                      <td className={w.warning ? "text-amber-700" : "text-slate-400"}>{w.warning}</td>
+                      <td className={w.clean ? "text-green-700" : "text-slate-400"}>{w.clean}</td>
                       <td>{w.approved}</td>
                       <td>{w.taken_up}</td>
                       <td>{w.finalized}</td>
@@ -313,7 +335,8 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
                 <option value="">Any</option>
                 <option value="blocking">To correct before approval</option>
                 <option value="warning">Warnings only</option>
-                <option value="none">No problems</option>
+                <option value="pid">Old PID also on another record / holding</option>
+                <option value="none">No problems (no error or warning)</option>
               </select>
             </div>
             <div className="min-w-56 flex-1">
@@ -353,27 +376,32 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
               >
                 {act.many} - selected ({selected.size})
               </button>
-              {!isMC && (
-                <button
-                  disabled={busy || !t?.mine_ready}
-                  onClick={() =>
-                    advance(
-                      { allMine: { ward: ward.trim() || undefined } },
-                      ward.trim()
-                        ? `${act.many}: every record of ward ${ward.trim()} awaiting you that has no problem to correct?`
-                        : `${act.many}: all ${(t?.mine_ready ?? 0).toLocaleString("en-IN")} records awaiting you that have no problem to correct?`,
-                    )
-                  }
-                  className="rounded-md border border-green-600 px-3 py-1.5 font-semibold text-green-700 disabled:opacity-40"
-                >
-                  {ward.trim()
-                    ? `${act.many} - all ready in ward ${ward.trim()}`
-                    : `${act.many} - all ready (${(t?.mine_ready ?? 0).toLocaleString("en-IN")})`}
-                </button>
-              )}
+              {(() => {
+                // Every record (of the chosen ward; the Commissioner: and step) with no error, no warning and no PID clash.
+                const n = (isMC ? t?.clean_scope : t?.mine_clean_scope) ?? 0;
+                const scope = [ward.trim() && `ward ${ward.trim()}`, isMC && stage && `with the ${MIG_STAGE_LABEL[stage as MigStage]}`]
+                  .filter(Boolean)
+                  .join(", ");
+                const label = isMC ? "Approve all with no problems - give MIG no." : `${act.many} - all with no problems`;
+                return (
+                  <button
+                    disabled={busy || !n}
+                    onClick={() =>
+                      advance(
+                        { allMine: { ward: ward.trim() || undefined, stage: isMC ? stage || undefined : undefined, cleanOnly: true } },
+                        `${label}: ${n.toLocaleString("en-IN")} record(s)${scope ? ` (${scope})` : isMC ? " at every step" : " awaiting you"} with no error and no warning?`,
+                      )
+                    }
+                    className="rounded-md bg-green-700 px-3 py-1.5 font-semibold text-white disabled:opacity-40"
+                  >
+                    {label} ({n.toLocaleString("en-IN")}){scope ? ` - ${scope}` : ""}
+                  </button>
+                );
+              })()}
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
               <span className="text-xs text-amber-800">
-                Records with a problem to correct (no owner name / no valid ward) are skipped until corrected.
+                The &quot;all with no problems&quot; button leaves out every record with an error or a warning (incl. an old PID also on
+                another record / holding) - check and correct those, then act on them one by one or by selecting them.
               </span>
             </div>
           )}
@@ -419,7 +447,10 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
                 </thead>
                 <tbody>
                   {data.records.map((r) => (
-                    <tr key={r.id} className="border-b border-slate-100 align-top">
+                    <tr
+                      key={r.id}
+                      className={`border-b border-slate-100 align-top ${r.status === "pending" && !r.blocking && r.issues.length ? "bg-amber-50/60" : ""}`}
+                    >
                       <td className="py-2">
                         {showActions && (
                           <input
@@ -470,7 +501,6 @@ export function MigApprovals({ role, header }: { role: string; header: ReactNode
                             {i.text}
                           </p>
                         ))}
-                        {r.pidShared && <p className="mt-0.5 text-xs text-amber-700">! Old PID also on another record / holding</p>}
                         {r.setAsideReason && <p className="mt-0.5 text-xs text-slate-500">Set aside: {r.setAsideReason}</p>}
                         {r.entry && (
                           <p className="mt-0.5 text-xs text-violet-700">

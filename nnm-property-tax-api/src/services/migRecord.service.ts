@@ -57,6 +57,19 @@ export interface Issue {
   blocking: boolean;
 }
 
+/**
+ * The record's old PID is also on another record (not set aside) or on another holding - a warning to rectify (correct
+ * the PID, or set the duplicate aside). Worked out at read time, since it changes as other records change.
+ */
+const pidShared = (a: string) => `(${a}.old_pid IS NOT NULL AND (
+  EXISTS (SELECT 1 FROM mig_records o WHERE o.id <> ${a}.id AND o.status <> 'set_aside' AND upper(btrim(o.old_pid)) = upper(btrim(${a}.old_pid)))
+  OR EXISTS (SELECT 1 FROM properties p WHERE upper(btrim(p.old_pid)) = upper(btrim(${a}.old_pid)) AND p.holding_no IS DISTINCT FROM ${a}.holding_no)))`;
+const blockingSql = (a: string) => `${a}.issues @> '[{"blocking": true}]'`;
+/** No problem at all: no error, no warning, no PID clash. */
+const cleanSql = (a: string) => `(jsonb_array_length(${a}.issues) = 0 AND NOT ${pidShared(a)})`;
+/** Warnings only (nothing blocking). */
+const warningSql = (a: string) => `(NOT ${blockingSql(a)} AND NOT ${cleanSql(a)})`;
+
 /** Problems of a record. No owner name or no valid ward blocks approval (field staff could not find it); the rest are warnings. */
 export function recordIssues(d: MigratedRowData, needsReview: string | null): Issue[] {
   const issues: Issue[] = migratedRowProblems(d).map((text) => ({
@@ -112,6 +125,7 @@ interface RecordRow {
   stage: MigStage;
   sent_back_note: string | null;
   pid_shared: boolean;
+  pid_with: string | null;
   entry_status: string | null;
   entry_stage: string | null;
   entry_by: string | null;
@@ -119,6 +133,9 @@ interface RecordRow {
 
 const num = (v: string | null) => (v === null ? null : Number(v));
 function view(r: RecordRow) {
+  const issues: Issue[] = r.pid_shared
+    ? [...r.issues, { text: `Old PID ${r.old_pid} is also on ${r.pid_with ?? "another record / holding"}`, blocking: false }]
+    : r.issues;
   return {
     id: Number(r.id),
     migNo: r.mig_number ? migNo(r.mig_number) : null,
@@ -143,8 +160,8 @@ function view(r: RecordRow) {
     taxStatus: r.tax_status,
     remarks: r.remarks,
     needsReview: r.needs_review,
-    issues: r.issues,
-    blocking: r.issues.some((i) => i.blocking),
+    issues,
+    blocking: issues.some((i) => i.blocking),
     pidShared: r.pid_shared,
     status: r.status,
     stage: r.status === "pending" ? r.stage : null,
@@ -166,10 +183,16 @@ function view(r: RecordRow) {
 }
 export type MigRecordView = ReturnType<typeof view>;
 
-const SELECT = `SELECT r.*,
-       (r.old_pid IS NOT NULL AND (
-          EXISTS (SELECT 1 FROM mig_records o WHERE o.id <> r.id AND o.status <> 'set_aside' AND upper(btrim(o.old_pid)) = upper(btrim(r.old_pid)))
-          OR EXISTS (SELECT 1 FROM properties p WHERE upper(btrim(p.old_pid)) = upper(btrim(r.old_pid)) AND p.holding_no IS DISTINCT FROM r.holding_no))) AS pid_shared,
+const SELECT = `SELECT r.*, ${pidShared("r")} AS pid_shared,
+       CASE WHEN r.old_pid IS NOT NULL THEN (
+         SELECT string_agg(t, '; ') FROM (
+           (SELECT concat('ward ', COALESCE(o.ward, '-'), ' old holding ', COALESCE(o.old_holding_no, '-'), ' (', COALESCE(o.owner_name, 'no name'),
+                          CASE WHEN o.mig_number IS NOT NULL THEN ', MIG-' || lpad(o.mig_number::text, ${MIGRATED_HOLDING_NO_DIGITS}, '0') ELSE '' END, ')') AS t
+              FROM mig_records o WHERE o.id <> r.id AND o.status <> 'set_aside' AND upper(btrim(o.old_pid)) = upper(btrim(r.old_pid)) ORDER BY o.id LIMIT 3)
+           UNION ALL
+           (SELECT 'holding ' || p.holding_no FROM properties p
+             WHERE upper(btrim(p.old_pid)) = upper(btrim(r.old_pid)) AND p.holding_no IS DISTINCT FROM r.holding_no LIMIT 3)) x)
+       END AS pid_with,
        e.status AS entry_status, e.current_stage AS entry_stage, e.reported_by_display_name AS entry_by
   FROM mig_records r
   LEFT JOIN LATERAL (SELECT d.status, d.current_stage, d.reported_by_display_name FROM property_discrepancy_requests d
@@ -218,9 +241,10 @@ export async function listAllRecords(
     params.push(normalizeWard(f.ward));
     where.push(`normalize_ward(r.ward) = $${params.length}`);
   }
-  if (f.issues === "blocking") where.push(`r.issues @> '[{"blocking": true}]'`);
-  else if (f.issues === "warning") where.push(`jsonb_array_length(r.issues) > 0 AND NOT r.issues @> '[{"blocking": true}]'`);
-  else if (f.issues === "none") where.push(`jsonb_array_length(r.issues) = 0`);
+  if (f.issues === "blocking") where.push(blockingSql("r"));
+  else if (f.issues === "warning") where.push(warningSql("r"));
+  else if (f.issues === "pid") where.push(pidShared("r"));
+  else if (f.issues === "none") where.push(cleanSql("r"));
   const s = searchClause(params, f.q);
   if (s) where.push(s);
   const w = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -246,6 +270,19 @@ export async function listAllRecords(
       [myStage(a) ?? ""],
     ),
   ]);
+  // Warnings / PID clashes / no problems among the records awaiting approval (the PID check worked out once per record).
+  const { rows: pend } = await pool.query(
+    `WITH p AS MATERIALIZED (
+       SELECT r.stage, normalize_ward(r.ward) AS w, ${blockingSql("r")} AS b, jsonb_array_length(r.issues) = 0 AS empty, ${pidShared("r")} AS pid
+         FROM mig_records r WHERE r.status = 'pending')
+     SELECT count(*) FILTER (WHERE NOT b AND (pid OR NOT empty))::int AS pending_warning,
+            count(*) FILTER (WHERE stage = $1 AND NOT b AND (pid OR NOT empty))::int AS mine_warning,
+            count(*) FILTER (WHERE pid)::int AS pending_pid,
+            count(*) FILTER (WHERE empty AND NOT pid AND ($2::text IS NULL OR w = $2) AND ($3::text IS NULL OR stage = $3))::int AS clean_scope,
+            count(*) FILTER (WHERE stage = $1 AND empty AND NOT pid AND ($2::text IS NULL OR w = $2))::int AS mine_clean_scope
+       FROM p`,
+    [myStage(a) ?? "", f.ward ? normalizeWard(f.ward) : null, f.stage && (STAGES as string[]).includes(f.stage) ? f.stage : null],
+  );
   // Ward-wise counts (for working ward by ward), wards in number order.
   const { rows: wardCounts } = await pool.query(
     `SELECT normalize_ward(ward) AS ward,
@@ -254,10 +291,14 @@ export async function listAllRecords(
             count(*) FILTER (WHERE status = 'pending' AND stage = 'tax_daroga')::int AS at_tax_daroga,
             count(*) FILTER (WHERE status = 'pending' AND stage = 'city_manager')::int AS at_city_manager,
             count(*) FILTER (WHERE status = 'pending' AND issues @> '[{"blocking": true}]')::int AS blocking,
+            count(*) FILTER (WHERE status = 'pending' AND NOT ${blockingSql("r")} AND (x.pid OR jsonb_array_length(issues) > 0))::int AS warning,
+            count(*) FILTER (WHERE status = 'pending' AND jsonb_array_length(issues) = 0 AND NOT x.pid)::int AS clean,
             count(*) FILTER (WHERE status = 'approved')::int AS approved,
             count(*) FILTER (WHERE status = 'taken_up')::int AS taken_up,
             count(*) FILTER (WHERE status = 'finalized')::int AS finalized
-       FROM mig_records WHERE normalize_ward(ward) IS NOT NULL
+       FROM mig_records r
+       LEFT JOIN LATERAL (SELECT ${pidShared("r")} AS pid WHERE r.status = 'pending') x ON true
+      WHERE normalize_ward(ward) IS NOT NULL
       GROUP BY 1 ORDER BY (substring(normalize_ward(ward) from '^[0-9]+'))::int NULLS LAST, 1`,
     [myStage(a) ?? ""],
   );
@@ -287,7 +328,7 @@ export async function listAllRecords(
     total: count[0]?.n ?? 0,
     page,
     pageSize: PAGE,
-    totals: totals[0],
+    totals: { ...totals[0], ...pend[0] },
     desks: desk[0],
     wardCounts,
     myStage: myStage(a),
@@ -383,37 +424,52 @@ export async function editRecord(u: MigActor, id: number, e: RecordEdit) {
 /**
  * Moves records on from the step they are at - the given ones, or every record awaiting this login's step (optionally of
  * one ward): Operator -> Tax Daroga -> City Manager -> approved with its MIG- number. The Commissioner moves any record
- * straight to approved. Records with a problem to correct first are skipped (counted in the answer).
+ * straight to approved (in bulk: optionally of one step). Records with a problem to correct first are skipped (counted in
+ * the answer); with cleanOnly, so are records with any warning (incl. an old PID also on another record / holding).
  */
-export async function advanceRecords(a: MigActor, sel: { ids?: number[]; allMine?: { ward?: string } }) {
+export async function advanceRecords(
+  a: MigActor,
+  sel: { ids?: number[]; allMine?: { ward?: string; stage?: string; cleanOnly?: boolean } },
+) {
   assertApprovalView(a);
   const st = myStage(a);
   if (!st && a.role !== "commissioner") throw new ApiError(403, "Not allowed.");
   const params: unknown[] = [];
-  let where = `status = 'pending'`;
+  let where = `r.status = 'pending'`;
   if (st) {
     params.push(st);
-    where += ` AND stage = $${params.length}`;
+    where += ` AND r.stage = $${params.length}`;
   }
   if (sel.ids?.length) {
     params.push(sel.ids);
-    where += ` AND id = ANY($${params.length}::bigint[])`;
+    where += ` AND r.id = ANY($${params.length}::bigint[])`;
   } else if (sel.allMine) {
     if (sel.allMine.ward) {
       params.push(normalizeWard(sel.allMine.ward));
-      where += ` AND normalize_ward(ward) = $${params.length}`;
+      where += ` AND normalize_ward(r.ward) = $${params.length}`;
+    }
+    if (!st && sel.allMine.stage && (STAGES as string[]).includes(sel.allMine.stage)) {
+      params.push(sel.allMine.stage);
+      where += ` AND r.stage = $${params.length}`;
     }
   } else throw ApiError.badRequest("Choose the records.");
-  const { rows } = await pool.query<{ id: string; blocking: boolean; stage: MigStage }>(
-    `SELECT id, stage, issues @> '[{"blocking": true}]' AS blocking FROM mig_records WHERE ${where} ORDER BY ${WARD_ORDER.replace(/r\./g, "")}`,
+  const cleanOnly = !!sel.allMine?.cleanOnly;
+  const { rows } = await pool.query<{ id: string; blocking: boolean; clean: boolean; stage: MigStage }>(
+    `SELECT r.id, r.stage, ${blockingSql("r")} AS blocking, ${cleanSql("r")} AS clean FROM mig_records r
+      WHERE ${where} ORDER BY ${WARD_ORDER}`,
     params,
   );
   let moved = 0;
   let approved = 0;
   let skipped = 0;
+  let skippedWarning = 0;
   for (const r of rows) {
     if (r.blocking) {
       skipped++;
+      continue;
+    }
+    if (cleanOnly && !r.clean) {
+      skippedWarning++;
       continue;
     }
     if (a.role === "commissioner" || r.stage === "city_manager") {
@@ -434,7 +490,7 @@ export async function advanceRecords(a: MigActor, sel: { ids?: number[]; allMine
       moved += rowCount ?? 0;
     }
   }
-  return { forwarded: moved, approved, skippedBlocking: skipped };
+  return { forwarded: moved, approved, skippedBlocking: skipped, skippedWarning };
 }
 
 /** Records awaiting this login's step (for the dashboard badge); the Commissioner: all awaiting approval. */

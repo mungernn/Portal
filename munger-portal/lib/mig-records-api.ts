@@ -90,6 +90,15 @@ export interface MigTotals {
   /** Awaiting this login's step (and of them, without a problem to correct). */
   mine: number;
   mine_ready: number;
+  /** Awaiting approval with warnings only (nothing blocking) - all steps / this login's step. */
+  pending_warning: number;
+  mine_warning: number;
+  /** Awaiting approval whose old PID is also on another record / holding. */
+  pending_pid: number;
+  /** With no problem at all (no error, no warning, no PID clash), in the chosen ward (and step) - for the Commissioner. */
+  clean_scope: number;
+  /** The same, awaiting this login's step, in the chosen ward. */
+  mine_clean_scope: number;
   approved: number;
   taken_up: number;
   finalized: number;
@@ -110,6 +119,8 @@ export interface MigWardCount {
   at_tax_daroga: number;
   at_city_manager: number;
   blocking: number;
+  warning: number;
+  clean: number;
   approved: number;
   taken_up: number;
   finalized: number;
@@ -158,8 +169,8 @@ export interface MigRecordEdit {
 }
 export const editMigRecord = (id: number, e: MigRecordEdit) =>
   call<{ ok: true }>(`/mig-records/${id}`, { method: "PUT", body: JSON.stringify(e) }, "Could not save");
-export const advanceMigRecords = (sel: { ids?: number[]; allMine?: { ward?: string } }) =>
-  call<{ forwarded: number; approved: number; skippedBlocking: number }>(
+export const advanceMigRecords = (sel: { ids?: number[]; allMine?: { ward?: string; stage?: string; cleanOnly?: boolean } }) =>
+  call<{ forwarded: number; approved: number; skippedBlocking: number; skippedWarning: number }>(
     "/mig-records/advance",
     { method: "POST", body: JSON.stringify(sel) },
     "Could not save",

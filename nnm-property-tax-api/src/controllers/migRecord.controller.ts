@@ -39,7 +39,7 @@ export const getAllRecords = asyncHandler(async (req: Request, res: Response) =>
       status: z.string().max(12).optional(),
       stage: z.enum(["operator", "tax_daroga", "city_manager"]).optional(),
       ward: z.string().max(16).optional(),
-      issues: z.enum(["blocking", "warning", "none", "any"]).optional(),
+      issues: z.enum(["blocking", "warning", "pid", "none", "any"]).optional(),
       q: z.string().max(100).optional(),
       page: z.coerce.number().int().min(1).max(100000).optional(),
     }),
@@ -84,7 +84,9 @@ export const postAdvance = asyncHandler(async (req: Request, res: Response) => {
   const b = parse(
     z.object({
       ids: z.array(z.coerce.number().int().positive()).max(5000).optional(),
-      allMine: z.object({ ward: z.string().max(16).optional() }).optional(),
+      allMine: z
+        .object({ ward: z.string().max(16).optional(), stage: z.string().max(20).optional(), cleanOnly: z.boolean().optional() })
+        .optional(),
     }),
     req.body,
   );
