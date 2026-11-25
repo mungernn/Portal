@@ -3,7 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, CheckCircle2, Loader2, RefreshCw, SwitchCamera, X, XCircle } from "lucide-react";
 import { useAttendanceLang } from "@/lib/attendance-i18n";
-import { createFaceChallenge, submitFaceEnrol, submitFacePunch, type FaceChallenge, type FacePurpose } from "@/lib/face-attendance-api";
+import {
+  createFaceChallenge,
+  fetchEnrolmentPhoto,
+  lookAlikeOf,
+  removeFaceEnrolment,
+  submitFaceEnrol,
+  submitFacePunch,
+  type FaceChallenge,
+  type FaceLookAlike,
+  type FacePurpose,
+} from "@/lib/face-attendance-api";
 
 const STRINGS = {
   en: {
@@ -32,6 +42,15 @@ const STRINGS = {
     submitManual: "Mark manually",
     close: "Close",
     switchCamera: "Switch camera",
+    dupThis: "Photo now",
+    dupOther: "Already enrolled as",
+    dupHelp: "Compare the two photos and choose:",
+    dupDifferent: "They are different people (e.g. brothers) - enrol anyway",
+    dupReason: "Why are they different people? (at least 10 characters - this enrolment is flagged with your reason)",
+    dupWrong: "Same person - remove the face enrolled for {name} and enrol it here",
+    dupWrongConfirm: "Remove the face enrolled for {name} (it is this worker's face) and enrol it for this worker? {name} will have to be enrolled again with their own face.",
+    dupCancel: "Same person on the roster twice - cancel and check the roster",
+    flagged: "Face enrolled - flagged as a look-alike for review",
   },
   hi: {
     titleIn: "चेहरा जाँच - इन मार्क करें",
@@ -59,10 +78,19 @@ const STRINGS = {
     submitManual: "मैन्युअल मार्क करें",
     close: "बंद करें",
     switchCamera: "कैमरा बदलें",
+    dupThis: "अभी की फ़ोटो",
+    dupOther: "पहले से पंजीकृत",
+    dupHelp: "दोनों फ़ोटो मिलाएँ और चुनें:",
+    dupDifferent: "ये अलग-अलग व्यक्ति हैं (जैसे भाई) - फिर भी पंजीकरण करें",
+    dupReason: "ये अलग व्यक्ति क्यों हैं? (कम से कम 10 अक्षर - यह पंजीकरण आपके कारण के साथ चिह्नित होगा)",
+    dupWrong: "एक ही व्यक्ति - {name} के नाम पर पंजीकृत चेहरा हटाएँ और यहाँ पंजीकरण करें",
+    dupWrongConfirm: "{name} के नाम पर पंजीकृत चेहरा (जो इस कर्मचारी का है) हटाकर इस कर्मचारी के लिए पंजीकृत करें? {name} का पंजीकरण उनके अपने चेहरे से फिर से करना होगा।",
+    dupCancel: "रोस्टर में एक ही व्यक्ति दो बार - रद्द करें और रोस्टर जाँचें",
+    flagged: "चेहरा पंजीकृत - समान चेहरे के रूप में समीक्षा हेतु चिह्नित",
   },
 };
 
-type Step = "consent" | "front" | "turn" | "checking" | "done" | "failed" | "manual";
+type Step = "consent" | "front" | "turn" | "checking" | "done" | "failed" | "manual" | "duplicate";
 
 export interface FaceCaptureDialogProps {
   staffId: number;
@@ -99,6 +127,10 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  // Enrolment: the face looks like a worker already enrolled - the photos are kept to submit again after the choice.
+  const [turnImg, setTurnImg] = useState<string | null>(null);
+  const [dup, setDup] = useState<(FaceLookAlike & { photo: string | null }) | null>(null);
+  const [dupReason, setDupReason] = useState("");
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -162,7 +194,20 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
     stopCamera();
     try {
       if (purpose === "enrol") {
-        await submitFaceEnrol(challenge.challengeId, front!, img, true);
+        setTurnImg(img);
+        try {
+          await submitFaceEnrol(challenge.challengeId, front!, img, true);
+        } catch (err) {
+          const d = lookAlikeOf(err);
+          if (!d) throw err;
+          const photo = await fetchEnrolmentPhoto(d.other.staffId)
+            .then((r) => r.photo)
+            .catch(() => null);
+          setDup({ ...d, photo });
+          setMessage(err instanceof Error ? err.message : String(err));
+          setStep("duplicate");
+          return;
+        }
         setMessage(s.enrolled);
         setStep("done");
       } else {
@@ -178,6 +223,30 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));
       setStep("failed");
+    }
+  }
+
+  /** After the look-alike choice: submit the same photos again (the server kept the session open). */
+  async function resolveDuplicate(how: "different" | "wrong") {
+    if (!dup || !challenge || !front || !turnImg) return;
+    if (how === "wrong" && !window.confirm(s.dupWrongConfirm.replaceAll("{name}", dup.other.name))) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (how === "wrong") await removeFaceEnrolment(dup.other.staffId);
+      const r = await submitFaceEnrol(
+        challenge.challengeId,
+        front,
+        turnImg,
+        true,
+        how === "different" ? { staffId: dup.other.staffId, reason: dupReason.trim() } : undefined,
+      );
+      setMessage(r.flagged ? s.flagged : s.enrolled);
+      setStep("done");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -313,6 +382,65 @@ export function FaceCaptureDialog({ staffId, staffName, purpose, onClose, onDone
                   {s.manual}
                 </button>
               )}
+            </div>
+          </div>
+        )}
+
+        {step === "duplicate" && dup && (
+          <div>
+            <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              {message}
+            </p>
+            <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs text-slate-600">
+              <figure>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`data:image/jpeg;base64,${front}`} alt={s.dupThis} className="aspect-[3/4] w-full rounded-md object-cover" />
+                <figcaption className="mt-1">
+                  {s.dupThis}: <b>{staffName}</b>
+                </figcaption>
+              </figure>
+              <figure>
+                {dup.photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={dup.photo} alt={dup.other.name} className="aspect-[3/4] w-full rounded-md object-cover" />
+                ) : (
+                  <div className="flex aspect-[3/4] w-full items-center justify-center rounded-md bg-slate-100">-</div>
+                )}
+                <figcaption className="mt-1">
+                  {s.dupOther}: <b>{dup.other.name}</b>
+                  {dup.other.ward ? ` (${dup.other.ward})` : ""} - {Math.round(dup.similarity * 100)}%
+                </figcaption>
+              </figure>
+            </div>
+            <p className="mb-2 text-xs font-semibold text-slate-700">{s.dupHelp}</p>
+            <div className="mb-3 rounded-md border border-slate-200 p-2">
+              <textarea
+                value={dupReason}
+                onChange={(e) => setDupReason(e.target.value)}
+                maxLength={300}
+                rows={2}
+                placeholder={s.dupReason}
+                className="mb-2 w-full rounded-md border border-slate-300 p-2 text-sm"
+              />
+              <button
+                onClick={() => resolveDuplicate("different")}
+                disabled={busy || dupReason.trim().length < 10}
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />} {s.dupDifferent}
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => resolveDuplicate("wrong")}
+                disabled={busy}
+                className="rounded-md border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-60"
+              >
+                {s.dupWrong.replaceAll("{name}", dup.other.name)}
+              </button>
+              <button onClick={onClose} className="rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">
+                {s.dupCancel}
+              </button>
             </div>
           </div>
         )}

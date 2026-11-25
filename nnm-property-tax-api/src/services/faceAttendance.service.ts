@@ -285,7 +285,15 @@ export async function guardManualMark(
 
 // ---------------------------------------------------------------------------------------------- enrolment
 
-export async function enrolFace(user: AttendanceTokenPayload, challengeId: string, frontB64: string, turnB64: string, consent: boolean) {
+export async function enrolFace(
+  user: AttendanceTokenPayload,
+  challengeId: string,
+  frontB64: string,
+  turnB64: string,
+  consent: boolean,
+  /** The officer confirms the face is a different person from this look-alike (e.g. brothers), with a reason. */
+  differentFrom?: { staffId: number; reason: string },
+) {
   assertEnabled();
   if (!FACE_ENROL_ROLES.includes(user.role)) throw new ApiError(403, "Your login cannot enrol faces.");
   if (!consent) throw ApiError.badRequest("Record the worker's consent before enrolling the face.");
@@ -295,16 +303,33 @@ export async function enrolFace(user: AttendanceTokenPayload, challengeId: strin
   const staff = await loadStaff(user, ch.staffId);
 
   // Same person already enrolled as somebody else? (ghost / duplicate worker)
+  let duplicate: { staffId: number; similarity: number; reason: string } | null = null;
   const top = await recognizeTop(front);
   if (top && top.similarity >= env.FACE_MATCH_THRESHOLD) {
-    const { rows } = await pool.query<{ staff_id: string; name: string; ward_name: string | null }>(
-      `SELECT e.staff_id, s.name, w.ward_name FROM face_enrolments e JOIN field_staff s ON s.id = e.staff_id
+    const { rows } = await pool.query<{ id: string; staff_id: string; name: string; ward_name: string | null; staff_active: boolean; subject: string; photo_path: string | null }>(
+      `SELECT e.id, e.staff_id, s.name, w.ward_name, s.active AS staff_active, e.subject, e.photo_path FROM face_enrolments e JOIN field_staff s ON s.id = e.staff_id
          LEFT JOIN attendance_wards w ON w.id = s.ward_id WHERE e.active AND e.subject = $1`,
       [top.subject],
     );
     const other = rows[0];
     if (other && Number(other.staff_id) !== ch.staffId) {
-      throw ApiError.badRequest(`This face is already enrolled as ${other.name}${other.ward_name ? ` (${other.ward_name})` : ""}. One person cannot be enrolled as two workers - check the roster.`);
+      if (!other.staff_active) {
+        // The look-alike has left service (removed from the roster) - e.g. the same person re-added as a new entry.
+        // Their face record is no longer needed: retire it, and go on.
+        await pool.query(`UPDATE face_enrolments SET active = FALSE, removed_at = now(), removed_by_username = $2 WHERE id = $1`, [other.id, user.username]);
+        await deleteSubject(other.subject);
+        console.log(`[face] enrolment of staff ${other.staff_id} (left service) retired - same face enrolled for staff ${ch.staffId} by ${user.username}`);
+      } else if (differentFrom && differentFrom.staffId === Number(other.staff_id) && differentFrom.reason.trim().length >= 10) {
+        duplicate = { staffId: Number(other.staff_id), similarity: top.similarity, reason: differentFrom.reason.trim() };
+      } else {
+        // Let the officer look at both faces and decide, with the same photos (the session is kept open for 5 minutes).
+        await pool.query(`UPDATE face_challenges SET used_at = NULL, expires_at = GREATEST(expires_at, now() + interval '5 minutes') WHERE id = $1`, [challengeId]);
+        throw new ApiError(
+          409,
+          `This face looks like ${other.name}${other.ward_name ? ` (${other.ward_name})` : ""}, who is already enrolled (match ${Math.round(top.similarity * 100)}%). One person cannot be enrolled as two workers.`,
+          { code: "possible_duplicate", other: { staffId: Number(other.staff_id), name: other.name, ward: other.ward_name }, similarity: top.similarity },
+        );
+      }
     }
   }
 
@@ -335,9 +360,10 @@ export async function enrolFace(user: AttendanceTokenPayload, challengeId: strin
       await client.query(`UPDATE face_enrolments SET active = FALSE, removed_at = now(), removed_by_username = $2 WHERE id = $1`, [previous.id, user.username]);
     }
     await client.query(
-      `INSERT INTO face_enrolments (staff_id, subject, image_ids, photo_path, consent_recorded, enrolled_by_username, enrolled_by_role)
-       VALUES ($1, $2, $3, $4, TRUE, $5, $6)`,
-      [ch.staffId, subject, added, photoPath, user.username, user.role],
+      `INSERT INTO face_enrolments (staff_id, subject, image_ids, photo_path, consent_recorded, enrolled_by_username, enrolled_by_role,
+                                    duplicate_of_staff_id, duplicate_similarity, duplicate_reason)
+       VALUES ($1, $2, $3, $4, TRUE, $5, $6, $7, $8, $9)`,
+      [ch.staffId, subject, added, photoPath, user.username, user.role, duplicate?.staffId ?? null, duplicate?.similarity ?? null, duplicate?.reason ?? null],
     );
     await client.query("COMMIT");
   } catch (err) {
@@ -348,7 +374,8 @@ export async function enrolFace(user: AttendanceTokenPayload, challengeId: strin
     client.release();
   }
   if (previous) await deleteSubject(previous.subject);
-  return { enrolled: true, staffId: ch.staffId, name: staff.name, reEnrolled: Boolean(previous) };
+  if (duplicate) console.log(`[face] staff ${ch.staffId} enrolled by ${user.username} although it looks like staff ${duplicate.staffId} (${duplicate.similarity}): ${duplicate.reason}`);
+  return { enrolled: true, staffId: ch.staffId, name: staff.name, reEnrolled: Boolean(previous), flagged: Boolean(duplicate) };
 }
 
 export async function removeEnrolment(user: AttendanceTokenPayload, staffId: number) {
@@ -363,8 +390,12 @@ export async function removeEnrolment(user: AttendanceTokenPayload, staffId: num
 
 export async function wardEnrolmentStatus(wardId: number) {
   const { rows } = await pool.query(
-    `SELECT s.id::int AS "staffId", s.name, s.name_hi AS "nameHi", e.enrolled_at AS "enrolledAt", e.enrolled_by_username AS "enrolledBy"
+    `SELECT s.id::int AS "staffId", s.name, s.name_hi AS "nameHi", e.enrolled_at AS "enrolledAt", e.enrolled_by_username AS "enrolledBy",
+            CASE WHEN e.duplicate_of_staff_id IS NOT NULL THEN json_build_object(
+              'staffId', e.duplicate_of_staff_id::int, 'name', d.name, 'ward', dw.ward_name,
+              'similarity', e.duplicate_similarity::float, 'reason', e.duplicate_reason) END AS "lookAlike"
        FROM field_staff s LEFT JOIN face_enrolments e ON e.staff_id = s.id AND e.active
+       LEFT JOIN field_staff d ON d.id = e.duplicate_of_staff_id LEFT JOIN attendance_wards dw ON dw.id = d.ward_id
       WHERE s.ward_id = $1 AND s.active ORDER BY s.name`,
     [wardId],
   );

@@ -38,9 +38,16 @@ export const postFacePunch = asyncHandler(async (req: Request, res: Response) =>
 });
 
 export const postFaceEnrol = asyncHandler(async (req: Request, res: Response) => {
-  const b = photosSchema.extend({ consent: z.boolean() }).safeParse(req.body);
-  if (!b.success) throw ApiError.badRequest("Both photos and the consent tick are required.");
-  res.status(201).json(await enrolFace(req.attendanceUser!, b.data.challengeId, b.data.frontImage, b.data.turnImage, b.data.consent));
+  const b = photosSchema
+    .extend({
+      consent: z.boolean(),
+      differentFrom: z.object({ staffId: z.coerce.number().int().positive(), reason: z.string().trim().min(10).max(300) }).optional(),
+    })
+    .safeParse(req.body);
+  if (!b.success) throw ApiError.badRequest("Both photos and the consent tick are required (and a reason of at least 10 characters, if confirming a different person).");
+  res
+    .status(201)
+    .json(await enrolFace(req.attendanceUser!, b.data.challengeId, b.data.frontImage, b.data.turnImage, b.data.consent, b.data.differentFrom));
 });
 
 export const deleteFaceEnrolment = asyncHandler(async (req: Request, res: Response) => {

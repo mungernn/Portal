@@ -11,8 +11,20 @@ function headers(): HeadersInit {
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, { method, headers: headers(), body: body === undefined ? undefined : JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed.");
+  if (!res.ok) throw Object.assign(new Error(data.error || "Request failed."), { details: data.details as unknown });
   return data as T;
+}
+
+/** Enrolment refused because the face looks like a worker already enrolled (see FaceCaptureDialog). */
+export interface FaceLookAlike {
+  code: "possible_duplicate";
+  other: { staffId: number; name: string; ward: string | null };
+  similarity: number;
+}
+
+export function lookAlikeOf(err: unknown): FaceLookAlike | null {
+  const d = (err as { details?: { code?: string } } | null)?.details;
+  return d?.code === "possible_duplicate" ? (d as FaceLookAlike) : null;
 }
 
 export type FacePurpose = "in" | "out" | "enrol";
@@ -39,8 +51,20 @@ export const createFaceChallenge = (staffId: number, purpose: FacePurpose) => ca
 export const submitFacePunch = (challengeId: string, frontImage: string, turnImage: string) =>
   call<FacePunchResult>("POST", "/attendance/face/punch", { challengeId, frontImage, turnImage });
 
-export const submitFaceEnrol = (challengeId: string, frontImage: string, turnImage: string, consent: boolean) =>
-  call<{ enrolled: true; name: string; reEnrolled: boolean }>("POST", "/attendance/face/enrol", { challengeId, frontImage, turnImage, consent });
+export const submitFaceEnrol = (
+  challengeId: string,
+  frontImage: string,
+  turnImage: string,
+  consent: boolean,
+  differentFrom?: { staffId: number; reason: string },
+) =>
+  call<{ enrolled: true; name: string; reEnrolled: boolean; flagged: boolean }>("POST", "/attendance/face/enrol", {
+    challengeId,
+    frontImage,
+    turnImage,
+    consent,
+    differentFrom,
+  });
 
 export interface FaceEnrolmentStatus {
   staffId: number;
@@ -48,6 +72,8 @@ export interface FaceEnrolmentStatus {
   nameHi: string | null;
   enrolledAt: string | null;
   enrolledBy: string | null;
+  /** Enrolled although the face looks like this worker - the officer confirmed they are different people. */
+  lookAlike: { staffId: number; name: string; ward: string | null; similarity: number; reason: string } | null;
 }
 
 export const fetchWardFaceEnrolments = (wardId: number) =>

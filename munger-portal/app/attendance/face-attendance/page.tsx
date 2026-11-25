@@ -55,6 +55,7 @@ const STRINGS = {
     faceBadge: "Face",
     notEnrolled: "Not enrolled",
     enrolledOn: "Enrolled",
+    lookAlike: "Looks like enrolled worker",
     enrol: "Enrol face",
     reEnrol: "Re-enrol",
     remove: "Remove",
@@ -98,6 +99,7 @@ const STRINGS = {
     faceBadge: "चेहरा",
     notEnrolled: "पंजीकृत नहीं",
     enrolledOn: "पंजीकृत",
+    lookAlike: "पंजीकृत कर्मचारी जैसा चेहरा:",
     enrol: "चेहरा पंजीकृत करें",
     reEnrol: "पुनः पंजीकरण",
     remove: "हटाएँ",
@@ -407,6 +409,12 @@ function EnrolTab({ wardId, s, nameOf }: { wardId: number; s: S; nameOf: NameOf 
                   s.notEnrolled
                 )}
               </div>
+              {r.lookAlike && (
+                <div className="mt-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+                  ! {s.lookAlike} {r.lookAlike.name}
+                  {r.lookAlike.ward ? ` (${r.lookAlike.ward})` : ""} - {Math.round(r.lookAlike.similarity * 100)}%. {s.reason}: {r.lookAlike.reason}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => setEnrolFor(r)} className="inline-flex items-center gap-1.5 rounded-md bg-nnm-blue px-3 py-1.5 text-xs font-semibold text-white">
