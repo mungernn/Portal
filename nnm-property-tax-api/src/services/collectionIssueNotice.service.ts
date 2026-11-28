@@ -41,12 +41,27 @@ const FALLBACK_PHRASES: Record<NoticeLanguage, { demandNotGenerated: string; noR
   hi: { demandNotGenerated: "अभी जारी नहीं की गई", noRemarks: "कोई अतिरिक्त टिप्पणी दर्ज नहीं है।" },
 };
 
+const RELATION_WORDS: Record<NoticeLanguage, Record<string, string>> = {
+  en: { "S/O": "S/O", "D/O": "D/O", "W/O": "W/O", "C/O": "C/O" },
+  hi: { "S/O": "पुत्र", "D/O": "पुत्री", "W/O": "पत्नी", "C/O": "द्वारा" },
+};
+
+/** "Ram Lal, S/O Shyam Lal" / "राम लाल, पुत्र श्याम लाल" - the owner with the father's / husband's name, when recorded. */
+export function ownerWithRelative(p: Pick<PropertyRow, "owner_name" | "relation_type" | "relation_name">, language: NoticeLanguage): string {
+  const rel = p.relation_name?.trim();
+  if (!rel) return p.owner_name;
+  const word = RELATION_WORDS[language][(p.relation_type ?? "").toUpperCase()] ?? (language === "hi" ? "पिता/पति" : "S/O, W/O");
+  return `${p.owner_name}, ${word} ${rel}`;
+}
+
 /** Substitutes {placeholder} tokens in a template body with the actual case details. */
 function fillTemplate(
   template: string,
-  values: { ownerName: string; holdingNo: string; address: string; ward: string; demandNo: string; totalAmountDemanded: string; issueNotes: string; reportedDate: string; complianceDays: number },
+  values: { ownerName: string; ownerFull: string; holdingNo: string; address: string; ward: string; demandNo: string; totalAmountDemanded: string; issueNotes: string; reportedDate: string; complianceDays: number },
 ): string {
   return template
+    // The first mention carries the relative (S/O, W/O ... father / husband), the later ones the name alone.
+    .replace(/\{ownerName\}/, values.ownerFull)
     .replace(/\{ownerName\}/g, values.ownerName)
     .replace(/\{holdingNo\}/g, values.holdingNo)
     .replace(/\{address\}/g, values.address)
@@ -88,6 +103,7 @@ function composeNoticeText(
   const fallback = FALLBACK_PHRASES[language];
   const bodyText = fillTemplate(text.body, {
     ownerName: property.owner_name,
+    ownerFull: ownerWithRelative(property, language),
     holdingNo: property.holding_no,
     address: property.address,
     ward: property.ward ?? "-",

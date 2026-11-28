@@ -20,8 +20,9 @@ const CHROME_LABELS = {
     demandNoticeNo: "Demand Notice No",
     notYetGenerated: "Not yet generated",
     legalBasis: "Legal Basis:",
-    cityManager: "City Manager",
-    taxDaroga: "Tax Daroga",
+    cityManager: "City Manager (Nagar Prabandhak)",
+    owner: "Owner",
+    relative: { "S/O": "Father's Name (S/O)", "D/O": "Father's Name (D/O)", "W/O": "Husband's Name (W/O)", "C/O": "Care of (C/O)", "": "Father / Husband" },
     demandNoticeAttached: "PROPERTY TAX - DEMAND NOTICE (ATTACHED)",
     particulars: "Particulars",
     amount: "Amount (₹)",
@@ -42,8 +43,9 @@ const CHROME_LABELS = {
     demandNoticeNo: "मांग सूचना क्रमांक",
     notYetGenerated: "अभी जारी नहीं की गई",
     legalBasis: "विधिक आधार:",
-    cityManager: "नगर आयुक्त (सिटी मैनेजर)",
-    taxDaroga: "कर दारोगा",
+    cityManager: "नगर प्रबंधक (सिटी मैनेजर)",
+    owner: "स्वामी",
+    relative: { "S/O": "पिता का नाम", "D/O": "पिता का नाम", "W/O": "पति का नाम", "C/O": "द्वारा", "": "पिता / पति का नाम" },
     demandNoticeAttached: "संपत्ति कर - मांग सूचना (संलग्न)",
     particulars: "विवरण",
     amount: "राशि (₹)",
@@ -62,6 +64,9 @@ export function CollectionIssueNoticeView({ notice, onClose }: { notice: Generat
   const printRef = useRef<HTMLDivElement>(null);
   const dn = notice.demandNotice;
   const t = CHROME_LABELS[notice.language];
+  const relName = String(notice.property.relation_name ?? "").trim();
+  const relType = String(notice.property.relation_type ?? "").toUpperCase();
+  const relLabel = t.relative[(relType in t.relative ? relType : "") as keyof typeof t.relative];
 
   return (
     <div>
@@ -110,6 +115,12 @@ export function CollectionIssueNoticeView({ notice, onClose }: { notice: Generat
             <b className="inline-block w-[140px]">{t.holdingNo}</b> {notice.issue.holding_no}
           </div>
           <div>
+            <b className="inline-block w-[140px]">{t.owner}</b> {String(notice.property.owner_name ?? "-")}
+          </div>
+          <div>
+            <b className="inline-block w-[140px]">{relLabel}</b> {relName || "-"}
+          </div>
+          <div>
             <b className="inline-block w-[140px]">{t.demandNoticeNo}</b> {notice.record.demand_no ?? t.notYetGenerated}
           </div>
         </div>
@@ -124,7 +135,8 @@ export function CollectionIssueNoticeView({ notice, onClose }: { notice: Generat
           <div className="text-center text-[11px]">
             <div className="mb-8">&nbsp;</div>
             <div className="border-t border-slate-400 pt-1">
-              {notice.signatory === "tax_daroga" ? t.taxDaroga : t.cityManager}
+              {/* Always issued in the name of the City Manager - also when printed from the Tax Daroga's login. */}
+              {t.cityManager}
               <br />
               {t.corporationName}
             </div>
